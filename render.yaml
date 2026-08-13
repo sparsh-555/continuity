@@ -29,6 +29,10 @@ services:
     # open for the length of the run, and a second worker would not share `STREAMS`.
     startCommand: uvicorn continuity.api.app:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
+      # Pinned, and fully qualified as Render requires. Their default for new services is
+      # 3.14.3, which nothing here has been run against — and the dependencies that would
+      # break on it are the compiled ones, psycopg and argon2-cffi, which is a build-log
+      # failure rather than anything visible in the app.
       - key: PYTHON_VERSION
         value: "3.13.5"
       # Neon connection string. Set in the dashboard, not here.
@@ -51,7 +55,8 @@ services:
     name: continuity-ui
     runtime: static
     buildCommand: cd frontend && npm ci && npm run build
-    staticPublishPath: frontend/dist
+    # Relative to the repo root, which is where the blueprint runs from.
+    staticPublishPath: ./frontend/dist
     envVars:
       # The API's URL, injected at build time — Vite inlines it, so changing this needs a
       # rebuild rather than a restart.
