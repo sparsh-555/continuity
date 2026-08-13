@@ -164,8 +164,9 @@ cd backend && ../.venv/bin/python -c "from continuity import llm; print(llm.avai
 
 A live run takes 50–130 seconds against real distributor search. That spread is normal.
 
-See **[RUN.md](RUN.md)** for the full guide — validating a BOM you already have, attaching
-a datasheet, re-recording the walkthrough, and a table of what each failure symptom means.
+Two things the brief box also accepts, rather than a separate screen for each: a `.csv` or
+`.txt` of one MPN per line validates a bill of materials you already have, and a datasheet
+PDF attached to a BOM row supplies a θJA no catalogue publishes.
 
 ## Tests
 
@@ -193,8 +194,6 @@ backend/continuity/
 frontend/src/app/
   design/      the component graph, trace, BOM, conflict drawer
   routes/      landing, auth, projects, workspace, memory
-docs/
-  DEFERRED.md  the running register of what is known to be incomplete
 ```
 
 The commit history is layered bottom-up — `engine` first, because it depends on nothing,
@@ -208,10 +207,9 @@ Built for the **AI Tinkerers × Tencent Cloud hackathon** (Business Agent track,
 Working end to end: planning, sourcing, all nine rules, repair, memory, accounts,
 persistence, BOM validation, datasheet ingestion.
 
-Known gaps are tracked in **[docs/DEFERRED.md](docs/DEFERRED.md)** rather than left to be
-discovered. An item leaves that register when the behaviour is verified in a browser — not
-when the code is written. Currently open: no frontend test suite, no deployment, and a
-handful of noted-and-accepted limitations.
+Known gaps are kept in a running register rather than left to be discovered, and an item
+leaves it when the behaviour is verified in a browser — not when the code is written.
+Currently open: no frontend test suite, and no deployment.
 
 ## License
 

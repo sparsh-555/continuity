@@ -8,3 +8,11 @@ dist/
 .DS_Store
 fixtures/*.live.json
 .coverage
+
+# Working notes and development history — kept locally, not published
+RUN.md
+docs/DEFERRED.md
+docs/BUILD_STEPS.md
+docs/STATUS.md
+design/
+fixtures/
