@@ -13,7 +13,7 @@
 
 
 <p align="center">
-  <img alt="699 tests passing" src="https://img.shields.io/badge/tests-699%20passing-4ade80?style=flat-square&labelColor=1c2620">
+  <img alt="715 tests passing" src="https://img.shields.io/badge/tests-715%20passing-4ade80?style=flat-square&labelColor=1c2620">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-f2a25c?style=flat-square&labelColor=1c2620">
   <img alt="React 19" src="https://img.shields.io/badge/react-19-f2a25c?style=flat-square&labelColor=1c2620">
   <img alt="LangGraph" src="https://img.shields.io/badge/langgraph-1.0-f2a25c?style=flat-square&labelColor=1c2620">
@@ -104,7 +104,7 @@ pass its budget with confidence, which is the one failure this project exists to
 
 ## What it checks
 
-Nine rules, all pure Python, no network and no model:
+Ten rules, all pure Python, no network and no model:
 
 | Rule | Catches |
 |---|---|
@@ -116,6 +116,7 @@ Nine rules, all pure Python, no network and no model:
 | `availability` | stock below the run size, and lifecycle risk |
 | `temperature_rating` | a commercial part in an outdoor brief |
 | `footprint` | package incompatible with the assembly process |
+| `energy_budget` | a stated runtime the supply cannot hold — *"must last a year"* against capacity and continuous draw |
 | `rail_coverage` | a part sitting on no rail at all — declared unchecked rather than passed |
 
 ## See it
@@ -158,7 +159,7 @@ backend/continuity/
   planner/     brief → slots and power rails
   graph/       the LangGraph run: source → validate → repair → re-validate
   api/         SSE stream, accounts, projects, memory
-  tests/       619 offline, 699 with a database
+  tests/       635 offline, 715 with a database
 frontend/src/app/
   design/      the component graph, trace, BOM, conflict drawer
   routes/      landing, auth, projects, workspace, memory
