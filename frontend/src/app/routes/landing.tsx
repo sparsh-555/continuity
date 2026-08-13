@@ -88,6 +88,32 @@ function finishedReplayState() {
   return replayFrames.reduce(applyReplayFrame, initialReplayState)
 }
 
+/** Time between beats. The two constants here and `DWELL_AFTER` are the whole pacing:
+ *  at the flat 420 ms this replaced, all twenty frames were gone in eight seconds. */
+const BEAT_MS = 800
+
+/** Extra time held *after* a frame, before the next one starts.
+ *
+ *  The beats are not equally interesting. A part landing on the graph reads at a glance;
+ *  a conflict and its repair both rewrite the caption underneath with a sentence of real
+ *  reasoning, and at one flat interval those sentences were replaced before they could be
+ *  read. The plan gets a moment too, because the whole board appears at once there. */
+const DWELL_AFTER: Partial<Record<DesignEvent['type'], number>> = {
+  plan: 600,
+  conflict: 1500,
+  repair: 1500,
+}
+
+/** Cumulative start time per frame, so a dwell pushes everything after it along. */
+const FRAME_START = replayFrames.reduce<number[]>((starts, _frame, index) => {
+  if (index === 0) return [0]
+  const previous = replayFrames[index - 1]
+  starts.push(starts[index - 1] + BEAT_MS + (DWELL_AFTER[previous.type] ?? 0))
+  return starts
+}, [])
+
+const REPLAY_RESTART_MS = 4_000
+
 function useHeroReplay() {
   const [state, setState] = useState<ReplayState>(initialReplayState)
   const [finished, setFinished] = useState(false)
@@ -116,9 +142,11 @@ function useHeroReplay() {
           if (index === replayFrames.length - 1) {
             setFinished(true)
             nextFrame = 0
-            timers.current.push(window.setTimeout(() => start(), 3_000))
+            timers.current.push(window.setTimeout(() => start(), REPLAY_RESTART_MS))
           }
-        }, offset * 420))
+          // Relative to where this run picked up, so resuming after a hidden tab does not
+          // fire every remaining frame at once.
+        }, FRAME_START[index] - FRAME_START[from]))
       })
     }
     const onVisibilityChange = () => {
@@ -255,7 +283,10 @@ export default function LandingRoute() {
             </div>
             <div className="min-w-0">
               <div className="bg-surface-container p-sm">
-                <div className="flex h-[390px] flex-col overflow-hidden sm:h-[430px]"><ComponentGraph activeRepair={null} animateEdges={!replay.finished} animatedSlotIds={replay.state.animatedSlotIds} conflict={replay.state.conflict} edges={replay.state.edges} onReleaseRepairHold={() => undefined} revealedSlotIds={replay.state.revealedSlotIds} showControls={false} slotConflictVariant={{}} slots={replay.state.slots} supply={replay.state.supply} /></div>
+                {/* Sized near the graph's own 900×820 aspect. The svg fits with `meet`
+                    now rather than stretching, so a box much wider than it is tall would
+                    letterbox the board into a narrow strip down the middle. */}
+                <div className="flex h-[420px] flex-col overflow-hidden sm:h-[500px] lg:h-[560px]"><ComponentGraph activeRepair={null} animateEdges={!replay.finished} animatedSlotIds={replay.state.animatedSlotIds} conflict={replay.state.conflict} edges={replay.state.edges} onReleaseRepairHold={() => undefined} revealedSlotIds={replay.state.revealedSlotIds} showControls={false} slotConflictVariant={{}} slots={replay.state.slots} supply={replay.state.supply} /></div>
                 <p className="mt-sm min-h-10 font-data-tabular text-[10px] leading-4 text-on-surface-variant">{replay.state.lastVerdict ?? 'Assembling the recorded board run.'}</p>
               </div>
             </div>

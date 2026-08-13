@@ -190,7 +190,17 @@ export function ComponentGraph({
           </div>
         </div>
 
-        <svg className="w-full h-full absolute inset-0" preserveAspectRatio="none" viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}>
+        {/* `meet`, never `none`. `none` stretches the 900×820 layout to whatever box it
+            is given, so the landing hero — 642×388 — scaled x by 0.71 and y by 0.47 and
+            drew the whole board at two thirds of its proper height: flattened nodes,
+            squashed text, edges leaving at the wrong angles. Fitting without distortion
+            costs a little letterboxing when the container's aspect differs, which is the
+            right trade for a graph whose geometry is the product. */}
+        <svg
+          className="w-full h-full absolute inset-0"
+          preserveAspectRatio="xMidYMid meet"
+          viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+        >
           {TIER_ORDER.slice(1).map((_, index) => {
             const x = left + (index + 1) * columnWidth
             return (
