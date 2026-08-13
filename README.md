@@ -7,9 +7,9 @@
   <strong>Describe a circuit board in plain language. Get a bill of materials that has been checked against real parts — and repaired where it failed.</strong>
 </p>
 
-<!-- Live app — uncomment and drop the deployed URL in:
-<p align="center"><a href="https://REPLACE-ME"><strong>Open the live app&nbsp;→</strong></a></p>
--->
+<p align="center">
+  <a href="https://continuity-ui.onrender.com"><strong>Open the live app&nbsp;→</strong></a>
+</p>
 
 
 <p align="center">
