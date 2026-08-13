@@ -12,7 +12,7 @@ stale verdict left standing as truth. Those were all found by running a board no
 run before and reading every line, which does not scale and does not repeat.
 
 This drives the same HTTP route the browser drives, against live search and a live model,
-and applies the checks from RUN.md's "would be a bug" list to every run.
+and applies the same "would be a bug" checks to every run.
 
 ## What it can and cannot decide
 

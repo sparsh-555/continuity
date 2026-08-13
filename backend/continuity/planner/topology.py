@@ -373,9 +373,8 @@ def unmodelled(slots: Mapping[str, Slot], rails: Mapping[str, Rail]) -> list[Edg
 
     This is honest, not right. The fix is upstream: the planner declaring the rails those
     parts are actually on, at which point they stop being unmodelled and every rule picks
-    them up with no change here. See `docs/DEFERRED.md`, "The planner declares no rail for
-    a source that is not the board input" — including why it needs a supply vocabulary
-    entry and a battery that can be a source and a load.
+    them up with no change here. That needs a supply vocabulary entry for the source and a
+    battery that can be both a source and a load.
     """
     return [
         Edge(

@@ -1127,8 +1127,8 @@ def rail_coverage(board: Board) -> list[Verdict]:
 
     That silence is the fault this rule fixes. It cannot fix the coverage — checking a solar
     charge controller needs the panel's voltage, which needs a second externally-sourced rail
-    that the model does not have (see `docs/DEFERRED.md`). What it can do is refuse to let an
-    unchecked part look like a checked one.
+    that the model does not have. What it can do is refuse to let an unchecked part look
+    like a checked one.
 
     **Always a warning, never a failure.** Nothing is wrong with the board; something is
     missing from what we know about it. A `fail` here would start a repair loop against a

@@ -1,8 +1,16 @@
-<h1 align="center">Continuity</h1>
+<h1 align="center">
+  <img src="docs/media/icon.png" alt="" width="42" valign="middle">
+  &nbsp;Continuity
+</h1>
 
 <p align="center">
   <strong>Describe a circuit board in plain language. Get a bill of materials that has been checked against real parts — and repaired where it failed.</strong>
 </p>
+
+<!-- Live app — uncomment and drop the deployed URL in:
+<p align="center"><a href="https://REPLACE-ME"><strong>Open the live app&nbsp;→</strong></a></p>
+-->
+
 
 <p align="center">
   <img alt="699 tests passing" src="https://img.shields.io/badge/tests-699%20passing-4ade80?style=flat-square&labelColor=1c2620">
@@ -131,55 +139,15 @@ Nine rules, all pure Python, no network and no model:
 </tr>
 </table>
 
-## Quick start
+## Beyond designing from a brief
 
-Needs Python 3.11+, Node, and Postgres.
+The same brief box takes a `.csv` or `.txt` of one MPN per line and validates a bill of
+materials you already have, judged against whatever the brief states — *"industrial
+controller, first production run of 5000 units"* becomes a temperature range and a stock
+floor, so an industrial BOM is graded as one. A datasheet PDF attached to a row supplies a
+θJA no catalogue publishes, and is accepted only with the line it was read from.
 
-```bash
-# 1. Database and dependencies
-createdb continuity
-python3 -m venv .venv && .venv/bin/pip install -e "backend[dev]"
-cd frontend && npm install && cd ..
-
-# 2. API — expect "persistence: postgres" in the startup lines
-cd backend
-DATABASE_URL=postgresql:///continuity \
-  ../.venv/bin/python -m uvicorn continuity.api.app:app --port 8000 --reload
-
-# 3. UI, in a second terminal. --strictPort matters:
-#    if Vite silently takes 5174, the browser blocks every call on CORS
-cd frontend && npm run dev -- --strictPort --port 5173
-```
-
-Open `http://localhost:5173`, sign up, and a recorded run plays once to show you the shape
-of the thing. Then type a brief of your own.
-
-`backend/.env` holds `CONTINUITY_LLM_API_KEY`. **Without it the app still runs** — keyword
-planning, deterministic repairs, most checks reporting `unchecked`. It does not crash, which
-is exactly why it is worth confirming the key loaded rather than assuming:
-
-```bash
-cd backend && ../.venv/bin/python -c "from continuity import llm; print(llm.available())"
-```
-
-A live run takes 50–130 seconds against real distributor search. That spread is normal.
-
-Two things the brief box also accepts, rather than a separate screen for each: a `.csv` or
-`.txt` of one MPN per line validates a bill of materials you already have, and a datasheet
-PDF attached to a BOM row supplies a θJA no catalogue publishes.
-
-## Tests
-
-```bash
-cd backend && ../.venv/bin/python -m pytest          # 619, offline, ~8s
-createdb continuity_test
-cd backend && CONTINUITY_TEST_DB=postgresql:///continuity_test \
-  ../.venv/bin/python -m pytest                      # 699, adds auth, persistence, ownership
-```
-
-The default suite is **offline on purpose**. Recorded distributor responses are committed,
-which is what makes a test that measures every rule possible at all. Anything needing
-infrastructure skips unless its variable is set.
+A live run takes 50–130 seconds against real distributor search.
 
 ## Layout
 
@@ -199,17 +167,18 @@ frontend/src/app/
 The commit history is layered bottom-up — `engine` first, because it depends on nothing,
 then each layer on the one below it.
 
-## Status
+## Thanks
 
-Built for the **AI Tinkerers × Tencent Cloud hackathon** (Business Agent track, Singapore
-2026).
+Built for the **AI Tinkerers × Tencent Cloud hackathon**, Business Agent track, Singapore
+2026.
 
-Working end to end: planning, sourcing, all nine rules, repair, memory, accounts,
-persistence, BOM validation, datasheet ingestion.
+Thank you to the **Tencent Cloud team** for the opportunity and the platform, and to
+**Eugene** and **Yong Quan** on the organising side, who made the event happen and kept it
+running.
 
-Known gaps are kept in a running register rather than left to be discovered, and an item
-leaves it when the behaviour is verified in a browser — not when the code is written.
-Currently open: no frontend test suite, and no deployment.
+Thank you also to the people who build **Code Buddy**. A project this size — nine engine
+rules, a live sourcing pipeline and a streamed interface — came together in the time
+available because that tooling carried a real share of the work.
 
 ## License
 
