@@ -13,7 +13,7 @@
 
 
 <p align="center">
-  <img alt="715 tests passing" src="https://img.shields.io/badge/tests-715%20passing-4ade80?style=flat-square&labelColor=1c2620">
+  <img alt="717 tests passing" src="https://img.shields.io/badge/tests-717%20passing-4ade80?style=flat-square&labelColor=1c2620">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-f2a25c?style=flat-square&labelColor=1c2620">
   <img alt="React 19" src="https://img.shields.io/badge/react-19-f2a25c?style=flat-square&labelColor=1c2620">
   <img alt="LangGraph" src="https://img.shields.io/badge/langgraph-1.0-f2a25c?style=flat-square&labelColor=1c2620">
@@ -135,7 +135,7 @@ Ten rules, all pure Python, no network and no model:
 <td><img src="docs/media/landing.png" alt="The Continuity landing page"></td>
 </tr>
 <tr>
-<td><b>Findings outlive the board.</b> Parts and boards form a bipartite graph; each part carries the verdicts it collected and how they ended. <b>Nothing here feeds a decision</b> — the same part legitimately passes on one board and fails on another.</td>
+<td><b>Findings outlive the board.</b> Parts and boards form a bipartite graph; each part carries the verdicts it collected and how they ended. <b>No past verdict is ever evidence about a present board</b> — the same part legitimately passes on one and fails on another. What memory may offer the reviewer is which <i>repair</i> resolved the same structural situation before; never a part, never a compatibility claim, and always through the same policy gate and the same re-check.</td>
 <td><b>Every claim on screen is checkable.</b> Verbatim verdicts, openable sources, and unresolved things labelled as unresolved.</td>
 </tr>
 </table>
