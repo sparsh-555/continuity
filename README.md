@@ -34,18 +34,20 @@ was chosen is re-examined when the part next to it changes.
 
 ```mermaid
 flowchart TD
-    BRIEF["Brief<br/>temp sensor, USB-C, OLED,<br/>first run of 5,000"]
-    PLAN["Planner<br/>slots and power rails"]
-    SRC["Sourcing<br/>search, shortlist, normalise"]
-    ENG{"Engine<br/>re-checks the whole board"}
-    REV["Reviewer<br/>picks a repair"]
-    BOM["Bill of materials<br/>real MPNs, live prices"]
+    BRIEF["Brief, in plain language"]
+    PLAN["Planner"]
+    SRC["Sourcing"]
+    ENG{"Engine"}
+    REV["Reviewer"]
+    BOM["Bill of materials"]
 
-    BRIEF --> PLAN --> SRC --> ENG
+    BRIEF --> PLAN
+    PLAN -->|slots and power rails| SRC
+    SRC -->|a real part, with its provenance| ENG
     ENG -->|slots remaining| SRC
     ENG -->|conflict| REV
-    REV -->|a move from a vocabulary<br/>the engine owns| ENG
-    ENG -->|every slot resolved,<br/>every check passing| BOM
+    REV -->|a move the engine defines| ENG
+    ENG -->|every check passing| BOM
 
     classDef engine fill:#4ade80,stroke:#14301c,color:#12200f
     classDef model fill:#f2a25c,stroke:#3d2410,color:#2a1a0c
