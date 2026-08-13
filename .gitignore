@@ -9,12 +9,18 @@ dist/
 fixtures/*.live.json
 .coverage
 
-# Working notes and development history — kept locally, not published
-RUN.md
-docs/DEFERRED.md
-docs/BUILD_STEPS.md
-docs/STATUS.md
-design/
-fixtures/
-BUILD_LOG.md
-docs/specs/
+# Working notes and development history — kept locally, not published.
+#
+# Every one of these is anchored with a leading slash. Unanchored, `design/` also
+# matches `frontend/src/app/design/` and `fixtures/` also matches
+# `backend/fixtures/` — so a new component or a newly recorded distributor response
+# would be silently ignored, invisible to `git status`, and simply absent from the
+# next clone. Both were, until this was measured.
+/RUN.md
+/BUILD_LOG.md
+/design/
+/fixtures/
+/docs/DEFERRED.md
+/docs/BUILD_STEPS.md
+/docs/STATUS.md
+/docs/specs/
