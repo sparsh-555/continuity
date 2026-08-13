@@ -75,7 +75,24 @@ async def lifespan(app: FastAPI):
     from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
     from psycopg_pool import AsyncConnectionPool
 
-    pool = AsyncConnectionPool(url, min_size=1, max_size=10, open=False, kwargs={"autocommit": True})
+    # `check` matters against a database that suspends. A serverless Postgres — Neon's
+    # free tier, for one — closes every session after a few minutes of inactivity, and it
+    # cannot be told not to. The pool keeps its connections open across that, so without a
+    # check the first request after any quiet spell is handed a socket the server has
+    # already closed and fails, once, for no reason the user can see. `check_connection`
+    # tests a connection on the way out of the pool and quietly replaces a dead one.
+    #
+    # Use the *direct* connection string rather than the `-pooler` one: this pool is
+    # already a client-side pool, and both `checkpointer.setup()` and `store.setup()` run
+    # DDL at startup, which transaction-mode poolers are not the place for.
+    pool = AsyncConnectionPool(
+        url,
+        min_size=1,
+        max_size=10,
+        open=False,
+        kwargs={"autocommit": True},
+        check=AsyncConnectionPool.check_connection,
+    )
     await pool.open()
 
     checkpointer = AsyncPostgresSaver(pool)
