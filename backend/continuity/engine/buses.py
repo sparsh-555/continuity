@@ -36,9 +36,28 @@ def canonical_bus(bus: str) -> str:
 # peripheral bus → master buses that can safely host it
 _MASTER_COMPATIBILITY: dict[str, frozenset[str]] = {
     "SMBUS": frozenset({"I2C"}),
+    # A transceiver has two sides, and the distributor names the wrong one for this
+    # check. `SP3485EN-L/TR` advertises `RS-485` and `RS-422` — its *line* side, the pair
+    # of wires leaving the board. What it needs from the controller is a plain UART.
+    #
+    # No microcontroller has ever exposed "RS-485" as a peripheral, so equality alone made
+    # every RS-485 board fail a check no replacement could clear: swap the transceiver and
+    # the new one advertises RS-485 too. Measured 13 Aug, where the reviewer diagnosed it
+    # correctly and escalated because there was nothing on either slot left to try.
+    #
+    # CAN escaped only by luck of naming — a CAN controller really is called CAN, so the
+    # line-side and host-side names happen to match. These four have no such coincidence.
+    "RS-485": frozenset({"UART"}),
+    "RS-422": frozenset({"UART"}),
+    "RS-232": frozenset({"UART"}),
+    "LIN": frozenset({"UART"}),
 }
 """Directed, not symmetric: SMBus devices work on I²C masters, but I²C devices are
-not reliably safe on SMBus-only masters. Equality is handled separately below."""
+not reliably safe on SMBus-only masters. Equality is handled separately below.
+
+The direction matters for the transceivers too. An RS-485 part is satisfied by a UART
+controller; a UART peripheral is *not* satisfied by an RS-485 line, which is a pair of
+differential wires and not a controller at all."""
 
 
 def master_satisfies_bus(peripheral_bus: str, master_bus: str) -> bool:

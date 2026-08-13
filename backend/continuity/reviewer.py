@@ -54,6 +54,7 @@ CONSTRAINT_FIELDS: dict[str, type] = {
     "i_out_min": float,
     "vin_min": float,
     "rated_to": float,
+    "rated_from": float,
     "package": str,
     "efficiency_min": float,
     "rail": str,
@@ -96,6 +97,11 @@ constraint may only contain these keys:
                   the part is not rated for the board's operating range — a 70 °C part on
                   a board that must reach 85 °C is `rated_to: 85`. Applied to the whole
                   candidate list, so it finds parts a search cannot ask for.
+  rated_from      the cold end the part must reach, in °C, and normally negative. Use it
+                  when the fault is the *low* end — a part rated to −25 °C on a board that
+                  must survive −40 °C is `rated_from: -40`. Without it an outdoor brief
+                  re-searches and gets the same part back, because nothing in the query
+                  excludes it.
   package         a package name, when thermal dissipation demands a bigger one
   efficiency_min  0-1 fraction
   rail            an id from `board_rails`, only for `change_rail`; copy the id exactly.

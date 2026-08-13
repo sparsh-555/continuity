@@ -212,6 +212,12 @@ CATEGORIES: dict[str, Category] = {
         ),
     ),
     "motor_driver": _category(
+        # `defining_shelves` since 13 Aug. JLCPCB files `TC7S08FU(TE85L,F)` — a Toshiba
+        # 2-input AND gate in a 5-pin SOT-353 — under `Motor Driver ICs` with an empty
+        # `specs` and the description "SOT-353 Motor Driver ICs ROHS". Accepted category,
+        # plausible shelf, and nothing in the payload to contradict it, so a stepper board
+        # placed four of them and passed every check. A driver lives on one of the four
+        # shelves below or it is not a driver; the parent shelf is where the mislabelled go.
         "brushed, brushless, stepper and gate drivers",
         "Motor Driver ICs",
         "Power Management (PMIC)",
@@ -221,6 +227,7 @@ CATEGORIES: dict[str, Category] = {
             "Stepper Motor Driver",
             "Gate Drivers",
         ),
+        defining_shelves=True,
     ),
     "converter": _category(
         "ADCs, DACs, analog front ends", "Data Acquisition",

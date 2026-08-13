@@ -232,3 +232,44 @@ def test_a_malformed_classifier_reply_rejects_nothing(monkeypatch):
             purpose="PoE Controller", query="PoE PD controller", candidates=_shortlist()
         )
     ) == set()
+
+
+# ── a driver lives on a driver shelf, or it is not a driver ───────────────────
+
+
+def test_a_logic_gate_on_the_parent_motor_shelf_is_dropped_for_a_real_driver():
+    """The stepper board that placed four AND gates and passed every check.
+
+    JLCPCB files `TC7S08FU(TE85L,F)` — a Toshiba 2-input AND gate in a 5-pin SOT-353 —
+    under `Motor Driver ICs` with empty `specs` and the description "SOT-353 Motor Driver
+    ICs ROHS". Accepted category, plausible shelf, nothing in the payload to argue with.
+    The four real shelves are the category's definition; the parent is where the
+    mislabelled collect.
+    """
+    from continuity.graph.sourcing import _on_defining_shelf
+
+    gate = _candidate("TC7S08FU(TE85L,F)", "Motor Driver ICs")
+    driver = _candidate("TMC2209", "Stepper Motor Driver")
+
+    kept = _on_defining_shelf([gate, driver], {"category": "motor_driver"})
+
+    assert [c.mpn for c in kept] == ["TMC2209"]
+
+
+def test_a_thin_driver_shortlist_is_still_kept_rather_than_emptied():
+    """A vocabulary wrong about where a part lives must cost ordering, not the slot."""
+    from continuity.graph.sourcing import _on_defining_shelf
+
+    gate = _candidate("TC7S08FU(TE85L,F)", "Motor Driver ICs")
+
+    assert _on_defining_shelf([gate], {"category": "motor_driver"}) == [gate]
+
+
+def test_nothing_on_a_driver_shelf_triggers_the_rescue():
+    from continuity.graph.sourcing import _misses_defining_shelf
+
+    gate = _candidate("TC7S08FU(TE85L,F)", "Motor Driver ICs")
+    driver = _candidate("TMC2209", "Stepper Motor Driver")
+
+    assert _misses_defining_shelf([gate], {"category": "motor_driver"}) is True
+    assert _misses_defining_shelf([gate, driver], {"category": "motor_driver"}) is False

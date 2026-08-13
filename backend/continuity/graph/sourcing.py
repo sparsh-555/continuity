@@ -91,7 +91,7 @@ rather than a Topology value, and `switching` is a family, not a parameter value
 """
 
 
-LOCAL_ONLY = ("vin_min", "vout", "rated_to", "category")
+LOCAL_ONLY = ("vin_min", "vout", "rated_to", "rated_from", "category")
 """Constraints the distributor's filters cannot express, applied by `viable()` instead.
 
 `vin_min`, `vout`, and `rated_to` compare against the *ends of a range* held in one
@@ -347,6 +347,7 @@ def _survives(candidate: Candidate, constraint: Mapping[str, Any]) -> bool:
         (constraint.get("vin_min"), payload.accepts_input),
         (constraint.get("vout"), payload.can_output),
         (constraint.get("rated_to"), payload.rated_to),
+        (constraint.get("rated_from"), payload.rated_from),
     )
     return all(
         check(candidate.specs, float(value)) is not False

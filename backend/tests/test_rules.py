@@ -1392,3 +1392,134 @@ def test_a_fully_stated_board_still_reflects_a_real_number_upstream():
 
     assert budget.status == "pass"
     assert budget.detail.startswith("500 mA of"), "a real reflected figure, not a fallback"
+
+
+# ── R2 · a part that speaks a bus but sits in neither role ────────────────────
+
+
+def test_a_bus_speaking_part_with_no_role_is_reported_rather_than_skipped():
+    """The CAN gateway that passed 4/4 over an MCU with no CAN controller.
+
+    `_by_role` collects `master` and `peripheral` only, so a transceiver left `None` was
+    absent from the rule entirely — not failed, not warned, not checked. A model failing
+    to fill one field switched off an engine rule.
+    """
+    transceiver = parts.sht40(mpn="UJA1075ATW", interfaces=("LIN", "CAN"), role=None)
+    board = usb_board(
+        regulator=parts.ap2112k(),
+        loads={"mcu": parts.esp32s3(), "sensor": transceiver},
+    )
+
+    verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
+
+    assert verdict.status == "warn"
+    assert "UJA1075ATW" in verdict.detail
+    assert "not checked" in verdict.detail
+
+
+def test_a_passive_part_with_no_interfaces_is_left_alone():
+    """A regulator is legitimately `passive`. There is nothing on it for R2 to check,
+    and warning about every one of them would bury the case above."""
+    board = usb_board(
+        regulator=parts.ap2112k(role="passive", interfaces=()),
+        loads={"mcu": parts.esp32s3()},
+    )
+
+    verdicts = [
+        v
+        for v in rules.interface_role_match(board)
+        if v.subject == "regulator" and "not checked" in (v.detail or "")
+    ]
+
+    assert verdicts == []
+
+
+def test_an_rs485_transceiver_is_satisfied_by_a_uart_controller():
+    """A transceiver's advertised bus is its *line* side; what it needs is a UART.
+
+    Equality alone failed every RS-485 board with a conflict no swap could clear, because
+    every replacement advertises RS-485 too.
+    """
+    transceiver = parts.sht40(
+        mpn="SP3485EN-L/TR", interfaces=("RS-485", "RS-422"), role="peripheral"
+    )
+    board = usb_board(
+        regulator=parts.ap2112k(),
+        loads={"mcu": parts.esp32s3(interfaces=("I2C", "SPI", "UART")), "sensor": transceiver},
+    )
+
+    verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
+
+    assert verdict.status == "pass"
+
+
+def test_a_uart_peripheral_is_not_satisfied_by_an_rs485_line():
+    """The compatibility is directed. An RS-485 pair is two wires, not a controller."""
+    from continuity.engine import buses
+
+    assert buses.master_satisfies_bus("RS-485", "UART") is True
+    assert buses.master_satisfies_bus("UART", "RS-485") is False
+
+
+# ── R10 · energy_budget ───────────────────────────────────────────────────────
+
+
+def _coin_cell_board(draw: float | None, hours: float | None, capacity: float | None = 225.0):
+    """`draw` is `i_peak`, which is what `PartSpec.draw` reads first."""
+    requirements = Requirements(lifetime_hours=hours, supply_capacity_mah=capacity)
+    return usb_board(
+        regulator=parts.ap2112k(),
+        loads={"mcu": parts.esp32s3(i_typ=draw, i_peak=draw)},
+        requirements=requirements,
+    )
+
+
+def test_a_brief_with_no_lifetime_asks_nothing_of_the_energy_rule():
+    board = _coin_cell_board(draw=0.070, hours=None)
+
+    assert rules.energy_budget(board) == []
+
+
+def test_a_board_that_lasts_flat_out_passes():
+    """225 mAh at 0.02 mA continuous is well over a year, so no duty cycle is needed."""
+    board = _coin_cell_board(draw=0.00002, hours=8760)
+
+    verdict = only(rules.energy_budget(board), "energy_budget")
+
+    assert verdict.status == "pass"
+    assert "against the 1 year asked for" in verdict.detail
+
+
+def test_a_board_that_cannot_last_flat_out_warns_with_both_figures():
+    """The e-paper badge: a 70 mA WiFi module on a coin cell, asked for a year.
+
+    A warning rather than a failure — duty cycling is how these boards are built, and the
+    engine does not model it. What it must not do is stay silent, which it used to.
+    """
+    board = _coin_cell_board(draw=0.070, hours=8760)
+
+    verdict = only(rules.energy_budget(board), "energy_budget")
+
+    assert verdict.status == "warn"
+    assert "225 mAh" in verdict.detail
+    assert "1 year asked for" in verdict.detail
+    assert "duty cycling" in verdict.detail
+
+
+def test_an_unstated_draw_is_reported_unchecked_rather_than_treated_as_zero():
+    board = _coin_cell_board(draw=None, hours=8760)
+
+    verdict = only(rules.energy_budget(board), "energy_budget")
+
+    assert verdict.status == "warn"
+    assert "no current draw" in verdict.detail
+
+
+def test_a_supply_with_no_capacity_says_so_rather_than_passing():
+    """A wall supply has no capacity, so a lifetime asked of one cannot be answered."""
+    board = _coin_cell_board(draw=0.070, hours=8760, capacity=None)
+
+    verdict = only(rules.energy_budget(board), "energy_budget")
+
+    assert verdict.status == "warn"
+    assert "no capacity" in verdict.detail

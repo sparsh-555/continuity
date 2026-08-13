@@ -164,8 +164,14 @@ def failures(run: Run) -> list[str]:
     for event in run.of("error"):
         out.append(f"error event: {event.get('message')}")
 
-    if not run.of("done"):
-        out.append("stream ended with no `done` event")
+    # A run that stops on a question has not failed — `escalate` calls `interrupt()` and
+    # waits, which is the design. This harness deliberately does not answer: the first
+    # suggestion on an escalation is "Accept the ...", and a sweep that waives faults to
+    # keep runs moving reports clean boards over broken ones. It did exactly that on
+    # 13 Aug, and the resulting question-then-done ordering was briefly mistaken for a
+    # defect in the product.
+    if not run.of("done") and not run.of("question"):
+        out.append("stream ended with no `done` event and no question")
 
     # A lost slot is only a defect when it is lost *quietly*. The engine emits a check
     # naming the slot and the query it tried — "No part found for Coin Cell Holder —
@@ -236,7 +242,7 @@ def flags(run: Run) -> list[str]:
         out.append(f"{len(unchecked)} checks ended warn/unchecked — thin data on this board")
 
     if run.of("question"):
-        out.append(f"asked the user: {run.of('question')[-1].get('text')!r}")
+        out.append(f"paused for the user, unanswered: {run.of('question')[-1].get('text')!r}")
 
     for rule, slot, detail in repaired_but_unrestated(run):
         out.append(f"repaired but never restated — {rule} on {slot}: {detail}")
@@ -281,21 +287,6 @@ async def execute(http: httpx.AsyncClient, name: str, brief: str) -> Run:
     started = time.monotonic()
     try:
         await stream(http, "/design", {"prompt": brief}, run)
-
-        # A question is correct behaviour, not a stall — the supply vocabulary is fixed
-        # and an unknown one must be asked about rather than invented. Answer it so the
-        # rest of the board still gets exercised.
-        for _ in range(3):
-            asked = run.of("question")
-            if not asked or run.of("done"):
-                break
-            question = asked[-1]
-            answer = (question.get("suggestions") or ["5V USB"])[0]
-            thread = next((e["thread_id"] for e in reversed(run.events) if e.get("thread_id")), None)
-            if thread is None:
-                break
-            print(f"    answering {question.get('text')!r} with {answer!r}")
-            await stream(http, "/resume", {"thread_id": thread, "answer": answer}, run)
     except Exception as error:  # noqa: BLE001 — the report is the product here
         run.transport_error = f"{type(error).__name__}: {error}"
     run.elapsed = time.monotonic() - started

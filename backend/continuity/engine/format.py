@@ -59,3 +59,25 @@ def listing(items: "list[str] | tuple[str, ...]") -> str:
 
 def plural(n: int, singular: str, suffix: str = "s") -> str:
     return f"{n} {singular}{'' if n == 1 else suffix}"
+
+
+def duration(hours: float) -> str:
+    """A span of hours in the unit a person would use for it.
+
+    A battery lifetime spans six orders of magnitude between a WiFi module on a coin cell
+    and an e-paper tag, and "8760 hours" against "3.2 hours" makes a reader do the
+    arithmetic that the verdict exists to save them.
+    """
+    if hours < 1:
+        return plural(max(1, round(hours * 60)), "minute")
+    if hours < 48:
+        return plural(round(hours), "hour")
+
+    days = hours / 24
+    if days < 60:
+        return plural(round(days), "day")
+    if days < 365:
+        return plural(round(days / 30.44), "month")
+
+    years = num(days / 365.25)
+    return f"{years} year{'' if years == '1' else 's'}"

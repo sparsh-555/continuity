@@ -956,3 +956,44 @@ def test_a_topology_on_an_uncategorised_slot_is_unchanged():
 
     assert refined == "dc-dc converter"
     assert [f.name for f in filters] == ["Topology"]
+
+
+# ── the cold end of the operating range ───────────────────────────────────────
+
+
+def test_rated_from_reads_the_minimum_of_a_published_range():
+    from continuity.parts import payload
+
+    industrial = {"Operating Temperature": "-40℃~+85℃"}
+    commercial = {"Operating Temperature": "-25~85℃"}
+
+    assert payload.rated_from(industrial, -40) is True
+    assert payload.rated_from(commercial, -40) is False
+    assert payload.rated_from(commercial, -25) is True
+
+
+def test_rated_from_keeps_a_candidate_whose_payload_does_not_say():
+    """Unknown must not become a rejection — the engine reports it unchecked instead."""
+    from continuity.parts import payload
+
+    assert payload.rated_from({}, -40) is None
+    assert payload.rated_from({"Operating Temperature": "-"}, -40) is None
+    # A single figure states a ceiling, not a floor.
+    assert payload.rated_from({"Operating Temperature": "125℃"}, -40) is None
+
+
+def test_a_cold_end_constraint_excludes_the_part_that_just_failed():
+    """Why the repair loop could not escape an outdoor brief.
+
+    R7 detected the -40 °C violation, but nothing could act on it: the re-search had no
+    way to exclude the part, so the same one came back and the run escalated with a
+    question the user could not answer either.
+    """
+    from continuity.graph.sourcing import viable
+
+    warm = _candidate("WARM", **{"Operating Temperature": "-25℃~+85℃"})
+    cold = _candidate("COLD", **{"Operating Temperature": "-40℃~+125℃"})
+
+    survivors = viable([warm, cold], {"rated_from": -40})
+
+    assert [c.mpn for c in survivors] == ["COLD"]

@@ -252,6 +252,7 @@ def interface_role_match(board: Board) -> list[Verdict]:
     for slot_id, part in peripherals:
         verdicts.append(_check_one_bus(slot_id, part, masters, incomplete))
     verdicts.extend(_chip_select_pressure(masters, peripherals))
+    verdicts.extend(_unplaceable_on_a_bus(board))
     return verdicts
 
 
@@ -260,6 +261,51 @@ def _by_role(board: Board, role: str) -> list[tuple[str, PartSpec]]:
         (slot_id, slot.part)
         for slot_id, slot in board.slots.items()
         if slot.part is not None and slot.part.role == role
+    ]
+
+
+def _unplaceable_on_a_bus(board: Board) -> list[Verdict]:
+    """Parts that speak a bus but sit in neither role, so no other check can see them.
+
+    `role` is a normalised field, which means a model fills it. `_by_role` collects only
+    `master` and `peripheral`, so a part left `None` — or filed `passive` while still
+    advertising interfaces — is not checked, not reported, simply absent. A rule the
+    engine owns is switched off by a field the engine did not compute, which is the one
+    arrangement this design exists to prevent.
+
+    Measured 13 Aug on `CAN gateway bridging two buses, 12V automotive supply`, which
+    passed 4/4 with no conflicts:
+
+        mcu                ATMEGA328P-AU      role=master   ['I2C', 'SPI', 'UART']
+        can_transceiver_1  UJA1075ATW/5V0/WD  role=None     ['LIN', 'CAN']
+        can_transceiver_2  UJA1075ATW/5V0/WD  role=None     ['LIN', 'CAN']
+
+    The ATmega328P has no CAN controller. Two CAN transceivers hung off a part that
+    cannot drive them and R2 said nothing at all.
+
+    **A warning, not a failure.** Which side the part sits on is unknown, so whether the
+    board is wrong is also unknown — and a `fail` would start a repair loop against a
+    question no replacement answers. Silence was the bug; a named warning is the fix.
+    Parts with no interfaces are untouched: a regulator is legitimately `passive`, and
+    there is nothing about it for this rule to check.
+    """
+    return [
+        Verdict(
+            rule="interface_role_match",
+            status="warn",
+            detail=(
+                f"{part.mpn} offers {fmt.listing(sorted({buses.canonical_bus(b) for b in part.interfaces}))} "
+                f"but is filed as {part.role or 'no role'}, so it was not checked against "
+                f"any controller on this board."
+            ),
+            subject=slot_id,
+            involved=(slot_id,),
+            evidence=tuple(part.cite(slot_id, "interfaces")),
+        )
+        for slot_id, slot in board.slots.items()
+        if (part := slot.part) is not None
+        and part.interfaces
+        and part.role not in ("master", "peripheral")
     ]
 
 
@@ -1159,6 +1205,113 @@ def rail_coverage(board: Board) -> list[Verdict]:
 
 # ── the suite ─────────────────────────────────────────────────────────────────
 
+def energy_budget(board: Board) -> list[Verdict]:
+    """How long the board runs on its supply, against how long the brief said it must.
+
+    Every other rule measures an instant: volts now, amps now, degrees now. A brief that
+    says *"must last a year"* is asking about charge, and nothing measured charge — so the
+    requirement reached no rule, produced no verdict, and was not even reported unchecked.
+    Measured 13 Aug on `e-paper badge on a coin cell with BLE, must last a year`, which
+    returned **zero conflicts** over a board carrying an ESP8266 module drawing ~70 mA on
+    transmit. The brief's headline requirement was the one thing nobody looked at.
+
+    **What this rule will not do is guess a duty cycle.** Runtime is capacity divided by
+    *average* draw, and average draw depends on how often the radio wakes — which no
+    datasheet states and no distributor publishes. Inventing a plausible-looking duty
+    cycle would produce a confident number resting on a figure this system made up.
+
+    So it computes the one runtime that needs no assumption: **continuous draw**, every
+    part awake at once. That is a genuine lower bound on life, and it decides one case
+    honestly in each direction.
+
+    - Lasts long enough even flat out → `pass`. Nothing about the duty cycle can make it
+      worse than the bound, so the requirement is met outright.
+    - Does not → `warn`, carrying both figures. It is not a `fail`, because duty cycling
+      is exactly how such boards are built and the gap may well be closable. It is not
+      silence either, which is what it used to be.
+
+    A missing capacity or an unstated draw is reported as unchecked, naming what is
+    missing, rather than defaulting to a number that would make the board look measured.
+    """
+    required = board.requirements.lifetime_hours
+    if required is None:
+        return []
+
+    capacity = board.requirements.supply_capacity_mah
+    if capacity is None:
+        return [
+            Verdict(
+                rule="energy_budget",
+                status="warn",
+                detail=(
+                    f"This board is asked to run for {fmt.duration(required)}, but its supply "
+                    f"states no capacity, so how long it lasts cannot be checked."
+                ),
+                subject=_energy_subject(board),
+                scope="board",
+            )
+        ]
+
+    # Summed on the rails the *supply* feeds, not over every slot. `rail_draw` reflects a
+    # regulator's output back through the conversion, so a load is counted once rather
+    # than twice — once on its own rail and again inside the regulator above it.
+    total = 0.0
+    unstated: list[str] = []
+    for rail in board.rails.values():
+        if rail.source is not None:
+            continue
+        amps, missing = rail_current.rail_draw(board, rail_current.consumers(board, rail))
+        total += amps
+        unstated += [f"{s} ({p.mpn})" for s in missing if (p := board.part(s)) is not None]
+
+    if unstated:
+        return [
+            Verdict(
+                rule="energy_budget",
+                status="warn",
+                detail=(
+                    f"This board is asked to run for {fmt.duration(required)} on "
+                    f"{capacity:g} mAh, but {fmt.listing(unstated)} "
+                    f"{'state' if len(unstated) > 1 else 'states'} no current draw, so the "
+                    f"runtime cannot be computed."
+                ),
+                subject=_energy_subject(board),
+                scope="board",
+            )
+        ]
+
+    if total <= 0:
+        return []
+
+    hours = capacity / (total * 1000.0)
+    met = hours >= required
+    return [
+        Verdict(
+            rule="energy_budget",
+            status="pass" if met else "warn",
+            detail=(
+                f"{capacity:g} mAh at {total * 1000:.1f} mA continuous is "
+                f"{fmt.duration(hours)}, against the {fmt.duration(required)} asked for"
+                + (
+                    "."
+                    if met
+                    else " — reaching it needs duty cycling, which is not modelled here."
+                )
+            ),
+            subject=_energy_subject(board),
+            scope="board",
+        )
+    ]
+
+
+def _energy_subject(board: Board) -> str:
+    """The heaviest placed part, so the finding lands on something a person can act on."""
+    placed = [(s, p) for s, slot in board.slots.items() if (p := slot.part) is not None]
+    if not placed:
+        return next(iter(board.slots), "board")
+    return max(placed, key=lambda pair: pair[1].draw or 0.0)[0]
+
+
 RULES = (
     voltage_overlap,
     interface_role_match,
@@ -1168,6 +1321,7 @@ RULES = (
     availability,
     footprint,
     temperature_rating,
+    energy_budget,
     # Last: it reports on the *absence* of the checks above rather than on the board.
     rail_coverage,
 )

@@ -69,6 +69,12 @@ def _temperature_figure(text: str) -> float | None:
     return float(match.group(1)) if match is not None else None
 
 
+_BARE_FIGURE = re.compile(r"^\s*([-+]?\d*\.?\d+)\s*$")
+"""A number and nothing else. Read only as one half of an already-split range, where the
+surrounding string has established that the figure is a temperature — anything carrying a
+qualifier such as `@(TJ)` fails to match rather than being guessed at."""
+
+
 def volt_range(text: str | None) -> tuple[float | None, float | None]:
     """`"4.5V~40V"` → `(4.5, 40.0)`. A single figure is a ceiling, per the same reading
     the normaliser is given: `"15V"` on a supply states a maximum, not a minimum.
@@ -120,6 +126,37 @@ def rated_to(specs: Mapping[str, str], celsius: float) -> bool | None:
     if maximum is None:
         return None
     return celsius <= maximum
+
+
+def rated_from(specs: Mapping[str, str], celsius: float) -> bool | None:
+    """Does the payload state an operating-temperature minimum reaching down to `celsius`?
+
+    The cold-end twin of `rated_to`, and the reason a repair could not escape an outdoor
+    brief. R7 detects a −40 °C violation perfectly well, but nothing could act on it: the
+    re-search had no way to exclude the part that had just failed, so it came back, failed
+    again, and the run escalated to the user with a question the user could not answer
+    either.
+
+    `None` when the payload does not state a usable minimum, keeping the candidate — the
+    engine reports that as unchecked. A single figure states no minimum, so it reads
+    `None` rather than being mistaken for one.
+    """
+    text = specs.get(OPERATING_TEMPERATURE_PARAMETER)
+    if not text:
+        return None
+
+    parts = [part for part in re.split(r"[~–—]", str(text)) if part.strip()]
+    if len(parts) < 2:
+        return None
+    # `-25~85℃` carries the unit once, on the end. The hot end never noticed because it
+    # reads the second half; the cold end reads the first and found no degree sign at all.
+    minimum = _temperature_figure(parts[0])
+    if minimum is None:
+        bare = _BARE_FIGURE.match(parts[0])
+        minimum = float(bare.group(1)) if bare else None
+    if minimum is None:
+        return None
+    return celsius >= minimum
 
 
 ADJUSTABLE_OUTPUT = "adjustable"

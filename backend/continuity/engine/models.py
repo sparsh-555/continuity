@@ -44,6 +44,7 @@ RULE_NAMES = (
     "availability",
     "footprint",
     "temperature_rating",
+    "energy_budget",
     "rail_coverage",
 )
 
@@ -334,6 +335,23 @@ class Requirements:
     min_stock: int | None = 100
     """The minimum distributor stock a part must have, when the user set one."""
     max_lead_days: int = 30
+
+    lifetime_hours: float | None = None
+    """How long the brief says the board must run on its supply. "a year" → 8760.
+
+    `None` means the brief did not ask, and R10 then has nothing to check. It is the
+    asking that matters: a stated lifetime used to reach no rule at all, so a coin-cell
+    board carrying a WiFi module reported zero conflicts against a requirement nothing
+    had looked at.
+    """
+
+    supply_capacity_mah: float | None = None
+    """Charge available from the input supply, carried here by the planner.
+
+    The rules import nothing, so the supply vocabulary cannot be read from `engine`. The
+    planner resolves the classification and passes the figure down, the same way
+    `input_voltage` arrives already decided.
+    """
 
 
 # ── board topology ────────────────────────────────────────────────────────────

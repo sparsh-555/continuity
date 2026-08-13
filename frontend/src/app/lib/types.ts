@@ -103,6 +103,11 @@ export type CheckRule =
   | 'availability'
   | 'footprint'
   | 'temperature_rating'
+  /** How long the board runs on its supply, against how long the brief asked for.
+   *  Scoped to the board rather than a slot, and only present when a lifetime was
+   *  stated. `warn` rather than `fail` when the continuous-draw bound falls short —
+   *  duty cycling closes that gap and the engine does not model it. */
+  | 'energy_budget'
   /** Reports a part the power tree never mentions, and which rail-based checks it
    *  therefore missed. Always `warn` — a gap in what is known, not a fault. */
   | 'rail_coverage'

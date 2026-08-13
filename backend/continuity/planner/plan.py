@@ -34,7 +34,7 @@ from typing import Any, Mapping, Sequence
 from .. import llm
 from ..engine.models import Rail, Requirements, Slot, Tier
 from ..parts import categories
-from .topology import BATTERY_SOURCES, INPUT_SOURCES
+from .topology import BATTERY_SOURCES, INPUT_SOURCES, capacity_of
 
 log = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ Completeness is part of your job:
   instead of surfacing it.
 
 Return exactly these keys: input_source, input_voltage, temp_range, current_margin,
-priority, min_stock, ambient_c, slots, rails, links.
+priority, min_stock, ambient_c, lifetime_hours, slots, rails, links.
 
 slots: 2 to {MAX_SLOTS} objects, each with:
   id       lowercase snake_case, unique, e.g. "regulator", "mcu", "imu"
@@ -158,6 +158,10 @@ current_margin: 0.15 normally, 0.30 for battery or low-power designs.
 priority: one of {PRIORITIES}.
 min_stock: units they must be able to buy. 100 unless a production volume is stated.
 ambient_c: expected ambient temperature, 25 unless stated.
+lifetime_hours: how long the board must run on its own supply, in hours, ONLY when the
+  brief asks for it — "must last a year" is 8760, "a month between charges" is 730,
+  "runs for a week" is 168. Omit it entirely when no lifetime is stated. Do not infer one
+  from the word "battery": a battery board with no stated lifetime has no requirement.
 
 Return the JSON object and nothing else."""
 
@@ -358,6 +362,15 @@ def _clean_requirements(raw: Mapping[str, Any]) -> Requirements:
         else defaults.current_margin
     )
 
+    # Bounded like `input_voltage`, and for the same reason: it is an operand. A century
+    # is not a design requirement, and a negative one is a misread rather than a brief.
+    lifetime = raw.get("lifetime_hours")
+    lifetime_hours = (
+        float(lifetime)
+        if isinstance(lifetime, (int, float)) and 0 < lifetime <= 24 * 365 * 50
+        else None
+    )
+
     return Requirements(
         temp_range=temp_range,
         current_margin=(
@@ -373,6 +386,9 @@ def _clean_requirements(raw: Mapping[str, Any]) -> Requirements:
         priority=priority if priority in PRIORITIES else defaults.priority,  # type: ignore[arg-type]
         min_stock=int(stock) if isinstance(stock, int) and stock >= 0 else defaults.min_stock,
         ambient_c=int(ambient) if isinstance(ambient, (int, float)) else defaults.ambient_c,
+        lifetime_hours=lifetime_hours,
+        # Resolved here rather than in the engine, which imports no vocabulary of its own.
+        supply_capacity_mah=capacity_of(source),
     )
 
 

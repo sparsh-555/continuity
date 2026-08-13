@@ -43,6 +43,7 @@ const CHECK_PASS_DETAIL: Record<CheckRule, string> = {
   availability: 'Stock and lead time satisfy minimum requirements.',
   footprint: 'Footprint compatibility check passed.',
   temperature_rating: 'Part temperature grade covers the required range.',
+  energy_budget: 'Supply capacity covers the runtime the brief asked for.',
   rail_coverage: 'Every placed part sits on a modelled power rail.',
 }
 

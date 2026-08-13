@@ -72,6 +72,15 @@ class PowerSource:
     label: str
     basis: str = "specification"
 
+    capacity_mah: float | None = None
+    """Charge the cell holds, for supplies that hold a finite amount of it.
+
+    `None` for anything fed from a wall or a panel — a lifetime question does not arise
+    there, and a capacity invented for one would make it look like it had been answered.
+    Cells in series share a capacity rather than summing it, so two AA cells carry one
+    cell's figure at twice the voltage.
+    """
+
     @property
     def is_inferred(self) -> bool:
         return self.basis.startswith(INFERRED_BASIS)
@@ -121,14 +130,18 @@ INPUT_SOURCES: dict[str, PowerSource] = {
     # Two supplies into one rail, through a mux or a charger. Modelled at the *higher*
     # voltage: a linear regulator's dissipation is worst on the higher input, so
     # sizing against the battery would pass a board that cooks on USB.
+    # Capacity is left unset here: this supply is mains-backed, so how long it lasts is
+    # not a question the board has to answer.
     "usb-5v+liion": PowerSource(5.0, 1.5, "USB-C 5V / Li-ion"),
-    "battery-3v7": PowerSource(3.7, 2.0, "Li-ion 3.7V"),
+    "battery-3v7": PowerSource(3.7, 2.0, "Li-ion 3.7V", capacity_mah=2000.0),
     # A CR2032 sustains ~0.2 mA and pulses to ~20 mA. The pulse figure is the ceiling
     # a current budget should check against; anything larger passes boards that flatten
     # the cell in an afternoon.
-    "battery-3v0": PowerSource(3.0, 0.020, "Coin cell 3V", "CR2032 pulse discharge rating"),
-    "battery-aa": PowerSource(3.0, 1.0, "2x AA alkaline"),
-    "9v-battery": PowerSource(9.0, 0.5, "9V battery"),
+    "battery-3v0": PowerSource(
+        3.0, 0.020, "Coin cell 3V", "CR2032 pulse discharge rating", capacity_mah=225.0
+    ),
+    "battery-aa": PowerSource(3.0, 1.0, "2x AA alkaline", capacity_mah=2500.0),
+    "9v-battery": PowerSource(9.0, 0.5, "9V battery", capacity_mah=550.0),
     # A panel's *voltage* is a product class — 6 V and 12 V panels are sold as such, the
     # same way a 9 V battery is. Its *current* is not: it depends on the panel's area and
     # on the sun, and no number here could be checked against anything. So the limit is
@@ -309,6 +322,16 @@ def build_board(
 
 
 # ── edges, for the wire ───────────────────────────────────────────────────────
+
+
+def capacity_of(source_key: str) -> float | None:
+    """Charge held by a named supply, or `None` when it is not a finite one.
+
+    The engine imports nothing, so this is read on the planner's side and travels down on
+    `Requirements`, the same route `input_voltage` takes.
+    """
+    supply = INPUT_SOURCES.get(source_key)
+    return supply.capacity_mah if supply is not None else None
 
 
 def supply_node(source: PowerSource) -> dict[str, object]:
