@@ -273,3 +273,26 @@ def test_nothing_on_a_driver_shelf_triggers_the_rescue():
 
     assert _misses_defining_shelf([gate], {"category": "motor_driver"}) is True
     assert _misses_defining_shelf([gate, driver], {"category": "motor_driver"}) is False
+
+
+def test_the_shelf_filter_decides_on_the_merged_list_not_each_half():
+    """Why declaring the shelves defining was not on its own enough.
+
+    `_on_defining_shelf` runs inside `viable()`, which is called twice over two lists that
+    never meet: the hits that triggered the rescue, and the rescue itself. Each was
+    compared only against its own members, so a rescue that found real drivers appended
+    them *behind* the parent-shelf parts and the shortlist slice kept the wrong ones. A
+    motor brief still placed a 2-input AND gate with the shelves already declared.
+    """
+    from continuity.graph.sourcing import _on_defining_shelf
+
+    hits = [_candidate("TC7S08FU(TE85L,F)", "Motor Driver ICs")]
+    rescued = [_candidate("TMC2209", "Stepper Motor Driver")]
+
+    # Each half on its own keeps everything — neither can see the other.
+    assert _on_defining_shelf(list(hits), {"category": "motor_driver"}) == hits
+    assert _on_defining_shelf(list(rescued), {"category": "motor_driver"}) == rescued
+
+    # Merged, the real driver wins and the mislabelled part goes.
+    merged = _on_defining_shelf(hits + rescued, {"category": "motor_driver"})
+    assert [c.mpn for c in merged] == ["TMC2209"]

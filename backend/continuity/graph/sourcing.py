@@ -186,6 +186,14 @@ async def find(
             if candidate.mpn not in known_mpns:
                 found.append(candidate)
                 known_mpns.add(candidate.mpn)
+        # Re-applied to the *merged* list, which is the only place it can decide anything.
+        # Inside `viable` it runs twice over two lists that never meet: once on the hits
+        # that triggered the rescue, once on the rescue itself. Each was compared only
+        # against its own members, so the rescue's real drivers were appended *behind* the
+        # parent-shelf parts and the shortlist slice kept the wrong ones anyway. Measured
+        # on a motor brief that still placed a 2-input AND gate after the shelves were
+        # declared defining.
+        found = _on_defining_shelf(found, constraint)
     shortlist = found[:CANDIDATES_PER_SLOT]
     demoted: tuple[str, ...] = ()
     # A single-candidate shortlist cannot be reordered, so a judgement about it can only
