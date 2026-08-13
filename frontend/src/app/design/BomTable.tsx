@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-import type { BomEvent, Slot } from '../lib/types'
+import type { BomEvent, BomRow, Slot } from '../lib/types'
 import { sseClient, type DatasheetResponse } from '../lib/sseClient'
 
 type BomTableProps = {
@@ -45,9 +45,56 @@ function readPdfAsBase64(file: File): Promise<string> {
   })
 }
 
+/** A row for a part the board already holds, for the stretch before `finalize` names it. */
+function rowFromSlot(slot: Slot): BomRow | null {
+  const part = slot.part
+  if (!part) return null
+  return {
+    slot: slot.id,
+    mpn: part.mpn,
+    manufacturer: part.manufacturer,
+    description: part.description,
+    qty: 1,
+    unit_price: part.unit_price,
+    currency: part.currency,
+    stock: part.stock,
+    distributor: part.distributor,
+    lead_time_days: part.lead_time_days,
+    datasheet: part.datasheet,
+    product_url: part.product_url,
+  }
+}
+
 export function BomTable({ bom, slots }: BomTableProps) {
-  const rows = bom?.rows ?? []
-  const total = bom?.total ?? 0
+  // The bill of materials is a *view of the board*, so it is built from the slots and
+  // only borrows the server's rows where they exist.
+  //
+  // It used to render `bom.rows` alone. That event is emitted once, by `finalize`, at the
+  // very end of a run — so a run that pauses or is continued shows a table frozen at
+  // whatever it hydrated with while the graph carries on filling up. Measured on a
+  // continued PoE board: six parts on the graph, two in the bill of materials, and no
+  // amount of waiting fixed it because `finalize` was never going to run.
+  //
+  // Every `selection` event already carries the whole part, so nothing here is invented —
+  // the same fields the server would have written are read from the part the graph is
+  // drawing. Where a server row exists it wins, keeping any quantity it computed.
+  const rows = useMemo(() => {
+    const fromServer = new Map((bom?.rows ?? []).map((row) => [row.slot, row]))
+    const live = slots
+      .map((slot) => fromServer.get(slot.id) ?? rowFromSlot(slot))
+      .filter((row): row is BomRow => row !== null)
+    // A row the board no longer has a slot for — a repair that renamed one — would
+    // otherwise disappear from a finished bill of materials.
+    const seen = new Set(live.map((row) => row.slot))
+    return [...live, ...(bom?.rows ?? []).filter((row) => !seen.has(row.slot))]
+  }, [bom, slots])
+
+  // Summed from what is on screen rather than taken from the event, which would otherwise
+  // price two rows while showing six.
+  const total = useMemo(
+    () => rows.reduce((sum, row) => sum + (row.unit_price ?? 0) * (row.qty ?? 1), 0),
+    [rows],
+  )
   const [datasheetUploads, setDatasheetUploads] = useState<Record<string, DatasheetUploadState>>({})
 
   const slotsById = useMemo(() => new Map(slots.map((slot) => [slot.id, slot])), [slots])
