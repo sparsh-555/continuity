@@ -20,11 +20,11 @@ from urllib.parse import urlsplit
 import httpx
 from pypdf import PdfReader
 
-from .. import llm
+from .. import env, llm
 
 log = logging.getLogger(__name__)
 
-CACHE_DIR = Path("cache/datasheets")
+CACHE_DIR = env.cache_dir("datasheets")
 MAX_PDF_BYTES = 12 * 1024 * 1024
 FETCH_TIMEOUT_S = 10.0
 MAX_REDIRECTS = 5

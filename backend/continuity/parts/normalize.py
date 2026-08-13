@@ -38,14 +38,14 @@ from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping
 
-from .. import llm
+from .. import env, llm
 from ..engine.models import PartSpec
 from . import categories, datasheet, dossier, payload, search
 from .search import Candidate
 
 log = logging.getLogger(__name__)
 
-CACHE_DIR = Path("cache/normalized")
+CACHE_DIR = env.cache_dir("normalized")
 THERMAL_FETCH_TASKS: set[asyncio.Task[None]] = set()
 
 DossierLookup = Callable[[str], Awaitable[list[dict[str, Any]]]]

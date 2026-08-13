@@ -19,7 +19,9 @@ import os
 from pathlib import Path
 from typing import Any
 
-FIXTURE_DIR = Path(os.environ.get("CONTINUITY_FIXTURE_DIR", "fixtures"))
+from .. import env
+
+FIXTURE_DIR = env.under_root("fixtures", "CONTINUITY_FIXTURE_DIR")
 
 
 def replaying() -> bool:

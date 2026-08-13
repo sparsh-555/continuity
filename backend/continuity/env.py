@@ -43,3 +43,32 @@ def flag(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+ROOT = SEARCH_FROM
+"""`backend/`. What every bundled path is measured from."""
+
+
+def under_root(relative: str, variable: str) -> Path:
+    """A bundled directory, anchored to the package unless the deployment names another.
+
+    `Path("cache/normalized")` resolves against the *working directory*. On a laptop that
+    is `backend/`, because that is where the server is started from; in a container image
+    it is usually `/app` or `/`, and then the committed parse cache is simply not there.
+    Nothing fails loudly — the cache misses, every part is fetched and parsed again, and a
+    fresh empty directory appears wherever the process happened to start. On a read-only
+    filesystem the writes fail too, quietly, because a cache that cannot be written is
+    not an error worth stopping a run for.
+
+    The environment variable comes first so a deployment can point these at a mounted
+    volume. Where there is no volume — a free tier with an ephemeral filesystem — the
+    committed cache is still found, and what the run adds to it is lost on restart, which
+    is the correct behaviour for a cache.
+    """
+    stated = os.environ.get(variable)
+    return Path(stated) if stated else ROOT / relative
+
+
+def cache_dir(name: str) -> Path:
+    """`backend/cache/<name>`, or under `CONTINUITY_CACHE_DIR` when one is set."""
+    return under_root("cache", "CONTINUITY_CACHE_DIR") / name

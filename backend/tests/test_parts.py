@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
 
 import pytest
 
@@ -997,3 +998,32 @@ def test_a_cold_end_constraint_excludes_the_part_that_just_failed():
     survivors = viable([warm, cold], {"rated_from": -40})
 
     assert [c.mpn for c in survivors] == ["COLD"]
+
+
+# ── bundled paths do not depend on where the process was started ──────────────
+
+
+def test_bundled_directories_are_anchored_to_the_package():
+    """`Path("cache/normalized")` resolves against the working directory.
+
+    On a laptop that is `backend/`, because that is where the server is started. In a
+    container image it is usually `/app` or `/`, and then the committed parse cache is
+    simply not there: nothing fails, every part is fetched and parsed again, and an empty
+    directory appears wherever the process happened to start.
+    """
+    from continuity.parts import datasheet, fixtures, normalize
+
+    for path in (normalize.CACHE_DIR, datasheet.CACHE_DIR, fixtures.FIXTURE_DIR):
+        assert path.is_absolute(), f"{path} would move with the working directory"
+
+
+def test_a_deployment_may_point_the_cache_at_a_volume(monkeypatch):
+    """Where a mounted volume exists, the deployment names it; where none does, the
+    committed cache is still found and what the run adds is lost on restart."""
+    from continuity import env
+
+    monkeypatch.delenv("CONTINUITY_CACHE_DIR", raising=False)
+    assert env.cache_dir("normalized") == env.ROOT / "cache" / "normalized"
+
+    monkeypatch.setenv("CONTINUITY_CACHE_DIR", "/mnt/data/cache")
+    assert env.cache_dir("normalized") == Path("/mnt/data/cache/normalized")
