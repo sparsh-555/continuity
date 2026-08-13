@@ -9,6 +9,7 @@
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-f2a25c?style=flat-square&labelColor=1c2620">
   <img alt="React 19" src="https://img.shields.io/badge/react-19-f2a25c?style=flat-square&labelColor=1c2620">
   <img alt="LangGraph" src="https://img.shields.io/badge/langgraph-1.0-f2a25c?style=flat-square&labelColor=1c2620">
+  <img alt="MIT licence" src="https://img.shields.io/badge/license-MIT-4ade80?style=flat-square&labelColor=1c2620">
 </p>
 
 <p align="center">
@@ -212,4 +213,6 @@ discovered. An item leaves that register when the behaviour is verified in a bro
 when the code is written. Currently open: no frontend test suite, no deployment, and a
 handful of noted-and-accepted limitations.
 
-Not yet licensed — treat as all rights reserved until a LICENSE file lands.
+## License
+
+MIT — see [LICENSE](LICENSE).
