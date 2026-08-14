@@ -286,7 +286,7 @@ export default function LandingRoute() {
                 {/* Sized near the graph's own 900×820 aspect. The svg fits with `meet`
                     now rather than stretching, so a box much wider than it is tall would
                     letterbox the board into a narrow strip down the middle. */}
-                <div className="flex h-[420px] flex-col overflow-hidden sm:h-[500px] lg:h-[560px]"><ComponentGraph activeRepair={null} animateEdges={!replay.finished} animatedSlotIds={replay.state.animatedSlotIds} conflict={replay.state.conflict} edges={replay.state.edges} onReleaseRepairHold={() => undefined} revealedSlotIds={replay.state.revealedSlotIds} showControls={false} slotConflictVariant={{}} slots={replay.state.slots} supply={replay.state.supply} /></div>
+                <div className="flex h-[420px] flex-col overflow-hidden sm:h-[500px] lg:h-[560px]"><ComponentGraph activeRepair={null} animateEdges={!replay.finished} animatedSlotIds={replay.state.animatedSlotIds} conflict={replay.state.conflict} edges={replay.state.edges} onReleaseRepairHold={() => undefined} revealedSlotIds={replay.state.revealedSlotIds} slotConflictVariant={{}} slots={replay.state.slots} supply={replay.state.supply} /></div>
                 <p className="mt-sm min-h-10 font-data-tabular text-[10px] leading-4 text-on-surface-variant">{replay.state.lastVerdict ?? 'Assembling the recorded board run.'}</p>
               </div>
             </div>

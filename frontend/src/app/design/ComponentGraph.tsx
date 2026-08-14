@@ -48,8 +48,6 @@ type ComponentGraphProps = {
   activeRepair: ActiveRepair
   slotConflictVariant: Record<string, 'entry' | 'repeat' | 'warmup'>
   onReleaseRepairHold: (slot: string) => void
-  /** Landing replays are display-only; workspaces retain their control chrome. */
-  showControls?: boolean
   /** The board input. Absent on runs recorded before it was part of the contract. */
   supply?: SupplyNode | null
 }
@@ -116,7 +114,6 @@ export function ComponentGraph({
   activeRepair,
   slotConflictVariant,
   onReleaseRepairHold,
-  showControls = true,
   supply = null,
 }: ComponentGraphProps) {
   const { positionedNodes, nodesById, nodeBandTop, columnWidth, left, supply: fullBar } =
@@ -141,39 +138,17 @@ export function ComponentGraph({
           <span className="material-symbols-outlined text-[16px]">account_tree</span>
           <h2 className="font-headline-sm text-[14px] font-semibold tracking-wide">Component Logic Graph</h2>
         </div>
-        {showControls ? <div className="flex items-center gap-xs">
-          <button
-            className="h-6 w-6 rounded hover:bg-surface-variant flex items-center justify-center text-on-surface-variant transition-colors"
-            title="Zoom In"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[16px]">zoom_in</span>
-          </button>
-          <button
-            className="h-6 w-6 rounded hover:bg-surface-variant flex items-center justify-center text-on-surface-variant transition-colors"
-            title="Zoom Out"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[16px]">zoom_out</span>
-          </button>
-          <div className="w-px h-4 bg-outline-variant mx-1"></div>
-          <button
-            className="h-6 w-6 rounded hover:bg-surface-variant flex items-center justify-center text-on-surface-variant transition-colors"
-            title="Settings"
-            type="button"
-          >
-            <span className="material-symbols-outlined text-[16px]">tune</span>
-          </button>
-        </div> : null}
       </header>
 
       <RepairCallout onRelease={onReleaseRepairHold} repair={activeRepair} />
 
-      <div className="flex-1 bg-grid relative overflow-hidden cursor-move">
-        <div className="absolute bottom-sm right-sm pointer-events-none flex flex-col items-end gap-1 opacity-50">
-          <span className="font-data-tabular text-[10px] text-primary">SCALE: 100%</span>
-          <span className="font-data-tabular text-[10px] text-on-surface-variant">X: 142 Y: -54</span>
-        </div>
+      {/* No zoom, pan or scale readout. There were three buttons with no handlers and a
+          `SCALE: 100% / X: 142 Y: -54` corner readout that was two hardcoded strings — an
+          instrument reading that measured nothing, in a product whose whole claim is that
+          no number reaches the screen without a source. `cursor-move` went with them: it
+          promised a drag that was never implemented. Removed rather than wired, because
+          zoom and pan are a feature that does not exist yet, not a disconnected handler. */}
+      <div className="flex-1 bg-grid relative overflow-hidden">
 
         <div className="absolute top-sm right-sm bg-[#16181D] border border-outline-variant rounded p-sm flex flex-col gap-1 z-10 shadow-lg">
           <div className="flex items-center gap-2">
