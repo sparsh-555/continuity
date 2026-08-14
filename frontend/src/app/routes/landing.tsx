@@ -296,9 +296,13 @@ export default function LandingRoute() {
         <Reveal>
           <section className="mx-auto w-full max-w-7xl px-lg py-[132px]">
             <p className="font-label-caps text-label-caps text-surface-tint">REPAIR / LOOP</p>
-            <h2 className="mt-md max-w-2xl font-display-mono text-[34px] leading-tight text-on-surface sm:text-[42px]">The engine stays in charge.</h2>
+            <h2 className="mt-md max-w-2xl font-display-mono text-[34px] leading-tight text-on-surface sm:text-[42px]">{/* One clause per line above sm, so the two halves of the loop read as a
+              pair rather than breaking mid-sentence on "The". Left inline on mobile, where
+              each clause is already too wide for the column. */}
+              <span className="sm:block">The model decides.</span>{' '}
+              <span className="sm:block">The engine proves.</span></h2>
             <div className="mt-xl grid grid-cols-1 gap-x-xl gap-y-xl md:grid-cols-3">
-              {[['01', 'PROVE', 'The engine evaluates the board graph and records the evidence for what is broken.'], ['02', 'TRY', 'A model chooses a next action from a fixed set: swap, topology, part, rail, requirement, or escalate.'], ['03', 'RE-CHECK', 'The engine runs the rules again on the changed board. No compatibility verdict is ever produced by a model.']].map(([number, label, description]) => <article className="pl-lg" key={number}><span className="font-data-tabular text-[11px] text-tertiary-fixed">{number}</span><h3 className="mt-md font-data-tabular text-[15px] text-on-surface">{label}</h3><p className="mt-sm text-[15px] leading-6 text-on-surface-variant">{description}</p></article>)}
+              {[['01', 'PROVE', 'The engine evaluates the board graph and records the evidence for what is broken.'], ['02', 'TRY', 'The model makes the judgement call — which repair is worth trying: swap, topology, part, rail, requirement, or escalate.'], ['03', 'RE-CHECK', 'The engine runs the rules again on the changed board. Every verdict is computed, not asserted.']].map(([number, label, description]) => <article className="pl-lg" key={number}><span className="font-data-tabular text-[11px] text-tertiary-fixed">{number}</span><h3 className="mt-md font-data-tabular text-[15px] text-on-surface">{label}</h3><p className="mt-sm text-[15px] leading-6 text-on-surface-variant">{description}</p></article>)}
             </div>
           </section>
         </Reveal>
