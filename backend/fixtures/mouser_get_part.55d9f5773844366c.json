@@ -12,7 +12,7 @@
     "manufacturer": "Espressif Systems",
     "description": "Multiprotocol Modules SMD module, ESP32-S3R8 with 3.3V, 8 MB Octal PSRAM die inside, 16 MB Quad SPI flash, PCB antenna",
     "category": "Multiprotocol Modules",
-    "stock": 62562,
+    "stock": 62481,
     "price": 6.74,
     "price_breaks": [
      {

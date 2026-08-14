@@ -38,36 +38,6 @@
     }
    },
    {
-    "lcsc": "C52125219",
-    "model": "S13131-1536(DYWH)",
-    "manufacturer": "TONYU",
-    "package": "BGA-8(2.4x9.1)",
-    "stock": 29,
-    "price": 6.3671,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "Sensors",
-    "subcategory": "Image Sensors",
-    "subcategory_id": 3078,
-    "mounting_type": "smd",
-    "description": "-40℃~+85℃ 0.8mm 2.4mm 5.5umx63.5um 9.1mm CMOS Image Sensor BGA-8(2.4x9.1) Image Sensors ROHS",
-    "specs": {
-     "Optical Format(inch)": "-",
-     "Operating Temperature": "-40℃~+85℃",
-     "Frame Rate(fps)": "-",
-     "Length": "9.1mm",
-     "Sensor Type": "CMOS Image Sensor",
-     "Pixel Size": "5.5umx63.5um",
-     "Features": "-",
-     "Height": "0.8mm",
-     "Width": "2.4mm",
-     "Dynamic Range": "-",
-     "Active Pixel Array": "-",
-     "Signal-to-Noise Ratio": "-"
-    }
-   },
-   {
     "lcsc": "C5207406",
     "model": "AR0234CSSM28SUKA0-CP",
     "manufacturer": "onsemi",
@@ -89,34 +59,12 @@
     }
    },
    {
-    "lcsc": "C5207402",
-    "model": "AR0234CSSM00SUKA0-CP",
-    "manufacturer": "onsemi",
-    "package": "ODCSP-83(5.6x10)",
-    "stock": 15,
-    "price": 45.3265,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "Sensors",
-    "subcategory": "Image Sensors",
-    "subcategory_id": 3078,
-    "mounting_type": "smd",
-    "description": "1920Hx1200V 3umx3um CMOS Image Sensor Multi-camera synchronous trigger、Global shutter、On-chip temperature sensor、Regional image control、On-chip statistical output ODCSP-83(5.6x10) Image Sensors ROHS",
-    "specs": {
-     "Sensor Type": "CMOS Image Sensor",
-     "Pixel Size": "3umx3um",
-     "Features": "Multi-camera synchronous trigger、Global shutter、On-chip temperature sensor、Regional image control、On-chip statistical output",
-     "Active Pixel Array": "1920Hx1200V"
-    }
-   },
-   {
     "lcsc": "C603157",
     "model": "AR0135CS2M00SUEA0-DPBR",
     "manufacturer": "onsemi",
     "package": "IBGA-63",
     "stock": 15,
-    "price": 24.5572,
+    "price": 24.122,
     "price_10": null,
     "library_type": "extended",
     "preferred": false,
@@ -146,7 +94,7 @@
     "manufacturer": "onsemi",
     "package": "IBGA-63",
     "stock": 15,
-    "price": 27.0183,
+    "price": 26.5717,
     "price_10": null,
     "library_type": "extended",
     "preferred": false,
@@ -184,6 +132,28 @@
     }
    },
    {
+    "lcsc": "C5207402",
+    "model": "AR0234CSSM00SUKA0-CP",
+    "manufacturer": "onsemi",
+    "package": "ODCSP-83",
+    "stock": 11,
+    "price": 45.3265,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Sensors",
+    "subcategory": "Image Sensors",
+    "subcategory_id": 3078,
+    "mounting_type": "smd",
+    "description": "1920Hx1200V 3umx3um CMOS Image Sensor Multi-camera synchronous trigger、Global shutter、On-chip temperature sensor、Regional image control、On-chip statistical output ODCSP-83(5.6x10) Image Sensors ROHS",
+    "specs": {
+     "Sensor Type": "CMOS Image Sensor",
+     "Pixel Size": "3umx3um",
+     "Features": "Multi-camera synchronous trigger、Global shutter、On-chip temperature sensor、Regional image control、On-chip statistical output",
+     "Active Pixel Array": "1920Hx1200V"
+    }
+   },
+   {
     "lcsc": "C903298",
     "model": "AR0130CSSM00SPCA0-DRBR",
     "manufacturer": "onsemi",
@@ -207,11 +177,11 @@
     }
    }
   ],
-  "total": 8,
+  "total": 7,
   "page_info": {
    "limit": 40,
    "offset": 0,
-   "returned": 8
+   "returned": 7
   },
   "filters_applied": {
    "query": "CMOS image sensor",
@@ -233,7 +203,7 @@
   "library_type_counts": {
    "basic": 0,
    "preferred": 0,
-   "extended": 8
+   "extended": 7
   },
   "no_fee_available": false,
   "parsed": {

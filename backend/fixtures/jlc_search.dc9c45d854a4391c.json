@@ -192,7 +192,7 @@
     "model": "MP8009AGV-Z",
     "manufacturer": "Monolithic Power Systems",
     "package": "QFN-28(4x5)",
-    "stock": 858,
+    "stock": 855,
     "price": 2.16,
     "price_10": null,
     "library_type": "extended",
@@ -241,32 +241,6 @@
     }
    },
    {
-    "lcsc": "C544899",
-    "model": "TPS2376DDAR-H",
-    "manufacturer": "Texas Instruments",
-    "package": "SO-8",
-    "stock": 654,
-    "price": 0.8997,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "Power Management (PMIC)",
-    "subcategory": "Power Over Ethernet (PoE) Controllers",
-    "subcategory_id": 2327,
-    "mounting_type": "smd",
-    "description": "-40℃~+85℃ 1 100V 26W 900mA IEEE 802.3 af(PoE) PGOOD状态指示、PD检测与断开识别、Undervoltage Protection、Thermal Protection、Overcurrent Protection Powered Device (PD) SO-8 Power Over Ethernet (PoE) Controllers ROHS",
-    "specs": {
-     "Operating Temperature": "-40℃~+85℃",
-     "Type": "Powered Device (PD)",
-     "Power - Max": "26W",
-     "limiting current": "900mA",
-     "Features": "PGOOD status indication、PD detection and disconnect identification、Undervoltage Protection、Thermal Protection、Overcurrent Protection",
-     "number of channels": "1",
-     "Support PoE standard": "IEEE 802.3 af(PoE)",
-     "Voltage - Breakdown": "100V"
-    }
-   },
-   {
     "lcsc": "C473395",
     "model": "TPS23751PWPR",
     "manufacturer": "Texas Instruments",
@@ -287,6 +261,32 @@
      "Power - Max": "25.5W",
      "limiting current": "1A",
      "Support PoE standard": "IEEE 802.3 at(PoE+)",
+     "Voltage - Breakdown": "100V"
+    }
+   },
+   {
+    "lcsc": "C544899",
+    "model": "TPS2376DDAR-H",
+    "manufacturer": "Texas Instruments",
+    "package": "SO-8",
+    "stock": 590,
+    "price": 0.8997,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Power Over Ethernet (PoE) Controllers",
+    "subcategory_id": 2327,
+    "mounting_type": "smd",
+    "description": "-40℃~+85℃ 1 100V 26W 900mA IEEE 802.3 af(PoE) PGOOD状态指示、PD检测与断开识别、Undervoltage Protection、Thermal Protection、Overcurrent Protection Powered Device (PD) SO-8 Power Over Ethernet (PoE) Controllers ROHS",
+    "specs": {
+     "Operating Temperature": "-40℃~+85℃",
+     "Type": "Powered Device (PD)",
+     "Power - Max": "26W",
+     "limiting current": "900mA",
+     "Features": "PGOOD status indication、PD detection and disconnect identification、Undervoltage Protection、Thermal Protection、Overcurrent Protection",
+     "number of channels": "1",
+     "Support PoE standard": "IEEE 802.3 af(PoE)",
      "Voltage - Breakdown": "100V"
     }
    },
@@ -343,36 +343,12 @@
     }
    },
    {
-    "lcsc": "C891034",
-    "model": "FDMQ8205A",
-    "manufacturer": "onsemi",
-    "package": "WDFN-12(4.5x5)",
-    "stock": 511,
-    "price": 3.3688,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "Power Management (PMIC)",
-    "subcategory": "Power Over Ethernet (PoE) Controllers",
-    "subcategory_id": 2327,
-    "mounting_type": "smd",
-    "description": "-40℃~+85℃ 1.7A 100V IEEE 802.3 at(PoE+)、IEEE 802.3 bt(PoE++)、IEEE 802.3 af(PoE) PD detection and disconnect identification Powered Device (PD) WDFN-12(4.5x5) Power Over Ethernet (PoE) Controllers ROHS",
-    "specs": {
-     "Operating Temperature": "-40℃~+85℃",
-     "Type": "Powered Device (PD)",
-     "limiting current": "1.7A",
-     "Features": "PD detection and disconnect identification",
-     "Support PoE standard": "IEEE 802.3 at(PoE+)、IEEE 802.3 bt(PoE++)、IEEE 802.3 af(PoE)",
-     "Voltage - Breakdown": "100V"
-    }
-   },
-   {
     "lcsc": "C91954",
     "model": "DPA423GN-TL",
     "manufacturer": "POWER INTEGRATIONS",
     "package": "SMD-8P",
     "stock": 370,
-    "price": 1.953,
+    "price": 1.4611,
     "price_10": null,
     "library_type": "extended",
     "preferred": false,
@@ -877,6 +853,30 @@
     }
    },
    {
+    "lcsc": "C891034",
+    "model": "FDMQ8205A",
+    "manufacturer": "onsemi",
+    "package": "WDFN-12(4.5x5)",
+    "stock": 29,
+    "price": 3.3688,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Power Over Ethernet (PoE) Controllers",
+    "subcategory_id": 2327,
+    "mounting_type": "smd",
+    "description": "-40℃~+85℃ 1.7A 100V IEEE 802.3 at(PoE+)、IEEE 802.3 bt(PoE++)、IEEE 802.3 af(PoE) PD detection and disconnect identification Powered Device (PD) WDFN-12(4.5x5) Power Over Ethernet (PoE) Controllers ROHS",
+    "specs": {
+     "Operating Temperature": "-40℃~+85℃",
+     "Type": "Powered Device (PD)",
+     "limiting current": "1.7A",
+     "Features": "PD detection and disconnect identification",
+     "Support PoE standard": "IEEE 802.3 at(PoE+)、IEEE 802.3 bt(PoE++)、IEEE 802.3 af(PoE)",
+     "Voltage - Breakdown": "100V"
+    }
+   },
+   {
     "lcsc": "C3189532",
     "model": "TPS23731RMTR",
     "manufacturer": "Texas Instruments",
@@ -984,7 +984,7 @@
     "manufacturer": "Analog Devices Inc./Maxim Integrated",
     "package": "TQFN-16(5x5)",
     "stock": 20,
-    "price": 11.7066,
+    "price": 11.6387,
     "price_10": null,
     "library_type": "extended",
     "preferred": false,

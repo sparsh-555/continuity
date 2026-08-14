@@ -40,7 +40,7 @@
     "model": "ATGM332D-5N31",
     "manufacturer": "ZHONGKEWEI",
     "package": "SMD,16x12.2mm",
-    "stock": 3047,
+    "stock": 3027,
     "price": 3.4546,
     "price_10": null,
     "library_type": "extended",
@@ -94,7 +94,7 @@
     "model": "ATGM332D-5NR32",
     "manufacturer": "ZHONGKEWEI",
     "package": "-",
-    "stock": 1953,
+    "stock": 1892,
     "price": 1.8074,
     "price_10": null,
     "library_type": "extended",
@@ -121,7 +121,7 @@
     "model": "ATGM336H-5N31",
     "manufacturer": "ZHONGKEWEI",
     "package": "SMD,10.1x9.7mm",
-    "stock": 1676,
+    "stock": 1442,
     "price": 3.22,
     "price_10": null,
     "library_type": "extended",
@@ -202,7 +202,7 @@
     "model": "MAX-M10S-00B",
     "manufacturer": "U-BLOX",
     "package": "LCC-18(9.7x10.1)",
-    "stock": 973,
+    "stock": 965,
     "price": 10.5902,
     "price_10": null,
     "library_type": "extended",
@@ -282,7 +282,7 @@
     "model": "ATGM336H-6N-74",
     "manufacturer": "ZHONGKEWEI",
     "package": "SMD,10.1x9.7mm",
-    "stock": 781,
+    "stock": 779,
     "price": 3.1811,
     "price_10": null,
     "library_type": "extended",
@@ -309,7 +309,7 @@
     "model": "ATGM332D-6N22",
     "manufacturer": "ZHONGKEWEI",
     "package": "SMD,16x12.2mm",
-    "stock": 725,
+    "stock": 720,
     "price": 3.2766,
     "price_10": null,
     "library_type": "extended",
@@ -336,7 +336,7 @@
     "model": "ATGM332D-6N-74",
     "manufacturer": "ZHONGKEWEI",
     "package": "SMD,16x12.2mm",
-    "stock": 722,
+    "stock": 712,
     "price": 3.0258,
     "price_10": null,
     "library_type": "extended",
@@ -497,7 +497,7 @@
     "model": "NEO-M9N-00B",
     "manufacturer": "U-BLOX",
     "package": "SMD-24P",
-    "stock": 408,
+    "stock": 402,
     "price": 16.2987,
     "price_10": null,
     "library_type": "extended",
@@ -553,25 +553,6 @@
     }
    },
    {
-    "lcsc": "C5443880",
-    "model": "SAM-M10Q-00B",
-    "manufacturer": "U-BLOX",
-    "package": "LGA-20",
-    "stock": 332,
-    "price": 22.4748,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "IoT/Communication Modules",
-    "subcategory": "GNSS Modules",
-    "subcategory_id": 3206,
-    "mounting_type": "smd",
-    "description": "Hot start acceleration LGA-20 GNSS Modules ROHS",
-    "specs": {
-     "Features": "Hot start acceleration"
-    }
-   },
-   {
     "lcsc": "C3097708",
     "model": "VG7669T160N0SA",
     "manufacturer": "Vollgo",
@@ -619,6 +600,23 @@
      "Current - Supply": "43mA",
      "Interface": "UART"
     }
+   },
+   {
+    "lcsc": "C5447387",
+    "model": "SAM-M8Q-0",
+    "manufacturer": "U-BLOX",
+    "package": "SMD-20P,15x15mm",
+    "stock": 250,
+    "price": 11.9461,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "IoT/Communication Modules",
+    "subcategory": "GNSS Modules",
+    "subcategory_id": 3206,
+    "mounting_type": "smd",
+    "description": "SMD-20P,15x15mm GNSS Modules ROHS",
+    "specs": {}
    },
    {
     "lcsc": "C7431213",
@@ -726,7 +724,7 @@
     "model": "ATGM336H-7N76",
     "manufacturer": "ZHONGKEWEI",
     "package": "SMD,10.1x9.7mm",
-    "stock": 162,
+    "stock": 152,
     "price": 2.2152,
     "price_10": null,
     "library_type": "extended",
@@ -758,33 +756,6 @@
     }
    },
    {
-    "lcsc": "C2940946",
-    "model": "ATGM336H-5N71",
-    "manufacturer": "ZHONGKEWEI",
-    "package": "SMD,10.1x9.7mm",
-    "stock": 149,
-    "price": 3.1488,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "IoT/Communication Modules",
-    "subcategory": "GNSS Modules",
-    "subcategory_id": 3206,
-    "mounting_type": "smd",
-    "description": "-148dBm -40℃~+85℃ 2.5m 2.7V~3.6V 30mA@3.3V 32s GPS、BDS、GLONASS UART SMD,10.1x9.7mm GNSS Modules ROHS",
-    "specs": {
-     "Operating Temperature": "-40℃~+85℃",
-     "Sensitivity": "-148dBm",
-     "Accuracy": "2.5m",
-     "Voltage - Supply": "2.7V~3.6V",
-     "Features": "Hot start acceleration、RTC backup power、Short-circuit detection",
-     "Time To First Fix": "32s",
-     "GNSS Type": "GPS、BDS、GLONASS",
-     "Current - Supply": "30mA@3.3V",
-     "Interface": "UART"
-    }
-   },
-   {
     "lcsc": "C5349424",
     "model": "Y7080E",
     "manufacturer": "SIMCom Wireless Solutions",
@@ -808,6 +779,25 @@
      "Time To First Fix": "31s",
      "GNSS Type": "GPS、BeiDou、GLONASS、GALILEO",
      "Interface": "UART、I2C、SPI、GPIO、ADC"
+    }
+   },
+   {
+    "lcsc": "C5120257",
+    "model": "ZED-F9P-04B",
+    "manufacturer": "U-BLOX",
+    "package": "SMD,22x17mm",
+    "stock": 120,
+    "price": 83.5335,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "IoT/Communication Modules",
+    "subcategory": "GNSS Modules",
+    "subcategory_id": 3206,
+    "mounting_type": "smd",
+    "description": "SMD,22x17mm GNSS Modules ROHS",
+    "specs": {
+     "Features": "Dual-band / multi-band positioning、RTC backup power"
     }
    },
    {
@@ -835,33 +825,6 @@
      "GNSS Type": "GPS、BDS、QZSS、GLONASS",
      "Current - Supply": "26mA@3.3V",
      "Interface": "UART"
-    }
-   },
-   {
-    "lcsc": "C5356636",
-    "model": "GPS02-UBX",
-    "manufacturer": "G-NiceRF",
-    "package": "SMD,16.5x14.5mm",
-    "stock": 105,
-    "price": 7.1486,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "IoT/Communication Modules",
-    "subcategory": "GNSS Modules",
-    "subcategory_id": 3206,
-    "mounting_type": "smd",
-    "description": "-166dBm -40℃~+85℃ 2.7V~3.6V 25mA@3.3V 28s 3m GPS、BDS、GLONASS、GALILEO UART、I2C SMD,16.5x14.5mm GNSS Modules ROHS",
-    "specs": {
-     "Operating Temperature": "-40℃~+85℃",
-     "Accuracy": "3m",
-     "Sensitivity": "-166dBm",
-     "Voltage - Supply": "2.7V~3.6V",
-     "Features": "Hot start acceleration、Dual-band / multi-band positioning、RTC backup power",
-     "Time To First Fix": "28s",
-     "GNSS Type": "GPS、BDS、GLONASS、GALILEO",
-     "Current - Supply": "25mA@3.3V",
-     "Interface": "UART、I2C"
     }
    },
    {
@@ -914,9 +877,36 @@
     "mounting_type": "smd",
     "description": "SMD GNSS Modules ROHS",
     "specs": {}
+   },
+   {
+    "lcsc": "C5356636",
+    "model": "GPS02-UBX",
+    "manufacturer": "G-NiceRF",
+    "package": "SMD,16.5x14.5mm",
+    "stock": 95,
+    "price": 7.1486,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "IoT/Communication Modules",
+    "subcategory": "GNSS Modules",
+    "subcategory_id": 3206,
+    "mounting_type": "smd",
+    "description": "-166dBm -40℃~+85℃ 2.7V~3.6V 25mA@3.3V 28s 3m GPS、BDS、GLONASS、GALILEO UART、I2C SMD,16.5x14.5mm GNSS Modules ROHS",
+    "specs": {
+     "Operating Temperature": "-40℃~+85℃",
+     "Accuracy": "3m",
+     "Sensitivity": "-166dBm",
+     "Voltage - Supply": "2.7V~3.6V",
+     "Features": "Hot start acceleration、Dual-band / multi-band positioning、RTC backup power",
+     "Time To First Fix": "28s",
+     "GNSS Type": "GPS、BDS、GLONASS、GALILEO",
+     "Current - Supply": "25mA@3.3V",
+     "Interface": "UART、I2C"
+    }
    }
   ],
-  "total": 83,
+  "total": 85,
   "page_info": {
    "limit": 40,
    "offset": 0,
@@ -942,7 +932,7 @@
   "library_type_counts": {
    "basic": 0,
    "preferred": 0,
-   "extended": 83
+   "extended": 85
   },
   "no_fee_available": false
  }

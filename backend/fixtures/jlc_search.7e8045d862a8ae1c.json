@@ -34,7 +34,7 @@
     "model": "BH-18650-A1AJ005",
     "manufacturer": "MYOUNG",
     "package": "-",
-    "stock": 2660,
+    "stock": 2645,
     "price": 0.6877,
     "price_10": null,
     "library_type": "extended",
@@ -55,7 +55,7 @@
     "model": "BH-18650-B1BA002",
     "manufacturer": "MYOUNG",
     "package": "SMD",
-    "stock": 2455,
+    "stock": 2405,
     "price": 1.4984,
     "price_10": null,
     "library_type": "extended",
@@ -78,7 +78,7 @@
     "model": "BH-18650-B5BA016",
     "manufacturer": "MYOUNG",
     "package": "-",
-    "stock": 1356,
+    "stock": 1351,
     "price": 1.9094,
     "price_10": null,
     "library_type": "extended",
@@ -99,7 +99,7 @@
     "model": "BH-18650-3",
     "manufacturer": "HanElectricity",
     "package": "Plugin",
-    "stock": 1311,
+    "stock": 1316,
     "price": 0.3468,
     "price_10": null,
     "library_type": "extended",
@@ -137,27 +137,6 @@
     }
    },
    {
-    "lcsc": "C19184083",
-    "model": "BH-18650-A5BJ001-2D",
-    "manufacturer": "MYOUNG",
-    "package": "-",
-    "stock": 741,
-    "price": 0.7476,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "Industrial control electrical",
-    "subcategory": "Battery connector",
-    "subcategory_id": 1651,
-    "mounting_type": "not_sure",
-    "description": "-10~100℃ Battery holder Nickel plated - ROHS",
-    "specs": {
-     "Operating Temperature": "-10~100℃",
-     "Type": "Battery holder",
-     "Contact coating": "Nickel plated"
-    }
-   },
-   {
     "lcsc": "C49118395",
     "model": "BH-18650-1",
     "manufacturer": "HanElectricity",
@@ -176,6 +155,27 @@
      "Operating Temperature": "-10℃~+100℃",
      "Connector Type": "Battery holder",
      "Battery Type": "18650"
+    }
+   },
+   {
+    "lcsc": "C19184083",
+    "model": "BH-18650-A5BJ001-2D",
+    "manufacturer": "MYOUNG",
+    "package": "-",
+    "stock": 439,
+    "price": 0.7476,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Industrial control electrical",
+    "subcategory": "Battery connector",
+    "subcategory_id": 1651,
+    "mounting_type": "not_sure",
+    "description": "-10~100℃ Battery holder Nickel plated - ROHS",
+    "specs": {
+     "Operating Temperature": "-10~100℃",
+     "Type": "Battery holder",
+     "Contact coating": "Nickel plated"
     }
    },
    {
@@ -267,33 +267,11 @@
     }
    },
    {
-    "lcsc": "C5371777",
-    "model": "BH-18650-B5BA008",
-    "manufacturer": "MYOUNG",
-    "package": "-",
-    "stock": 228,
-    "price": 1.144,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "Industrial control electrical",
-    "subcategory": "Battery connector",
-    "subcategory_id": 1651,
-    "mounting_type": "not_sure",
-    "description": "-10~100℃ Battery holder Gold plating Phosphor bronze - ROHS",
-    "specs": {
-     "Operating Temperature": "-10~100℃",
-     "Type": "Battery holder",
-     "Contact material": "Phosphor bronze",
-     "Contact coating": "Gold plating"
-    }
-   },
-   {
     "lcsc": "C49215505",
     "model": "BH-18650-A1BJ033",
     "manufacturer": "MYOUNG",
     "package": "-",
-    "stock": 220,
+    "stock": 221,
     "price": 0.5016,
     "price_10": null,
     "library_type": "extended",
@@ -308,6 +286,28 @@
      "Type": "Battery holder",
      "Applicable battery specifications": "18650",
      "Contact coating": "Nickel plated"
+    }
+   },
+   {
+    "lcsc": "C5371777",
+    "model": "BH-18650-B5BA008",
+    "manufacturer": "MYOUNG",
+    "package": "-",
+    "stock": 208,
+    "price": 1.144,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Industrial control electrical",
+    "subcategory": "Battery connector",
+    "subcategory_id": 1651,
+    "mounting_type": "not_sure",
+    "description": "-10~100℃ Battery holder Gold plating Phosphor bronze - ROHS",
+    "specs": {
+     "Operating Temperature": "-10~100℃",
+     "Type": "Battery holder",
+     "Contact material": "Phosphor bronze",
+     "Contact coating": "Gold plating"
     }
    },
    {
@@ -329,28 +329,6 @@
      "Operating Temperature": "-25~85℃",
      "Type": "Battery holder",
      "Contact coating": "Nickel plated"
-    }
-   },
-   {
-    "lcsc": "C48687367",
-    "model": "BH-18650-B1BA019",
-    "manufacturer": "MYOUNG",
-    "package": "-",
-    "stock": 154,
-    "price": 1.8657,
-    "price_10": null,
-    "library_type": "extended",
-    "preferred": false,
-    "category": "Industrial control electrical",
-    "subcategory": "Battery connector",
-    "subcategory_id": 1651,
-    "mounting_type": "not_sure",
-    "description": "-10~80℃ 18650 Battery holder Gold plating - ROHS",
-    "specs": {
-     "Operating Temperature": "-10~80℃",
-     "Type": "Battery holder",
-     "Applicable battery specifications": "18650",
-     "Contact coating": "Gold plating"
     }
    },
    {
@@ -398,6 +376,28 @@
     }
    },
    {
+    "lcsc": "C48687367",
+    "model": "BH-18650-B1BA019",
+    "manufacturer": "MYOUNG",
+    "package": "-",
+    "stock": 144,
+    "price": 1.8657,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Industrial control electrical",
+    "subcategory": "Battery connector",
+    "subcategory_id": 1651,
+    "mounting_type": "not_sure",
+    "description": "-10~80℃ 18650 Battery holder Gold plating - ROHS",
+    "specs": {
+     "Operating Temperature": "-10~80℃",
+     "Type": "Battery holder",
+     "Applicable battery specifications": "18650",
+     "Contact coating": "Gold plating"
+    }
+   },
+   {
     "lcsc": "C49215508",
     "model": "BH-18650-A1BJ036",
     "manufacturer": "MYOUNG",
@@ -424,7 +424,7 @@
     "model": "BH-18650-4",
     "manufacturer": "HanElectricity",
     "package": "SMD",
-    "stock": 106,
+    "stock": 104,
     "price": 1.2961,
     "price_10": null,
     "library_type": "extended",
@@ -468,7 +468,7 @@
     "model": "BH-18650-B1AJ025-150",
     "manufacturer": "MYOUNG",
     "package": "-",
-    "stock": 30,
+    "stock": 29,
     "price": 0.5647,
     "price_10": null,
     "library_type": "extended",

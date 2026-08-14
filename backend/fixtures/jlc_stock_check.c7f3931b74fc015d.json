@@ -11,7 +11,7 @@
     "model": "TYPE-C 16PIN 2MD(073)",
     "manufacturer": "SHOU HAN",
     "package": "SMD",
-    "stock": 1106049,
+    "stock": 1095116,
     "price": 0.0738,
     "price_10": 0.0594,
     "library_type": "extended",
@@ -42,7 +42,7 @@
     "model": "TYPE-C 6P",
     "manufacturer": "SHOU HAN",
     "package": "SMD",
-    "stock": 745329,
+    "stock": 742489,
     "price": 0.0386,
     "price_10": 0.0311,
     "library_type": "extended",
@@ -102,7 +102,7 @@
     "model": "TYPE-C 6P",
     "manufacturer": "JXTCONN",
     "package": "SMD",
-    "stock": 1499,
+    "stock": 2969,
     "price": 0.046,
     "price_10": 0.0366,
     "library_type": "extended",
@@ -158,8 +158,8 @@
   ],
   "page": 1,
   "per_page": 5,
-  "total": 985,
-  "total_pages": 197,
+  "total": 1006,
+  "total_pages": 202,
   "has_more": true
  }
 }
