@@ -219,8 +219,9 @@ function Reveal({ children, className = '' }: { children: ReactNode; className?:
   return <div className={`${className} transition-[opacity,transform] duration-[400ms] ease-out ${shown ? 'translate-y-0 opacity-100' : 'translate-y-2.5 opacity-0'}`} ref={ref}>{children}</div>
 }
 
-// TODO: Set this when the walkthrough video is published. No iframe is rendered while empty.
-const WALKTHROUGH_VIDEO_ID = ''
+// The published walkthrough: youtu.be/bX3DZ_12Y54. Embedded via youtube-nocookie, so a
+// visitor who never presses play is not handed a tracking cookie by the landing page.
+const WALKTHROUGH_VIDEO_ID = 'bX3DZ_12Y54'
 
 export default function LandingRoute() {
   const navigate = useNavigate()
