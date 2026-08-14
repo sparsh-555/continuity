@@ -182,9 +182,18 @@ Thank you to the **Tencent Cloud team** for the opportunity and the platform, an
 **Eugene** and **Yong Quan** on the organising side, who made the event happen and kept it
 running.
 
-Thank you also to the people who build **Code Buddy**. A project this size — nine engine
+Thank you also to the people who build **Code Buddy**. A project this size — ten engine
 rules, a live sourcing pipeline and a streamed interface — came together in the time
 available because that tooling carried a real share of the work.
+
+<p align="center">
+  <img src="docs/media/codebuddy-usage.png" alt="CodeBuddy plan usage: 100 of 100 base credits and 2,000 of 2,000 bonus credits consumed." width="820">
+</p>
+
+<sub>**2,100 credits spent** — the whole base quota and the whole bonus pack. That bought
+1,512 model requests on `gpt-5.3-codex` across nine sessions: 112 edits, 172 targeted file
+reads, 29 subagent runs, and two occasions in plan mode where it stopped to ask about
+something my own specification had not settled.</sub>
 
 ## License
 
