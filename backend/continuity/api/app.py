@@ -40,7 +40,7 @@ from ..graph import nodes
 from ..graph.build import build
 from ..planner import topology
 from ..parts import datasheet, dossier, normalize
-from . import auth, bom, events, memory, projects
+from . import auth, bom, events, memory, projects, spa
 from .memory import FindingRecorder
 from .store import Store
 
@@ -994,3 +994,13 @@ async def _save_trace(store: Store, thread_id: str, trace: Sequence[dict[str, An
         await store.save_run_events(thread_id, trace)
     except Exception:
         log.warning("could not persist trace for thread %s", thread_id, exc_info=True)
+
+
+# ── the UI ────────────────────────────────────────────────────────────────────
+
+# `app` stays the bare API — that is what the tests drive and what local development runs
+# against Vite's dev server. `ui` is the deployed process: the same API under `/api`, with
+# the built frontend served from this origin so the session cookie is first-party. See
+# `spa` for why that was not optional.
+ui = spa.serve(app)
+

@@ -1,4 +1,10 @@
-# Render blueprint: the API as a web service, the UI as a static site.
+# Render blueprint: one web service serving both the API and the built UI.
+#
+# It used to be two — a static site for the UI and a web service for the API — and that is
+# what broke Safari. `onrender.com` is on the Public Suffix List, so the two hosts were two
+# different *sites*, the session cookie was third-party, and WebKit refuses to store those.
+# See `backend/continuity/api/spa.py` for the full account. One origin removes the problem
+# rather than working around it, and takes CORS with it.
 #
 # The database is deliberately not declared here. Render's free Postgres expires 30 days
 # after creation and is then deleted, which is a poor fit for something meant to keep
@@ -17,17 +23,31 @@ services:
   - type: web
     name: continuity-api
     runtime: python
-    plan: free
+    # Starter, matching what the service actually runs on. This said `free` for a long
+    # time while the service was on Starter, which was harmless as documentation and is
+    # not harmless now: free instances spin down after 15 minutes, and since this process
+    # serves the UI as well, a cold start would put a 30-60 second blank page in front of
+    # every first visitor rather than just the first API call.
+    plan: starter
     region: singapore
-    healthCheckPath: /health
+    # `/api/health`, not `/health` — the API is mounted under `/api`, and `/health` now
+    # resolves to the SPA fallback, which would return 200 for an app whose database is
+    # gone. A health check that cannot fail is worse than none.
+    healthCheckPath: /api/health
     # `-e` matters. The wheel packages `continuity` only, so a non-editable install would
     # copy the code to site-packages and leave `cache/` and `fixtures/` behind — and the
     # anchored paths would then point at a site-packages directory that has neither.
-    buildCommand: pip install -e ./backend
+    # The UI is built here too, so both halves ship from one service. Render's native
+    # runtimes all carry node, npm and bun regardless of the service's language, so a
+    # Python service can run a Vite build.
+    buildCommand: cd frontend && npm ci && npm run build && cd .. && pip install -e ./backend
     # `--host 0.0.0.0` because the container's loopback is not reachable from outside it,
     # and $PORT because Render assigns it. One worker: the design run holds an SSE stream
     # open for the length of the run, and a second worker would not share `STREAMS`.
-    startCommand: uvicorn continuity.api.app:app --host 0.0.0.0 --port $PORT --workers 1
+    # `:ui`, not `:app`. `app` is the bare API — what the tests drive and what local
+    # development serves to Vite's dev server. `ui` is that same API mounted under `/api`
+    # with the built frontend served from this origin.
+    startCommand: uvicorn continuity.api.app:ui --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       # Pinned, and fully qualified as Render requires. Their default for new services is
       # 3.14.3, which nothing here has been run against — and the dependencies that would
@@ -40,31 +60,19 @@ services:
         sync: false
       - key: CONTINUITY_LLM_API_KEY
         sync: false
-      # The static site's URL, exactly — a wildcard is rejected once credentials are
-      # allowed, and a trailing slash does not match.
-      - key: CONTINUITY_ORIGINS
-        sync: false
-      # The UI and the API are on different hosts, so the session cookie is cross-site.
-      # `none` requires `secure`; without both, every signed-in request fails silently.
+      # First-party now that one origin serves both halves, so `lax` is correct and is the
+      # better default — it is what stops a third-party page driving an authenticated
+      # request. `none` was only ever required because the cookie was cross-site, and it
+      # never helped: WebKit blocks third-party cookies whatever their SameSite says.
       - key: CONTINUITY_COOKIE_SAMESITE
-        value: none
+        value: lax
       - key: CONTINUITY_COOKIE_SECURE
         value: "1"
-
-  - type: web
-    name: continuity-ui
-    runtime: static
-    buildCommand: cd frontend && npm ci && npm run build
-    # Relative to the repo root, which is where the blueprint runs from.
-    staticPublishPath: ./frontend/dist
-    envVars:
-      # The API's URL, injected at build time — Vite inlines it, so changing this needs a
-      # rebuild rather than a restart.
-      - key: VITE_API_URL
+      # Where the UI is served from. Same-origin requests never reach CORS, so this is
+      # vestigial — kept so a future split does not have to rediscover that a wildcard is
+      # rejected outright once credentials are allowed.
+      - key: CONTINUITY_ORIGINS
         sync: false
-    routes:
-      # The router owns every path. Without this, a reload on /projects or /design/:id
-      # asks Render for a file that was never built and gets a 404.
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      # Inlined by Vite at build time. `/api` because the API is mounted there.
+      - key: VITE_API_URL
+        value: /api
