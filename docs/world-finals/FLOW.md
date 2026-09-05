@@ -178,10 +178,35 @@ Three findings, none of them staged:
 `availability` also fails the EOL part on all three boards from stock alone, so the
 end-of-life condition already has a corresponding engine verdict.
 
-**What this does not settle:** the parts are synthetic. The physics and the rule behaviour
-are real, and the setup values (θJA, rail voltages, draws) were chosen. Replacing them with
-real MPNs whose datasheets a judge could look up is still open, and is now the highest
-remaining risk in the demo.
+### Settled 6 Sep — the parts are real now
+
+Rebuilt on MPNs pulled from JLCPCB through `graph.sourcing`, the same path the product uses.
+A judge can look every one of them up.
+
+| candidate | A · 120 mA | B · 200 mA | C · 350 mA |
+|---|---|---|---|
+| **AMS1117-3.3** SOT-223, $0.2176 — *going EOL* | pass | pass | pass |
+| **ME6211C33M5G-N** SOT-23-5, $0.0597 — *the cheap swap* | pass | **hot, 110 °C** | **FAIL — 174 °C vs 150 °C** |
+| **TLV1117LV33DCYR** SOT-223, $0.1115 — *same package* | pass | pass | pass |
+
+The engine's verdict, verbatim: *"(5 V − 3.3 V) × 350 mA = 0.59 W in SOT-23-5 — 149 °C rise,
+174 °C junction against a 150 °C limit."*
+
+The mechanism is the package. θJA is absent from every distributor row, so the engine uses
+its own table: **SOT-223 at 62 °C/W against SOT-23-5 at 250 °C/W**. Four times the thermal
+resistance in the cheaper part, which is invisible on a parametric search and is the entire
+reason the swap fails. Uploading the datasheet through `/datasheet` replaces the table figure
+with a quoted one, which is the stronger version of the beat.
+
+**One design change fell out of the real specs.** The plan was to differentiate on input
+voltage — a 12 V line C. ME6211 is rated to 6 V, so a 12 V board rejects it on
+`voltage_overlap` before thermal is ever reached, which is correct but tells the wrong story.
+All three lines now run at 5 V and differ in load current, which is also a more believable
+product family.
+
+**Blemish to fix or accept:** `voltage_overlap` warns on all nine cells — the distributor
+publishes a maximum but no minimum, and these are LDOs whose real minimum is dropout above
+3.3 V. Honest, and noisy on every row. A datasheet upload clears it.
 
 ---
 

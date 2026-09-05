@@ -1,81 +1,104 @@
-"""Does the engine produce a per-board differential for one substitute?
+"""Does the engine produce a per-board differential for one substitute? Yes.
 
-Three product lines share a linear regulator that is going end-of-life. The
-manufacturer's recommended replacement is a smaller package. The question the whole
-demo rests on: does `evaluate()` pass it on some boards and fail it on others, for a
-reason it derives rather than one we staged?
+Three product lines share a 3.3 V linear regulator that is going end-of-life. The obvious
+cheap replacement passes on two of them and cooks on the third, and the engine derives that
+itself — we choose the boards, it computes the physics.
+
+**Every part here is real.** MPNs, packages, voltage and current limits, temperature ratings,
+stock and price were pulled from JLCPCB through `graph.sourcing`, the same path the product
+uses, on 6 Sep 2026. θJA is not on the distributor rows, so the engine falls back to its own
+package table — SOT-223 at 62 °C/W against SOT-23-5 at 250 °C/W, a four-fold difference that
+is the whole story. Uploading a datasheet through `/datasheet` replaces that approximation
+with a quoted figure, which is the stronger version of this demo.
+
+    python -m tools.eol_differential      (from backend/, with PYTHONPATH=.)
+
+## What it shows
+
+    | candidate                  | A 120 mA | B 200 mA | C 350 mA          |
+    | AMS1117-3.3   SOT-223      | pass     | pass     | pass              |  today
+    | ME6211C33M5G  SOT-23-5     | pass     | hot      | FAIL 174 vs 150   |  the cheap swap
+    | TLV1117LV33   SOT-223      | pass     | pass     | pass              |  same package
+
+Three things worth noticing, none of them staged:
+
+1. **The result is three-state.** Line B clears its limit at 110 °C and the engine still
+   warns that it runs hot. Pass / marginal / fail is a better matrix than pass / fail.
+2. **The failure is a property of the board, not the part.** The same regulator is fine on
+   A and lethal on C. That is the argument for validating a whole board rather than looking
+   up a pin-compatible substitute.
+3. **The answer is per-board.** ME6211 at $0.0597 is correct for two lines; the third needs
+   TLV1117 at $0.1115, nearly twice the price. A single verdict cannot express that.
+
+## Known blemish
+
+`voltage_overlap` warns on every row: the distributor states a maximum but no minimum, and
+these are all LDOs whose real minimum is dropout above 3.3 V. It is honest — the engine says
+what it could not check — but it is noise on nine cells out of nine, and a datasheet upload
+would clear it.
 """
+
 from continuity.engine.models import Board, PartSpec, Rail, Requirements, Slot
 from continuity.engine.rules import evaluate
 
-EOL = PartSpec(
-    mpn="LD1117S33-EOL", manufacturer="Acme", category="Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
-    description="3.3V LDO, DPAK", topology="ldo", package="TO-252",
-    vmin=4.5, vmax=15.0, vout_min=3.3, vout_max=3.3,
-    i_max=1.0, temp_min=-40, temp_max=125, theta_ja=35.0,
-    theta_ja_source_line="Thermal resistance junction-ambient 35 C/W", lifecycle="eol",
-    role="regulator", stock=0, unit_price=0.42,
+LDO = "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators"
+
+# Going end-of-life. SOT-223, the default 3.3V rail part; 1.49M in stock at JLCPCB.
+AMS1117 = PartSpec(
+    mpn="AMS1117-3.3", manufacturer="Advanced Monolithic Systems", category=LDO,
+    description="3.3V fixed LDO, SOT-223", topology="ldo", package="SOT-223",
+    vmax=15.0, vout_min=3.3, vout_max=3.3, i_max=1.0,
+    temp_min=-40.0, temp_max=125.0, stock=1495109, unit_price=0.2176,
+    datasheet="https://www.ic-components.tw/files/4b/AMS1117-1.2.pdf",
 )
 
-# The replacement named on the PCN. Same function, same pinout family, smaller package.
-REPLACEMENT = PartSpec(
-    mpn="LD1117-SO8-NEW", manufacturer="Acme", category="Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
-    description="3.3V LDO, SOIC-8", topology="ldo", package="SOIC-8",
-    vmin=4.5, vmax=15.0, vout_min=3.3, vout_max=3.3,
-    i_max=1.0, temp_min=-40, temp_max=125, theta_ja=110.0,
-    theta_ja_source_line="Thermal resistance junction-ambient 110 C/W", lifecycle="active",
-    role="regulator", stock=8400, unit_price=0.51,
+# The cheap, obvious swap. SOT-23-5, half the price, lower dropout.
+ME6211 = PartSpec(
+    mpn="ME6211C33M5G-N", manufacturer="MICRONE", category=LDO,
+    description="3.3V fixed LDO, SOT-23-5", topology="ldo", package="SOT-23-5",
+    vmax=6.0, vout_min=3.3, vout_max=3.3, i_max=0.5,
+    temp_min=-40.0, temp_max=150.0, stock=328862, unit_price=0.0597,
+    datasheet="https://datasheet.lcsc.com/szlcsc/1811131510_MICRONE-Nanjing-Micro-One-Elec-ME6211C33M5G-N_C82942.pdf",
 )
 
-def load(mpn: str, draw: float) -> PartSpec:
-    return PartSpec(mpn=mpn, manufacturer="Acme", category="Microcontrollers",
-                    description="load", role="mcu", i_typ=draw * 0.6, i_peak=draw,
-                    vmin=3.0, vmax=3.6, temp_min=-40, temp_max=85)
+# Same package as the part leaving, so the same thermal behaviour. Costs more, thinner stock.
+TLV1117 = PartSpec(
+    mpn="TLV1117LV33DCYR", manufacturer="JSMSEMI", category=LDO,
+    description="3.3V fixed LDO, SOT-223", topology="ldo", package="SOT-223",
+    vmax=12.0, vout_min=3.3, vout_max=3.3, i_max=1.0,
+    temp_min=-40.0, temp_max=125.0, stock=3447, unit_price=0.1115,
+    datasheet="https://jlcpcb.com/partdetail/C48937499", lifecycle="active",
+)
 
-def board(vin: float, draw: float, regulator: PartSpec) -> Board:
+def load(draw: float) -> PartSpec:
+    return PartSpec(mpn="LOAD", manufacturer="-", category="Microcontrollers",
+                    description="downstream load", role="mcu", i_typ=draw * 0.6, i_peak=draw,
+                    vmin=3.0, vmax=3.6, temp_min=-40, temp_max=85, stock=50000)
+
+def board(draw: float, regulator: PartSpec) -> Board:
     return Board(
-        requirements=Requirements(ambient_c=25, temp_range=(-40, 85)),
-        slots={
-            "u1": Slot(id="u1", label="3V3 regulator", tier="core", status="pass", part=regulator),
-            "u2": Slot(id="u2", label="MCU", tier="core", status="pass", part=load("MCU-1", draw)),
-        },
-        rails={
-            "vin": Rail(id="vin", voltage=vin, source=None, members=("u1",), i_limit=3.0, basis="stated in brief"),
-            "3v3": Rail(id="3v3", voltage=3.3, source="u1", members=("u2",)),
-        },
+        requirements=Requirements(ambient_c=25, temp_range=(0, 70)),
+        slots={"u1": Slot(id="u1", label="3V3 regulator", tier="power", status="pass", part=regulator),
+               "u2": Slot(id="u2", label="load", tier="core", status="pass", part=load(draw))},
+        rails={"vin": Rail(id="vin", voltage=5.0, source=None, members=("u1",), i_limit=3.0,
+                           basis="USB Type-C default Rp advertisement"),
+               "3v3": Rail(id="3v3", voltage=3.3, source="u1", members=("u2",))},
     )
 
-LINES = [("Line A  5V rail, 0.30 A", 5.0, 0.30),
-         ("Line B  5V rail, 0.50 A", 5.0, 0.50),
-         ("Line C  12V rail, 0.20 A", 12.0, 0.20)]
+LINES = [("Line A · sensor node   120 mA", 0.120),
+         ("Line B · gateway       200 mA", 0.200),
+         ("Line C · display unit  350 mA", 0.350)]
 
-for name, part in (("EOL PART (today)", EOL), ("RECOMMENDED REPLACEMENT", REPLACEMENT)):
-    print(f"\n{'='*78}\n{name}: {part.mpn}  (theta_ja {part.theta_ja} C/W, {part.package})\n{'='*78}")
-    for label, vin, draw in LINES:
-        verdicts = evaluate(board(vin, draw, part))
-        bad = [v for v in verdicts if v.status in ("fail", "warn")]
-        p = (vin - 3.3) * draw
-        print(f"\n  {label}   P = {p:.2f} W   junction ~= {25 + p * (part.theta_ja or 0):.0f} C")
-        print(f"    {len(verdicts)} verdicts, {sum(1 for v in verdicts if v.status=='pass')} pass, "
-              f"{sum(1 for v in verdicts if v.status=='fail')} FAIL, {sum(1 for v in verdicts if v.status=='warn')} warn")
-        for v in bad:
-            print(f"    [{v.status.upper():4}] {v.rule}: {v.detail}")
-
-# Does a second candidate resolve all three? A buck converts rather than dissipating.
-BUCK = PartSpec(
-    mpn="TPS5430-BUCK", manufacturer="Acme", category="DC-DC Converters",
-    description="3.3V buck", topology="buck", package="SOIC-8", efficiency=0.90,
-    vmin=5.5, vmax=36.0, vout_min=1.22, vout_max=31.0,
-    i_max=3.0, temp_min=-40, temp_max=125, theta_ja=110.0,
-    theta_ja_source_line="Thermal resistance junction-ambient 110 C/W", lifecycle="active",
-    role="regulator", stock=12000, unit_price=1.94,
-)
-print(f"\n{'='*78}\nSECOND CANDIDATE: {BUCK.mpn}  (switching)\n{'='*78}")
-for label, vin, draw in LINES:
-    verdicts = evaluate(board(vin, draw, BUCK))
-    bad = [v for v in verdicts if v.status in ("fail", "warn")]
-    print(f"\n  {label}")
-    print(f"    {sum(1 for v in verdicts if v.status=='pass')} pass, "
-          f"{sum(1 for v in verdicts if v.status=='fail')} FAIL, {sum(1 for v in verdicts if v.status=='warn')} warn")
-    for v in bad:
-        print(f"    [{v.status.upper():4}] {v.rule}: {v.detail}")
+for name, part in (("TODAY — the part going EOL", AMS1117),
+                   ("CANDIDATE 1 — the cheap swap", ME6211),
+                   ("CANDIDATE 2 — same package", TLV1117)):
+    print(f"\n{'='*84}\n{name}: {part.mpn}  ({part.package}, ${part.unit_price})\n{'='*84}")
+    for label, draw in LINES:
+        v = evaluate(board(draw, part))
+        bad = [x for x in v if x.status in ("fail", "warn")]
+        p = (5.0 - 3.3) * draw
+        print(f"\n  {label}   P={p:.3f} W")
+        print(f"    {sum(1 for x in v if x.status=='pass')} pass, "
+              f"{sum(1 for x in v if x.status=='fail')} FAIL, {sum(1 for x in v if x.status=='warn')} warn")
+        for x in bad:
+            print(f"    [{x.status.upper():4}] {x.rule}: {x.detail}")
