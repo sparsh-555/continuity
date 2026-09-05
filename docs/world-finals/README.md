@@ -1,0 +1,94 @@
+# World finals — Shenzhen, 13 Sep 2026
+
+Tencent Cloud Hackathon 2026 Global Finals, **Agent track**. Continuity qualified by
+winning the AI Tinkerers × Tencent Cloud hackathon in Singapore on 22 Aug 2026.
+
+Source for everything here: the pre-event briefing deck circulated 3 Sep
+(`~/Desktop/Tencent World Finals x China visa/online briefing session.pdf`), plus the
+organiser confirming the track on 4 Sep. **Track is Agent and switching is not allowed.**
+
+## The challenge
+
+> **From a personal tool to an enterprise-level AI agent.**
+> Let AI help more than one person — turn your entire company into a super team.
+> Make your Skill/Agent go from "great for one user" to "indispensable to the whole team."
+
+Three sanctioned upgrade paths, pick one and push it one step further:
+
+| Path | Meaning | Their example |
+|---|---|---|
+| Horizontal Expansion | One skill, more roles | Weekly reports for 1 person → Sales / R&D / Finance |
+| Vertical Deepening | "Just a look" → decision-grade | Analysis report → feeds a management decision flow |
+| **Chained Collaboration** | Your skill + other skills = a business chain | Contract review → risk alerts → approval workflow |
+
+We are taking **Chained Collaboration**. See [SCENARIO-B.md](SCENARIO-B.md).
+
+Topics were issued per-team by WorkBuddy, two per team, choose one. Ours arrived 4 Sep.
+
+## Judging — 100 points
+
+| Dimension | Pts | Breakdown |
+|---|---|---|
+| Scenario & Business Value | 25 | Scenario & pain points 15 · Scalability potential 10 |
+| Efficiency Gains | 20 | Quantified benefits 10 · Before/after comparison 5 |
+| Functional Completeness | 20 | Live demo runnability 10 · Completeness of materials 10 |
+| Innovation & Depth | 20 | Technical innovation 10 · **Deep use of product features 10** |
+| Live Demo & Presentation | 20 | Clarity 7 · Demo quality 7 · Q&A 6 |
+
+Plus a bonus "Key Highlight" for leveraging WorkBuddy's connectors, experts, expert
+groups, projects, assistants and skills.
+
+**This is a different rubric from Singapore.** There, AI Innovation was 30%. Here,
+technical innovation alone is 10 of 100, while business value and quantified efficiency
+together are 45. The architecture claim that won the prelim is now the evidence that makes
+the numbers credible, not the headline.
+
+Two notes on the deck itself: Efficiency Gains is boxed at 20 but its sub-scores sum to
+15, and the Agent-track pitch length is never stated (the Game track's is 5 minutes
+on-site). Both were raised with the organiser.
+
+## Field
+
+42 finalist teams from 10,122 participants and 1,414 preliminary works — **22 Agent**
+(described as *mainly enterprise developers*), 16 Game (university), 4 Animation.
+
+The Agent prize table has 22 slots for 22 Agent teams: 1st ×2 at ¥50K, 2nd ×4 at ¥25K,
+3rd ×6 at ¥15K, Excellence ×10 at ¥10K, from a ¥390K pool. That reads as placement rather
+than selection, though the deck never says so outright.
+
+## Dates, all GMT+8
+
+| When | What |
+|---|---|
+| 4 Sep | Preliminary project info form · travel info by 15:00 — **done** |
+| 5 Sep | Team photo, 3:4 vertical half-body portrait |
+| **7 Sep** | **200-word preliminary idea for the final challenge** |
+| 11–14 Sep | Shenzhen. Vienna Hotel (Qianhai Happy Harbour), twin shared |
+| 12 Sep 19:00 | Presentation order drawn on site |
+| 13 Sep | D-Day at Penguin Island — booth, live pitch, judge feedback |
+
+No submission deadline for the finals work itself appears anywhere in the deck; only the
+Game track's is stated. Raised with the organiser, answer pending.
+
+## On the ground
+
+42 booths along the third-floor walkway, colour-coded by track. **The booths showcase the
+preliminary project, not the finals project** — the Sep 4 form was emphatic about this. So
+two artifacts are in play on the 13th: the deployed app as it was submitted in August,
+visible to the public all day, and whatever we pitch on stage.
+
+Shuttle from the hotel on the 12th and 13th. Meals provided on the 13th only.
+
+## Open questions with the organiser
+
+1. Submission deadline for the finals work.
+2. Does criterion 4.2, "Deep Use of Product Features", mean any Tencent Cloud product or
+   WorkBuddy specifically? Continuity was built with CodeBuddy and runs GLM 5.2.
+   (Whether WorkBuddy is *required* is answered by the deck: it is not. It appears in the
+   Agent track only as the question-setter, and its one scoring mention is a permissive
+   bonus box.)
+3. Pitch and Q&A length for the Agent track; English or Chinese; interpretation.
+4. Booth requirements and what is provided — screen, power, network.
+5. **What is reachable from the venue network.** `llm.py` defaults to `api.z.ai`, the
+   international endpoint, and its own docstring warns that keys do not work across
+   regions. The frontend is on Render. Both need answering before the 12th.
