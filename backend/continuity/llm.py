@@ -39,6 +39,15 @@ from . import env
 INTERNATIONAL_URL = "https://api.z.ai/api/paas/v4"
 MAINLAND_URL = "https://open.bigmodel.cn/api/paas/v4"
 
+DEEPSEEK_URL = "https://api.deepseek.com"
+"""DeepSeek's OpenAI-compatible endpoint. One key, no regional split.
+
+Worth having written down because z.ai is not reachable from everywhere. Render's
+Singapore region cannot get a response from `api.z.ai` at all — the request hangs until
+it times out, while the same key answers a laptop in about two seconds. Others report the
+same hang through gateways and other clouds. DeepSeek is answerable from both, and being a
+mainland provider it is the safer bet inside China.
+"""
 
 
 def base_url() -> str:
@@ -46,9 +55,22 @@ def base_url() -> str:
     return os.environ.get("CONTINUITY_LLM_BASE_URL") or INTERNATIONAL_URL
 
 
+def _is_deepseek() -> bool:
+    return "deepseek" in base_url()
+
+
 def model() -> str:
+    """The configured model, or the right default for whichever endpoint is set.
+
+    Defaulting per provider rather than to one name: pointing `CONTINUITY_LLM_BASE_URL` at
+    DeepSeek while a `glm-5.2` default rode along would fail on every call, and the failure
+    would arrive as an unhelpful 400 rather than as a configuration mistake.
+    """
     env.load()
-    return os.environ.get("CONTINUITY_LLM_MODEL") or "glm-5.2"
+    override = os.environ.get("CONTINUITY_LLM_MODEL")
+    if override:
+        return override
+    return "deepseek-v4-flash" if _is_deepseek() else "glm-5.2"
 
 
 API_KEY_ENV = "CONTINUITY_LLM_API_KEY"
@@ -126,6 +148,27 @@ part is wrong" is the one judgement here worth thinking about.
 """
 
 
+def _effort(effort: str) -> dict[str, Any]:
+    """Translate our two effort levels into whichever vocabulary the provider speaks.
+
+    GLM takes `reasoning_effort` directly and our names are its names.
+
+    DeepSeek V4 does not. Its Chat Completions endpoint accepts `low`, `high` and `max`
+    (`medium` and `xhigh` are aliases for `high`) — **`minimal` exists only on their
+    Responses API** — and thinking is *enabled by default at high effort*, which is the
+    opposite of what an extraction task wants. So `MINIMAL` maps to thinking disabled
+    outright, which is a stronger guarantee than `minimal` ever was.
+
+    Disabling thinking also protects `temperature=0`. DeepSeek ignores `temperature` while
+    thinking, so leaving it on would quietly cost the determinism the caller asked for.
+    """
+    if not _is_deepseek():
+        return {"reasoning_effort": effort}
+    if effort == MINIMAL:
+        return {"extra_body": {"thinking": {"type": "disabled"}}}
+    return {"reasoning_effort": LOW, "extra_body": {"thinking": {"type": "enabled"}}}
+
+
 async def complete_json(
     system: str, user: str, *, temperature: float = 0.0, effort: str = MINIMAL
 ) -> dict[str, Any]:
@@ -147,7 +190,7 @@ async def complete_json(
                     {"role": "user", "content": user},
                 ],
                 temperature=temperature,
-                reasoning_effort=effort,
+                **_effort(effort),
             )
             return parse_json(response.choices[0].message.content or "")
         except Exception as error:
