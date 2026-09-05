@@ -356,3 +356,48 @@ def test_abandoning_a_stream_cancels_and_removes_prefetches():
 
 async def _immediate(value):
     return value
+
+
+# ── a planner that did not answer ─────────────────────────────────────────────
+
+
+def _fallback_trace(monkeypatch, *, key_configured: bool) -> list[str]:
+    """Drive `parse_requirements` with a planner that returns nothing."""
+
+    async def no_plan(_prompt):
+        return None
+
+    monkeypatch.setattr(nodes.planner, "plan_board", no_plan)
+    monkeypatch.setattr(nodes.llm, "available", lambda: key_configured)
+    monkeypatch.setattr(nodes, "_prefetch", lambda *a, **k: asyncio.sleep(0))
+
+    stream = EventStream("thread-fallback")
+    emitted: list[dict] = []
+    monkeypatch.setattr(nodes, "_emit", emitted.append)
+
+    asyncio.run(
+        nodes.parse_requirements(
+            {"prompt": "LoRa GPS tracker, solar powered, runs outdoors year round"},
+            {"configurable": {"events": stream, "thread_id": None}},
+        )
+    )
+    return [e["text"] for e in emitted if e.get("type") == "reasoning"]
+
+
+def test_a_configured_planner_that_fails_says_so(monkeypatch):
+    """Silence here is how a generic board passes for one read from the brief.
+
+    An unreachable endpoint produced regulator-plus-microcontroller and an ESP32 search
+    for a solar LoRa tracker, then asked what powered it. Nothing said the planner had
+    never answered, so it read as a product that could not parse a brief.
+    """
+    trace = _fallback_trace(monkeypatch, key_configured=True)
+    assert any("did not answer" in line for line in trace), trace
+    assert any("default board" in line for line in trace), trace
+
+
+def test_no_key_configured_stays_quiet(monkeypatch):
+    """Running without a key is a declared mode, not a failure worth narrating."""
+    trace = _fallback_trace(monkeypatch, key_configured=False)
+    assert not any("did not answer" in line for line in trace), trace
+    assert any("parts to source" in line for line in trace), trace

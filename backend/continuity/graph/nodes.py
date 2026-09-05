@@ -27,7 +27,7 @@ from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 
 from ..api import events
-from .. import interpret, reviewer
+from .. import interpret, llm, reviewer
 from ..engine import policy, rules
 from ..engine import situation
 from ..engine.models import Rail, Requirements, Slot, Verdict
@@ -105,12 +105,32 @@ async def parse_requirements(state: DesignState, config) -> DesignState:
     Falls back to a plain single-rail board when no model is configured — the same
     degraded-but-honest mode the normaliser has. The fallback exists so the system
     still runs without a key, not so it can pretend to have planned.
+
+    **A configured model that fails is a different case, and it says so.** `plan_board`
+    returns `None` for both, and treating them alike is how a run against an unreachable
+    endpoint produced a plausible generic board — regulator and microcontroller, an ESP32
+    search — for a brief asking for a solar LoRa GPS tracker, then asked what the board was
+    powered from. Nothing in the trace said the planner had never answered, so the product
+    looked like it could not read a brief rather than like it could not reach a model.
+
+    The board is still built, because a degraded board a user can inspect beats a dead run.
+    What changes is that the trace admits which one they are looking at.
     """
     ev = _events(config)
     prompt = state.get("prompt", "")
     _emit(ev.reasoning(None, "Reading the brief."))
 
-    board_plan = await planner.plan_board(prompt) or planner.fallback_plan(prompt)
+    board_plan = await planner.plan_board(prompt)
+    if board_plan is None:
+        if llm.available():
+            _emit(
+                ev.reasoning(
+                    None,
+                    "The planner did not answer, so this is a default board rather than "
+                    "one read from the brief.",
+                )
+            )
+        board_plan = planner.fallback_plan(prompt)
     labels = _listing([board_plan.slots[s].label for s in board_plan.order])
     _emit(ev.reasoning(None, f"{len(board_plan.slots)} parts to source: {labels}."))
 

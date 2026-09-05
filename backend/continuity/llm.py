@@ -85,6 +85,15 @@ def _client():
         api_key=key,
         base_url=base_url(),
         timeout=TIMEOUT_S,
+        # The SDK retries twice by default, and `complete_json` has its own loop. Nested,
+        # that is 2 x 3 = six attempts, so one unreachable endpoint costs 6 x TIMEOUT_S
+        # plus the SDK's backoff — the 307-second "Reading the brief…" on 6 Sep, and most
+        # likely the 333-second run that sent the Singapore demo to localhost. A 401 is
+        # not retryable and returns in about two seconds; only timeouts compound like
+        # this, which is what made it look like model latency rather than a bug.
+        #
+        # One retry policy, and it is the caller's.
+        max_retries=0,
         # Z.ai's own examples send this; it selects English error messages, which is
         # the difference between a debuggable 400 and an inscrutable one.
         default_headers={"Accept-Language": "en-US,en"},
