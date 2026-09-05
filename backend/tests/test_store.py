@@ -265,6 +265,36 @@ def test_projects_list_for_their_owner_only():
     assert [p.name for p in others] == ["Their board"]
 
 
+def test_the_walkthrough_project_is_not_listed_on_the_dashboard():
+    """It is scaffolding the help button owns, not a project the user made.
+
+    Listing it put a delete affordance on a row `/design/demo` replays into.
+    """
+
+    async def go():
+        async with fresh() as store:
+            user = await a_user(store)
+            await store.create_project(user.id, "My board")
+            await store.ensure_walkthrough(user.id, "a recorded prompt")
+            return await store.projects_for_user(user.id)
+
+    assert [p.name for p in run(go())] == ["My board"]
+
+
+def test_the_walkthrough_thread_survives_being_hidden():
+    """Hiding it from the list must not hide it from the tour."""
+
+    async def go():
+        async with fresh() as store:
+            user = await a_user(store)
+            await store.ensure_walkthrough(user.id, "a recorded prompt")
+            return await store.walkthrough_thread_for_user(user.id)
+
+    thread = run(go())
+    assert thread is not None
+    assert thread.prompt == "a recorded prompt"
+
+
 def test_a_project_is_invisible_to_another_user():
     async def go():
         async with fresh() as store:

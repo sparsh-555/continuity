@@ -320,15 +320,39 @@ def test_the_walkthrough_runs_once_and_marks_the_account():
     assert len({f["thread_id"] for f in frames}) == 1
 
 
-def test_the_walkthrough_leaves_a_real_project_behind():
+async def walkthrough_project_count(store, user_id: str) -> int:
+    """Walkthrough projects are hidden from `/projects`, so count them directly.
+
+    These tests are about idempotency — one project, never two — which is a different
+    question from whether the dashboard lists it.
+    """
+    async with store.pool.connection() as conn:
+        cursor = await conn.execute(
+            "SELECT count(*) FROM projects WHERE user_id = %s AND is_walkthrough",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+    return row[0]
+
+
+def test_the_walkthrough_project_is_created_but_hidden_from_the_dashboard():
+    """It exists so `/design/demo` has somewhere to replay into, and the help button owns it.
+
+    Listing it beside real work offered a delete affordance on scaffolding the product
+    depends on.
+    """
+
     async def go():
-        async with a_store():
+        async with a_store() as store:
             async with signed_in() as http:
                 await frames_of(http, "/design/demo", {})
-                return await http.get("/projects")
+                me = (await http.get("/auth/me")).json()
+                listed = (await http.get("/projects")).json()
+                return listed, await walkthrough_project_count(store, me["id"])
 
-    projects = run(go()).json()
-    assert len(projects) == 1
+    listed, hidden = run(go())
+    assert listed == [], "the walkthrough must not appear on the dashboard"
+    assert hidden == 1, "but it must still exist"
 
 
 def test_the_walkthrough_is_idempotent():
@@ -340,15 +364,15 @@ def test_the_walkthrough_is_idempotent():
     """
 
     async def go():
-        async with a_store():
+        async with a_store() as store:
             async with signed_in() as http:
                 first = await frames_of(http, "/design/demo", {})
                 second = await frames_of(http, "/design/demo", {})
-                projects = (await http.get("/projects")).json()
-                return first, second, projects
+                me = (await http.get("/auth/me")).json()
+                return first, second, await walkthrough_project_count(store, me["id"])
 
     first, second, projects = run(go())
-    assert len(projects) == 1, "a second call must not create a second project"
+    assert projects == 1, "a second call must not create a second project"
     assert first[0]["thread_id"] == second[0]["thread_id"]
     assert [f["seq"] for f in second] == list(range(len(second))), "a replay renumbers from 0"
     assert second[-1]["type"] == "done"
@@ -383,9 +407,9 @@ def test_the_walkthrough_records_the_conflicts_it_resolved():
             async with signed_in() as http:
                 await frames_of(http, "/design/demo", {})
                 me = (await http.get("/auth/me")).json()
-                project = (await http.get("/projects")).json()[0]
-                threads = await store.threads_for_project(project["id"], me["id"])
-                return threads[0].summary
+                thread = await store.walkthrough_thread_for_user(me["id"])
+                assert thread is not None
+                return thread.summary
 
     summary = run(go())
     assert summary["conflicts_resolved"] == 3
@@ -658,12 +682,13 @@ def test_two_concurrent_walkthrough_requests_make_one_project():
     """
 
     async def go():
-        async with a_store():
+        async with a_store() as store:
             async with signed_in() as http:
                 await asyncio.gather(
                     frames_of(http, "/design/demo", {}),
                     frames_of(http, "/design/demo", {}),
                 )
-                return (await http.get("/projects")).json()
+                me = (await http.get("/auth/me")).json()
+                return await walkthrough_project_count(store, me["id"])
 
-    assert len(run(go())) == 1
+    assert run(go()) == 1

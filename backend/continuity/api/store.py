@@ -256,11 +256,25 @@ class Store:
         return Project(**row)
 
     async def projects_for_user(self, user_id: str) -> list[Project]:
+        """The account's own projects. **The walkthrough is not one of them.**
+
+        `is_walkthrough` marks scaffolding, not user data: `ensure_walkthrough` creates it,
+        `/design/demo` replays into it, and the help button in the rail is how anyone
+        reaches it. Listing it beside real work offered a delete affordance on a row the
+        product depends on — and deleting it is exactly what was done while tidying the
+        demo account before a live pitch.
+
+        Nothing breaks when it goes: `ensure_walkthrough` recreates the project and thread
+        from ids derived off the user, so the tour still works after a delete. But a
+        dashboard whose first row is a tour the user has already finished is also just
+        noise, and hiding it is what makes a fresh account's dashboard honestly empty.
+        """
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
                 SELECT id, user_id, name, created_at, updated_at
-                  FROM projects WHERE user_id = %s ORDER BY updated_at DESC
+                  FROM projects WHERE user_id = %s AND NOT is_walkthrough
+                 ORDER BY updated_at DESC
                 """,
                 (user_id,),
             )
