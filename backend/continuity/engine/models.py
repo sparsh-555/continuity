@@ -129,6 +129,17 @@ cook. Stated exactly like θJA and an inferred supply: assumed, and said out lou
 
 ASSUMED_EFFICIENCY_SOURCE = "Continuity assumption — no efficiency published"
 
+AMBIENT_DEFAULT_C = 25
+"""Bench ambient used when a brief supplies no local operating temperature.
+
+The engine must still calculate junction temperature for ordinary briefs: refusing that
+calculation until every user names an ambient would make the thermal rule disappear on
+almost every board. The assumption therefore remains a number, but its paired source
+must travel to each verdict so the screen can distinguish it from a stated condition.
+"""
+
+AMBIENT_DEFAULT_SOURCE = "Continuity assumption — the brief stated no ambient"
+
 DOSSIER_SOURCE = "Continuity dossier — learned in an earlier run"
 """Prefix marking a field carried forward from a past run rather than this run's listing.
 
@@ -330,7 +341,13 @@ class Requirements:
     """
 
     temp_range: tuple[int, int] = (0, 70)
-    """"industrial" → (-40, 85)."""
+    """The component grade each part must tolerate: "industrial" → (-40, 85).
+
+    R9 compares this range against each part's `temp_min` and `temp_max`. It is not the
+    board's local ambient, which is `ambient_c`, and it is not a junction temperature,
+    which is `PartSpec.t_j_max`; those three temperatures answer different questions and
+    have twice been mistaken for one another.
+    """
 
     current_margin: float = 0.15
     """Design headroom above worst-case draw. "battery"/"low power" → 0.30.
@@ -362,7 +379,14 @@ class Requirements:
     still used for the current limit, which the brief usually does not state.
     """
     priority: Priority = "availability"
-    ambient_c: int = 25
+    ambient_c: int = AMBIENT_DEFAULT_C
+    ambient_source: str | None = None
+    """Where `ambient_c` came from, if the brief supplied it.
+
+    A thermal verdict is only as good as the ambient beneath its junction calculation.
+    `None` says the default still stands, so an assumed bench ambient and a condition the
+    user stated cannot look alike on screen.
+    """
     min_stock: int | None = 100
     """The minimum distributor stock a part must have, when the user set one."""
     max_lead_days: int = 30

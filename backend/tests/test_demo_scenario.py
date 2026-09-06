@@ -161,7 +161,7 @@ def test_beat_8_the_same_node_fails_again_on_heat():
     assert conflict.subject == "regulator"
     assert conflict.detail == (
         "(5 V − 3.3 V) × 701.5 mA = 1.19 W in SOT-23-5 — "
-        "298 °C rise, 323 °C junction against a 125 °C limit."
+        "298 °C rise from 25 °C ambient, 323 °C junction against a 125 °C limit."
     )
 
 
@@ -225,8 +225,8 @@ def test_beat_9_the_buck_converter_barely_warms():
 
     assert thermal[0].status == "pass"
     assert thermal[0].detail == (
-        "92% efficient at 3.3 V × 701.5 mA = 0.2 W — 11 °C rise in VSON-HR-8, "
-        "36 °C junction."
+        "92% efficient at 3.3 V × 701.5 mA = 0.2 W — 11 °C rise from 25 °C ambient "
+        "in VSON-HR-8, 36 °C junction."
     )
 
 

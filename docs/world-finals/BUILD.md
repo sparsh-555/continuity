@@ -84,19 +84,31 @@ ends of its 46-to->90 spread; TLV1117LV33 fails C on voltage against a 5.5 V cei
 NCP1117ST33 fails B on thermal at 159 °C against onsemi's 150 °C limit and clears C with 11 °C
 of margin; LD1117S33 clears all three and lands on B with 1.5 °C to spare.
 
-## 2 · Operating profile
+## 2 · The ambient is an input, not a default
 
-**Files** `engine/models.py`, `engine/rules.py`, `api/store.py`
+**Files** `engine/models.py`, `engine/rules.py`, `planner/plan.py`, `api/bom.py`. The
+implementation brief is [tasks/ITEM-2.md](tasks/ITEM-2.md) — hand that over whole.
 
-Item 1 adds the fields the engine needs. This item makes them a persisted property of a product
-line rather than something a fixture sets.
+**Split from what this item first said.** It also called for the profile to be *persisted on a
+product line*, and product lines do not exist until item 10 — `Requirements` is not stored at
+all today, only run summaries are. That half has moved into item 10, where it can actually be
+built. What remains here is the engine-side half, which is the part everything else depends on.
 
-**Done when** `ambient_max_c` belongs to the profile and `temp_range` means component grade
-only — one object conflates them today — and ambient, copper and load reach a run from the
-stored profile. Every thermal verdict cites the ambient it used and where that number came from.
+**And it is not what the original acceptance test said.** A board with no stated ambient must
+**not** refuse the thermal check. Most briefs never state one, so refusing would turn thermal
+into *unchecked* on nearly every board Continuity designs — a large regression dressed up as
+rigour. Assuming a bench ambient is fine; assuming it *silently* is the defect. `ambient_c`
+keeps its default and gains a source, exactly as `ASSUMED_EFFICIENCY` and the θJA package table
+already do. What that assumption earns as a coverage label is item 3's decision, not this one's.
 
-**Test** the same board at 25 °C and 70 °C returns different verdicts, each naming its ambient.
-A board with no profile returns *evidence missing* for thermal rather than assuming 25 °C.
+**Done when** `ambient_c` carries where it came from, both prompts omit the field rather than
+emitting 25 unasked, `temp_range`'s docstring says it is a component grade — not the board's
+ambient and not a junction limit, all three having been confused here before — and every
+thermal verdict names the ambient it used and cites its source.
+
+**Test** the same board at 25 °C and 70 °C returns different verdicts, each naming its own
+ambient; an assumed ambient is sourced to the assumption and a stated one is not; and a board
+that passes at 25 °C fails at 70 °C, so the ambient is provably an operand.
 
 ## 3 · Coverage semantics
 
@@ -212,7 +224,13 @@ thermal repair can demand a better-cooling package class rather than naming one 
 **Done when** a product line holds a BOM, an operating profile and a revision, and exposure
 matching returns the affected lines from an MPN.
 
-**Test** an MPN present in three of five lines returns exactly those three.
+**Also the half split out of item 2**: the operating profile becomes a *persisted* property of
+the line — ambient, copper area and rail load stored against a revision and reaching a run from
+there rather than from a fixture. `Requirements` is persisted nowhere today; only run summaries
+are, so this is new storage rather than a change to existing storage.
+
+**Test** an MPN present in three of five lines returns exactly those three; and a run against a
+stored line uses that line's ambient, copper and load without any of the three being passed in.
 
 ## 11 · Authorisation and roles
 

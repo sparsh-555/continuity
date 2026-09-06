@@ -115,14 +115,23 @@ current_margin: 0.15 normally, 0.30 for battery or low-power designs.
 priority: one of {", ".join(planner.PRIORITIES)}.
 min_stock: units the user must be able to buy; 100 unless the brief states a production
 volume.
-ambient_c: expected ambient temperature; 25 unless the brief states it.
+ambient_c: the ambient temperature the board operates in, in Celsius, ONLY when the brief
+states or directly implies it — "in a car engine bay", "outdoors in Singapore", "inside a
+sealed enclosure". Omit it entirely when the brief does not say. Do not default to 25.
 
 Return the JSON object and nothing else."""
 
 
 def _default_requirements_payload() -> dict[str, Any]:
     defaults = Requirements()
-    return {field: getattr(defaults, field) for field in REQUIREMENT_FIELDS}
+    # A missing ambient is meaningful: adding the dataclass default here would make the
+    # parser mistake Continuity's bench assumption for an answer the requirements model
+    # gave. Other fields retain their defaults because they carry no separate provenance.
+    return {
+        field: getattr(defaults, field)
+        for field in REQUIREMENT_FIELDS
+        if field != "ambient_c"
+    }
 
 
 async def requirements_from_brief(brief: str | None) -> Requirements:

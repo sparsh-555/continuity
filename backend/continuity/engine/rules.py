@@ -21,6 +21,7 @@ from . import format as fmt
 from . import buses
 from . import packages
 from .models import (
+    AMBIENT_DEFAULT_SOURCE,
     ASSUMED_EFFICIENCY,
     ASSUMED_EFFICIENCY_SOURCE,
     DOSSIER_SOURCE,
@@ -861,10 +862,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         if regulator.theta_ja is not None and regulator.theta_ja_source_line is not None
         else Evidence(subject, "θJA (package table)", fmt.ohms_per_watt(theta), packages.THETA_JA_SOURCE)
     )
-    evidence += (
-        theta_evidence,
-        Evidence(subject, "current basis", "peak, assumed continuous", CURRENT_BASIS_SOURCE),
-    )
+    evidence += (theta_evidence,)
     # θJA is a property of the installation, so the two conditions travel together: what
     # the manufacturer measured on, and what this board actually is. A reader comparing
     # 160 °C/W at a minimum pad against 60 °C/W at 1000 mm² of copper can only see that
@@ -875,6 +873,18 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         )
     if requirements.mounting:
         evidence += (Evidence(subject, "board mounting", requirements.mounting),)
+    # Last of the thermal operands, and deliberately after θJA rather than before it:
+    # the rise is what θJA produces and the ambient is what the rise is added to, so
+    # reading them in that order is reading the arithmetic in the order it happens.
+    evidence += (
+        Evidence(
+            subject,
+            "ambient",
+            fmt.celsius(requirements.ambient_c),
+            requirements.ambient_source or AMBIENT_DEFAULT_SOURCE,
+        ),
+        Evidence(subject, "current basis", "peak, assumed continuous", CURRENT_BASIS_SOURCE),
+    )
 
     # The junction limit, which is not the ambient grade. See `PartSpec.t_j_max`.
     limit = regulator.t_j_max if regulator.t_j_max is not None else regulator.temp_max
@@ -918,7 +928,8 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
                 status="warn",
                 detail=(
                     f"{sum_line} = {fmt.watts(power_high)}{worst_case} — "
-                    f"{fmt.celsius(rise_high)} rise runs hot even though "
+                    f"{fmt.celsius(rise_high)} rise from "
+                    f"{fmt.celsius(requirements.ambient_c)} ambient runs hot even though "
                     f"{fmt.celsius(junction_high)} clears the {fmt.celsius(limit)} limit.{caveat}"
                 ),
                 subject=subject,
@@ -932,7 +943,8 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
             status="warn" if partial else "pass",
             detail=(
                 f"{sum_line} ={floor} {fmt.watts(power_high)}{worst_case} — "
-                f"{fmt.celsius(rise_high)} rise in {regulator.package or 'its package'}, "
+                f"{fmt.celsius(rise_high)} rise from {fmt.celsius(requirements.ambient_c)} ambient "
+                f"in {regulator.package or 'its package'}, "
                 f"{fmt.celsius(junction_high)} junction.{caveat}"
             ),
             subject=subject,
@@ -950,8 +962,9 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
             status="fail",
             detail=(
                 f"{sum_line} ={floor} {fmt.watts(power_low)}{best_case} in "
-                f"{regulator.package or 'its package'} — {fmt.celsius(rise_low)} rise, "
-                f"{fmt.celsius(junction_low)} junction against a {fmt.celsius(limit)} limit."
+                f"{regulator.package or 'its package'} — {fmt.celsius(rise_low)} rise from "
+                f"{fmt.celsius(requirements.ambient_c)} ambient, {fmt.celsius(junction_low)} junction "
+                f"against a {fmt.celsius(limit)} limit."
                 f"{caveat}"
             ),
             subject=subject,
@@ -969,6 +982,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
             f"{sum_line} spans {_power_range(power_low, power_high)} — passes at or above "
             f"~{fmt.percent(critical_efficiency)} efficiency, fails below it; the datasheet's "
             f"efficiency curve at {fmt.volts(rail.voltage)} and {fmt.milliamps(draw)} would settle it."
+            f" This uses {fmt.celsius(requirements.ambient_c)} ambient."
             f"{caveat}"
         ),
         subject=subject,

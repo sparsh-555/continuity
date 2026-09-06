@@ -398,6 +398,28 @@ def test_a_plausible_voltage_survives():
     assert plan._clean_requirements({"input_voltage": 7.4}).input_voltage == 7.4
 
 
+def test_an_omitted_ambient_keeps_the_default_without_a_stated_source():
+    requirements = plan._clean_requirements({})
+
+    assert requirements.ambient_c == 25
+    assert requirements.ambient_source is None
+
+
+def test_a_stated_ambient_keeps_its_value_and_provenance():
+    requirements = plan._clean_requirements({"ambient_c": 70})
+
+    assert requirements.ambient_c == 70
+    assert requirements.ambient_source == "stated in the brief"
+
+
+def test_an_absurd_ambient_is_dropped_rather_than_used():
+    for ambient in (-61, 151, "70C"):
+        requirements = plan._clean_requirements({"ambient_c": ambient})
+
+        assert requirements.ambient_c == 25
+        assert requirements.ambient_source is None
+
+
 # ── a planned topology must filter, not just phrase ───────────────────────────
 #
 # Soil-logger run, 9 Aug: the planner asked for a "Boost Converter" and the first search

@@ -157,7 +157,9 @@ temp_range: [min, max] in Celsius. Commercial [0,70]; industrial [-40,85].
 current_margin: 0.15 normally, 0.30 for battery or low-power designs.
 priority: one of {PRIORITIES}.
 min_stock: units they must be able to buy. 100 unless a production volume is stated.
-ambient_c: expected ambient temperature, 25 unless stated.
+ambient_c: the ambient temperature the board operates in, in Celsius, ONLY when the brief
+  states or directly implies it — "in a car engine bay", "outdoors in Singapore", "inside a
+  sealed enclosure". Omit it entirely when the brief does not say. Do not default to 25.
 lifetime_hours: how long the board must run on its own supply, in hours, ONLY when the
   brief asks for it — "must last a year" is 8760, "a month between charges" is 730,
   "runs for a week" is 168. Omit it entirely when no lifetime is stated. Do not infer one
@@ -371,6 +373,13 @@ def _clean_requirements(raw: Mapping[str, Any]) -> Requirements:
         else None
     )
 
+    # This is an operand in every junction calculation. Outside a plausible terrestrial
+    # ambient range it is likelier a model misread than a condition the brief supplied,
+    # just as an absurd input voltage or lifetime is not a design requirement.
+    stated_ambient = isinstance(ambient, (int, float)) and -60 <= ambient <= 150
+    ambient_c = int(ambient) if stated_ambient else defaults.ambient_c
+    ambient_source = "stated in the brief" if stated_ambient else None
+
     return Requirements(
         temp_range=temp_range,
         current_margin=(
@@ -385,7 +394,8 @@ def _clean_requirements(raw: Mapping[str, Any]) -> Requirements:
         ),
         priority=priority if priority in PRIORITIES else defaults.priority,  # type: ignore[arg-type]
         min_stock=int(stock) if isinstance(stock, int) and stock >= 0 else defaults.min_stock,
-        ambient_c=int(ambient) if isinstance(ambient, (int, float)) else defaults.ambient_c,
+        ambient_c=ambient_c,
+        ambient_source=ambient_source,
         lifetime_hours=lifetime_hours,
         # Resolved here rather than in the engine, which imports no vocabulary of its own.
         supply_capacity_mah=capacity_of(source),

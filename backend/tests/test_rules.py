@@ -10,7 +10,7 @@ import pytest
 from dataclasses import replace
 
 from continuity.engine import draw as rail_current, packages, rules
-from continuity.engine.models import Evidence, PartSpec, Requirements
+from continuity.engine.models import AMBIENT_DEFAULT_SOURCE, Evidence, PartSpec, Requirements
 from tests import parts
 from tests.boards import slot, usb_board
 
@@ -655,12 +655,13 @@ def test_a_linear_regulator_keeps_its_existing_thermal_wording_and_evidence():
     assert verdict.status == "fail"
     assert verdict.detail == (
         "(5 V − 3.3 V) × 700 mA = 1.19 W in SOT-23-5 — "
-        "298 °C rise, 322 °C junction against a 125 °C limit."
+        "298 °C rise from 25 °C ambient, 322 °C junction against a 125 °C limit."
     )
     assert [e.field for e in verdict.evidence] == [
         "Package / Case",
         "Operating Temperature",
         "θJA (package table)",
+        "ambient",
         "current basis",
     ]
 
@@ -1643,3 +1644,92 @@ def test_a_thermal_verdict_names_both_mounting_conditions():
 
     assert fields["θJA measured on"] == "minimum size pad, Case 318H (SOT-223)"
     assert fields["board mounting"] == "1000 mm² top and back copper, 1/16in FR-4, 1 oz"
+
+
+def _ambient_sensitive_board(ambient_c: int, ambient_source: str | None = None):
+    """Put the same regulator on a thermal boundary where only ambient changes the answer.
+
+    0.420 A from 5.0 V to 3.3 V dissipates 0.714 W. At 80 °C/W that is a
+    57.1 °C rise: 82.1 °C at the assumed bench ambient, but 127.1 °C in the
+    70 °C installation. The component and rail are deliberately identical so a
+    changed verdict proves the ambient remained an operand, not just evidence.
+    """
+    board = _declared(
+        usb_board(
+            regulator=parts.ap2112k(theta_ja=80.0, temp_max=125.0),
+            loads={"mcu": parts.esp32s3()},
+        ),
+        0.420,
+    )
+    return replace(
+        board,
+        requirements=Requirements(ambient_c=ambient_c, ambient_source=ambient_source),
+    )
+
+
+def test_each_thermal_verdict_names_the_ambient_that_produced_its_junction():
+    ambient_25 = only(
+        rules.thermal_dissipation(_ambient_sensitive_board(25)),
+        "thermal_dissipation",
+        "regulator",
+        RAIL,
+    )
+    ambient_70 = only(
+        rules.thermal_dissipation(_ambient_sensitive_board(70)),
+        "thermal_dissipation",
+        "regulator",
+        RAIL,
+    )
+
+    assert ambient_25.status == "pass"
+    assert ambient_70.status == "fail"
+    assert "82 °C junction" in ambient_25.detail
+    assert "127 °C junction" in ambient_70.detail
+    for verdict, ambient in ((ambient_25, "25 °C"), (ambient_70, "70 °C")):
+        fields = {row.field: row for row in verdict.evidence}
+        assert fields["ambient"].value == ambient
+        assert ambient in verdict.detail
+
+
+def test_an_assumed_ambient_cites_the_continuity_assumption():
+    verdict = only(
+        rules.thermal_dissipation(_ambient_sensitive_board(25)),
+        "thermal_dissipation",
+        "regulator",
+        RAIL,
+    )
+
+    fields = {row.field: row for row in verdict.evidence}
+
+    assert fields["ambient"].source == AMBIENT_DEFAULT_SOURCE
+
+
+def test_a_stated_ambient_cites_the_brief():
+    verdict = only(
+        rules.thermal_dissipation(_ambient_sensitive_board(25, "stated in the brief")),
+        "thermal_dissipation",
+        "regulator",
+        RAIL,
+    )
+
+    fields = {row.field: row for row in verdict.evidence}
+
+    assert fields["ambient"].source == "stated in the brief"
+
+
+def test_ambient_alone_can_move_an_identical_board_from_pass_to_fail():
+    """The junction arithmetic must keep ambient as an input, not display metadata."""
+    bench = only(
+        rules.thermal_dissipation(_ambient_sensitive_board(25)),
+        "thermal_dissipation",
+        "regulator",
+        RAIL,
+    )
+    installation = only(
+        rules.thermal_dissipation(_ambient_sensitive_board(70)),
+        "thermal_dissipation",
+        "regulator",
+        RAIL,
+    )
+
+    assert (bench.status, installation.status) == ("pass", "fail")

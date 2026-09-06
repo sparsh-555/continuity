@@ -104,12 +104,14 @@ class ProductLine:
     load: float
     load_basis: str
     ambient_c: int
+    ambient_basis: str
     load_part: PartSpec
 
 
 LINE_A = ProductLine(
     "A", "Sensor node", 5.0, 3.0, "USB Type-C default Rp advertisement", 0.150,
     "sensor node power budget Rev C — 150 mA continuous at 3V3", 25,
+    "sensor node operating profile Rev C — 25 °C open-air ambient",
     PartSpec(
         mpn="ESP32-C3-MINI-1-N4", manufacturer="Espressif", description="Wi-Fi and BLE module",
         category="RF Modules", vmin=3.0, vmax=3.6, i_peak=0.350, i_typ=0.084,
@@ -120,6 +122,7 @@ LINE_A = ProductLine(
 LINE_B = ProductLine(
     "B", "Gateway", 5.0, 3.0, "USB Type-C default Rp advertisement", 0.420,
     "gateway power budget Rev C — 420 mA continuous at 3V3", 45,
+    "gateway operating profile Rev C — 45 °C sealed-enclosure ambient",
     PartSpec(
         mpn="ESP32-WROOM-32E-N4", manufacturer="Espressif", description="Wi-Fi and BLE module",
         category="RF Modules", vmin=3.0, vmax=3.6, i_peak=0.239, i_typ=0.112,
@@ -131,6 +134,7 @@ LINE_C = ProductLine(
     "C", "Cabinet controller", 12.0, 1.0,
     "12 V DIN-rail supply, product line power budget Rev C", 0.060,
     "cabinet controller power budget Rev C — 60 mA continuous at 3V3", 55,
+    "cabinet controller operating profile Rev C — 55 °C cabinet ambient",
     PartSpec(
         # JLCPCB C8734 states no current, so i_peak and i_typ deliberately remain unset.
         mpn="STM32F103C8T6", manufacturer="STMicroelectronics", description="ARM Cortex-M3 MCU",
@@ -150,7 +154,8 @@ def make_board(line: ProductLine, regulator: PartSpec) -> Board:
     """
     return Board(
         requirements=Requirements(
-            ambient_c=line.ambient_c, temp_range=(0, 70),
+            ambient_c=line.ambient_c, ambient_source=line.ambient_basis,
+            temp_range=(0, 70),
             mounting="1000 mm² top and back copper, 1/16in FR-4, 1 oz",
         ),
         slots={
