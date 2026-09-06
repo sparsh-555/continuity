@@ -43,6 +43,10 @@ technical innovation alone is 10 of 100, while business value and quantified eff
 together are 45. The architecture claim that won the prelim is now the evidence that makes
 the numbers credible, not the headline.
 
+**The dimensions as printed sum to 105, not 100.** Reconcile against the official scoring
+sheet before quoting any weighting in finals materials — the business emphasis holds either
+way, but a number that does not add up is the kind of thing a judge notices.
+
 Two notes on the deck itself: Efficiency Gains is boxed at 20 but its sub-scores sum to
 15, and the Agent-track pitch length is never stated (the Game track's is 5 minutes
 on-site). Both were raised with the organiser.

@@ -165,8 +165,14 @@ an engineering gate; an approval granted for one candidate does not carry to the
 **Files** new orchestration, `api/app.py`, frontend
 
 **Done when** one candidate is evaluated against N boards, and results keep their board and
-candidate identity through evaluation, repair and reconnect — a repair changes the candidate,
-so a result must not silently remain in the original candidate's row.
+candidate identity — a repair changes the candidate, so a result must not silently remain in
+the original candidate's row.
+
+**Each cell is one `evaluate(board)` with the candidate substituted.** It does not route
+through the graph: no repair loop, no interrupt, no per-cell checkpoint. The graph's repair
+loop sits upstream and generates further candidates when the manufacturer's recommendation
+fails — repair produces rows, the fan-out fills them. Routing nine cells through the graph
+would inherit machinery none of them uses, at a cost research put at several engineer-days.
 
 **Test** the demo case produces the full matrix, every cell attributable to a board, a candidate
 and an owning department.
@@ -206,6 +212,24 @@ was not assessed**, cost split into recurring and one-time, and the approvals re
 ---
 
 # Phase 4 · Demo assets
+
+## 15a · Precedents
+
+Missing from every document until now, and it carries a business argument: per the DoD
+metrics, resolving an EOL with an **already approved** part costs about $1,281 against roughly
+$15,656 for a substitute qualified from scratch. Memory is the difference between those two
+buckets on the next notice.
+
+**Files** `api/memory.py`, `api/store.py`, `reviewer.py`
+
+**Done when** a resolution **and a rejection** are recorded against a conflict signature,
+scoped to the board they applied to, and reach the reviewer on a later run. Rejections matter
+as much as resolutions — they stop a candidate already ruled out being proposed again.
+
+**Test** a candidate rejected on line C for thermal is not re-proposed for line C on a second
+notice; a part approved on line A surfaces as precedent when line B hits the same signature.
+
+---
 
 ## 16 · Seeded world
 

@@ -194,8 +194,39 @@ A bare "pass" is what lets a green cell mean nothing. Every check reports one of
 **A cell is green only when every applicable check is satisfied.** Anything unassessed or
 missing evidence shows on the cell rather than being buried in a drawer.
 
+### Margin is an attribute, not a sixth label
+
+The engine emits `warn` today for two unrelated things, and they split differently:
+
+- *"runs hot even though 100 °C clears the 125 °C limit"* → **satisfied**, carrying a margin.
+  It does hold. It holds narrowly, and the cell shows how narrowly.
+- *"could not check — the distributor states no minimum"* → **evidence missing**.
+
+Keeping margin as an attribute rather than a label matters for our own demo: LD1117S33 on the
+gateway sits at 100 °C against a 125 °C limit. Calling that anything other than satisfied
+would be wrong, and showing it without the margin would be worse — a thin margin is exactly
+what an approver needs to see, and it is what makes the choice between one qualified part and
+two approved ones a real decision rather than an obvious one.
+
 This is why "nine of ten rules passed" is a number we stop quoting: several rules have no
 subject on a two-part board, so the denominator was never ten.
+
+---
+
+## Where the fan-out runs
+
+The matrix does **not** route every cell through the graph. Each cell is one
+`evaluate(board)` with a candidate substituted — deterministic, fast, no repair loop, no
+interrupt.
+
+The graph's repair loop sits **upstream**: it is what proposes further candidates once the
+manufacturer's recommendation fails. So repair generates rows; the fan-out fills them.
+
+This is a deliberate choice against the alternative — routing all nine cells through the
+graph — which would inherit repair, interrupts and per-cell checkpointing for a case that
+needs none of it. Research estimated that integration alone at several engineer-days, and it
+would buy nothing the matrix uses. What the graph still owns is candidate generation and the
+approval gates.
 
 ---
 
