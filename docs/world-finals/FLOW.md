@@ -161,25 +161,13 @@ the audit history the industry checklist mandates.
 
 ## Build order
 
-Written 6 Sep after an adversarial research pass. Ordered by *claim earned per day*, not by
-dependency. The principle is **build the thing that makes the claim true rather than shrink
-the claim** — several findings that looked like corrections are features the brief asks for.
+**Moved to [BUILD.md](BUILD.md)**, which supersedes the ten-item list that used to sit here.
 
-| # | Build | Claim it earns |
-|---|---|---|
-| 1 | **θJA read from the datasheet**, with the quoted line and the copper-area condition. `/datasheet` already does this; it is not in the demo path. | Kills our weakest number. No competitor opens the PDF. |
-| 2 | **Two bug fixes.** The reviewer prompt tells the model a larger linear regulator has the same junction temperature (wrong — different θJA). `policy` permits a slot at `repair_count == 3` against a three-repair cap. | Correctness, and we are currently misinforming the model. |
-| 3 | **Multi-board fan-out and the matrix.** | The whole thesis: one substitute, opposite verdicts. |
-| 4 | **Coverage semantics** — *checked and satisfied* / *not assessed* / *evidence missing*, instead of a bare pass. | Turns incomplete coverage from a weakness into the reason to trust us. Nobody else does it. |
-| 5 | **Two approval gates.** Unqualified MPN routes to engineering and quality; qualified part with an unapproved source routes to procurement. AML and AVL are different lists. | Answers *"coordinate the cross-team response"* correctly rather than plausibly. |
-| 6 | **A real footprint-compatibility rule** — land pattern and pin function, not a size ceiling. | *"Production confirms assembly compatibility"*, from the prompt. |
-| 7 | **Operating profile as a first-class input** — load, ambient, duty cycle, per line. | The moat. It is *why* our answer differs per board and theirs cannot. |
-| 8 | **Full PCN schema** — many parts, distinct nullable dates, per-part replacement mapping. | Real notices, not our five-field guess. |
-| 9 | **KiCad ingestion** via `kicad-cli` BOM and netlist export. | Onboarding from a file engineers already have. |
-| 10 | **KiCad before/after view** with DRC deltas. | The physical consequence of the decision. |
-
-Items 1 to 5 are the demo. 6 to 10 are stretch, in that order. If 7 slips, the operating
-profile is entered by hand and we say so.
+That list was ordered by *claim earned per day*. A later audit found three dependencies that
+force a different sequence — the operating profile before any θJA claim, coverage semantics
+before anything aggregates cells, and real authorisation before an approval gate is anything
+but a label — and added the rules, the seeded world and the notice as work items. Eighteen
+items across five phases. Follow that file, not this section.
 
 ## Unproven — each with the test that settles it
 

@@ -48,10 +48,12 @@ flowchart TD
 
     MATRIX --> Q{Does any candidate<br/>satisfy every line?}
 
-    Q -->|no candidate clears all| PERLINE[Per-line decision<br/>a different part per board]
+    Q -->|no, and repairs remain| REPAIR[reviewer proposes another candidate<br/>upstream of the fan-out, capped]
+    Q -->|no, repairs exhausted| PERLINE[Per-line decision<br/>a different part per board]
     Q -->|clears all, but a list blocks it| GATE
     Q -->|clears all, already qualified| ECR
 
+    REPAIR --> FANOUT
     PERLINE --> GATE
 
     GATE{7 - What is blocked?}

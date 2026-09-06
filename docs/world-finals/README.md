@@ -7,6 +7,21 @@ Source for everything here: the pre-event briefing deck circulated 3 Sep
 (`~/Desktop/Tencent World Finals x China visa/online briefing session.pdf`), plus the
 organiser confirming the track on 4 Sep. **Track is Agent and switching is not allowed.**
 
+## The documents
+
+Read in this order.
+
+| File | What it is |
+|---|---|
+| **[SPEC.md](SPEC.md)** | The contract. Flow diagram, data model, rules, coverage semantics, the demo case with its arithmetic, how the handoff is shown. |
+| **[BUILD.md](BUILD.md)** | Eighteen ordered work items across five phases, each with its files, its done-condition and its own acceptance test. **Start here for what to do next.** |
+| [SCENARIO-B.md](SCENARIO-B.md) | The assigned scenario, and the ECR/ECO framing that replaced our first answer |
+| [FLOW.md](FLOW.md) | The narrative version of the flow, and what remains unproven |
+| [EOL-RESEARCH.md](EOL-RESEARCH.md) | Sourced research on how EOL response actually works, with every figure's provenance |
+| [PRELIM-IDEA.md](PRELIM-IDEA.md) | The 200-word submission, and why each line is worded as it is |
+| [WORKBUDDY.md](WORKBUDDY.md) | What WorkBuddy is, and why we are not building on it |
+| RESEARCH-BRIEF.md, RESEARCH-BRIEF-2.md | The two adversarial passes. Kept for provenance — their findings are already folded into the documents above. |
+
 ## The challenge
 
 > **From a personal tool to an enterprise-level AI agent.**
