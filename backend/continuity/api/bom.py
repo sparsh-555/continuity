@@ -277,7 +277,7 @@ async def validate_bom(
     unresolved = [
         Verdict(
             rule="availability",
-            status="warn",
+            status="evidence_missing",
             detail=(
                 f"No part found for BOM MPN {row.mpn}."
                 if resolved[index] is None
@@ -356,7 +356,7 @@ def _unchecked_rail_verdicts(slots: Mapping[str, Slot]) -> list[Verdict]:
     return [
         Verdict(
             rule=rule,
-            status="warn",
+            status="evidence_missing",
             detail=f"No usable power rails were inferred from this BOM — {label} is unchecked.",
             subject=subject,
             involved=(subject,),

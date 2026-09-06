@@ -8,9 +8,9 @@ Every rule is a pure function `Board -> list[Verdict]`. No I/O, no LLM, no clock
 rule may only compare fields that were fetched, and every verdict it returns carries
 the field name, its verbatim value and where that value came from.
 
-A rule that *cannot* evaluate says `warn` and names the missing field. It never skips
+A rule that *cannot* evaluate says `evidence_missing` and names the missing field. It never skips
 quietly and it never substitutes a default — an unchecked constraint reported as a
-pass is the one failure mode that would make the whole engine untrustworthy.
+satisfied result is the one failure mode that would make the whole engine untrustworthy.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from .models import (
     ASSUMED_EFFICIENCY,
     ASSUMED_EFFICIENCY_SOURCE,
     DOSSIER_SOURCE,
+    NOT_ASSESSED,
     Board,
     Evidence,
     PartSpec,
@@ -41,6 +42,17 @@ THERMAL_RISE_WARN_C = 60.0
 
 MAX_EVIDENCE_ROWS = 4
 """Beyond this the drawer stops being readable."""
+
+
+def _not_applicable(rule: str, board: Board, detail: str) -> Verdict:
+    """Make an absent rule subject visible without pretending its constraint held.
+
+    A rule whose operand is not present did not pass and did not lack evidence; it simply
+    had nothing to evaluate. The stable board-level subject keeps that coverage result in
+    the same stream as ordinary verdicts without attributing it to an invented component.
+    """
+    subject = next(iter(board.slots), "board")
+    return Verdict(rule=rule, status="not_applicable", detail=detail, subject=subject)
 
 def efficiency_evidence(
     part: PartSpec, subject: str, band: tuple[float, float] | None
@@ -154,11 +166,11 @@ def _check_source(board: Board, rail: Rail, slot_id: str, part: PartSpec) -> Ver
     reaches = part.produces(rail.voltage)
     if reaches is None:
         return verdict(
-            "warn",
+            "evidence_missing",
             f"{part.mpn} states no output voltage — that it can supply {at} is unchecked.",
         )
     if reaches is False:
-        return verdict("fail", f"{part.mpn} outputs {_output_span(part)}; {at} is outside that.")
+        return verdict("failed", f"{part.mpn} outputs {_output_span(part)}; {at} is outside that.")
 
     # A linear regulator burns the difference as heat, so it cannot produce more than it
     # is given. Only asserted when the part says it is linear: a switcher that states no
@@ -167,13 +179,13 @@ def _check_source(board: Board, rail: Rail, slot_id: str, part: PartSpec) -> Ver
         upstream = board.input_rail(slot_id)
         if upstream is not None and upstream.voltage <= rail.voltage:
             return verdict(
-                "fail",
+                "failed",
                 f"{part.mpn} is a linear regulator and cannot step up — "
                 f"{at} is above its {fmt.volts(upstream.voltage)} input.",
                 _supply_evidence(upstream, slot_id),
             )
 
-    return verdict("pass", f"{part.mpn} supplies {_output_span(part)}, covering {at}.")
+    return verdict("satisfied", f"{part.mpn} supplies {_output_span(part)}, covering {at}.")
 
 
 def _output_span(part: PartSpec) -> str:
@@ -190,9 +202,9 @@ def _check_one_supply(board: Board, rail: Rail, slot_id: str, part: PartSpec) ->
     both before evaluating anything would report *unchecked* on a part sitting at twice
     its rated voltage — a definite failure, silently downgraded to a shrug.
 
-    So each bound is judged on its own. Either one being violated is a fail regardless
-    of the other; a bound that is satisfied while the other is unknown is a warn that
-    names what is missing rather than implying a clean pass.
+    So each bound is judged on its own. Either one being violated fails regardless of
+    the other; a bound that is satisfied while the other is unknown is evidence missing
+    rather than a clean satisfied result.
     """
     involved = (slot_id, rail.source) if rail.source else (slot_id,)
     evidence = part.cite(slot_id, "vmin", "vmax") + _supply_evidence(rail, slot_id)
@@ -211,36 +223,36 @@ def _check_one_supply(board: Board, rail: Rail, slot_id: str, part: PartSpec) ->
 
     if part.vmax is not None and rail.voltage > part.vmax:
         return verdict(
-            "fail",
+            "failed",
             f"{part.mpn} is rated to {fmt.volts(part.vmax)} — {at} is above that.",
         )
 
     if part.vmin is not None and rail.voltage < part.vmin:
         return verdict(
-            "fail",
+            "failed",
             f"{part.mpn} needs at least {fmt.volts(part.vmin)} — {at} is below that.",
         )
 
     if part.vmin is not None and part.vmax is not None:
         span = f"{fmt.volts(part.vmin)}–{fmt.volts(part.vmax)}"
-        return verdict("pass", f"{part.mpn} accepts {span}; {rail.id} is {fmt.volts(rail.voltage)}.")
+        return verdict("satisfied", f"{part.mpn} accepts {span}; {rail.id} is {fmt.volts(rail.voltage)}.")
 
     if part.vmax is not None:
         return verdict(
-            "warn",
+            "evidence_missing",
             f"{at} is within the {fmt.volts(part.vmax)} maximum {part.mpn} states, "
             f"but it publishes no minimum.",
         )
 
     if part.vmin is not None:
         return verdict(
-            "warn",
+            "evidence_missing",
             f"{at} clears the {fmt.volts(part.vmin)} minimum {part.mpn} states, "
             f"but it publishes no maximum.",
         )
 
     return verdict(
-        "warn",
+        "evidence_missing",
         f"{part.mpn} does not state a supply range — {at} could not be checked.",
     )
 
@@ -251,8 +263,8 @@ def _check_one_supply(board: Board, rail: Rail, slot_id: str, part: PartSpec) ->
 def interface_role_match(board: Board) -> list[Verdict]:
     """A peripheral's bus must be offered by a master, with compatible roles.
 
-    FAIL unless a bus is shared; FAIL if two parts drive the same bus as master;
-    WARN if there are more SPI peripherals than free GPIO for their chip selects.
+    Fail unless a bus is shared; fail if two parts drive the same bus as master; and
+    fail if there are more SPI peripherals than free GPIO for their chip selects.
     """
     masters = _by_role(board, "master")
     peripherals = _by_role(board, "peripheral")
@@ -269,7 +281,7 @@ def interface_role_match(board: Board) -> list[Verdict]:
         verdicts.append(_check_one_bus(slot_id, part, masters, incomplete))
     verdicts.extend(_chip_select_pressure(masters, peripherals))
     verdicts.extend(_unplaceable_on_a_bus(board))
-    return verdicts
+    return verdicts or [_not_applicable("interface_role_match", board, "This board has no buses to check.")]
 
 
 def _by_role(board: Board, role: str) -> list[tuple[str, PartSpec]]:
@@ -299,16 +311,17 @@ def _unplaceable_on_a_bus(board: Board) -> list[Verdict]:
     The ATmega328P has no CAN controller. Two CAN transceivers hung off a part that
     cannot drive them and R2 said nothing at all.
 
-    **A warning, not a failure.** Which side the part sits on is unknown, so whether the
-    board is wrong is also unknown — and a `fail` would start a repair loop against a
-    question no replacement answers. Silence was the bug; a named warning is the fix.
+    **Evidence missing, not a failure.** Which side the part sits on is unknown, so whether
+    the board is wrong is also unknown — and a `failed` verdict would start a repair loop
+    against a question no replacement answers. Silence was the bug; a named coverage gap is
+    the fix.
     Parts with no interfaces are untouched: a regulator is legitimately `passive`, and
     there is nothing about it for this rule to check.
     """
     return [
         Verdict(
             rule="interface_role_match",
-            status="warn",
+            status="evidence_missing",
             detail=(
                 f"{part.mpn} offers {fmt.listing(sorted({buses.canonical_bus(b) for b in part.interfaces}))} "
                 f"but is filed as {part.role or 'no role'}, so it was not checked against "
@@ -344,7 +357,7 @@ def _bus_contention(masters: list[tuple[str, PartSpec]]) -> list[Verdict]:
         verdicts.append(
             Verdict(
                 rule="interface_role_match",
-                status="fail",
+                status="failed",
                 detail=f"{names} both drive {bus} as master — only one may.",
                 subject=holders[0][0],
                 involved=tuple(slot_id for slot_id, _ in holders),
@@ -368,7 +381,7 @@ def _check_one_bus(
     if not part.interfaces:
         return Verdict(
             rule="interface_role_match",
-            status="warn",
+            status="evidence_missing",
             detail=f"{part.mpn} does not state an interface — its bus could not be checked.",
             subject=slot_id,
             involved=involved,
@@ -379,7 +392,7 @@ def _check_one_bus(
         # Only a fault once the board is complete. Until then it is a slot still to come.
         return Verdict(
             rule="interface_role_match",
-            status="warn" if incomplete else "fail",
+            status="evidence_missing" if incomplete else "failed",
             detail=(
                 f"{part.mpn} needs {fmt.listing(list(part.interfaces))}; "
                 f"no controller has been chosen yet."
@@ -405,7 +418,7 @@ def _check_one_bus(
                     )
                 return Verdict(
                     rule="interface_role_match",
-                    status="pass",
+                    status="satisfied",
                     detail=detail,
                     subject=slot_id,
                     involved=(slot_id, master_id),
@@ -415,7 +428,7 @@ def _check_one_bus(
     offered = fmt.listing(sorted({bus for _, m in masters for bus in m.interfaces}))
     return Verdict(
         rule="interface_role_match",
-        status="fail",
+        status="failed",
         detail=(
             f"{part.mpn} speaks {fmt.listing(list(part.interfaces))}; "
             f"the controller offers {offered} — no shared bus."
@@ -443,7 +456,7 @@ def _chip_select_pressure(
     return [
         Verdict(
             rule="interface_role_match",
-            status="warn",
+            status="failed",
             detail=(
                 f"{fmt.plural(len(spi), 'SPI peripheral')} need a chip select each, "
                 f"but only {fmt.plural(free, 'GPIO')} remain on {master.mpn}."
@@ -514,7 +527,7 @@ def pin_budget(board: Board) -> list[Verdict]:
     """FAIL if the peripherals ask for more GPIO than the controller offers."""
     masters = _by_role(board, "master")
     if not masters:
-        return []
+        return [_not_applicable("pin_budget", board, "This board has no controller with a GPIO budget.")]
     master_id, master = masters[0]
 
     # Every peripheral counts, including the ones that state no pin requirement — they
@@ -528,7 +541,7 @@ def pin_budget(board: Board) -> list[Verdict]:
         return [
             Verdict(
                 rule="pin_budget",
-                status="warn",
+                status="evidence_missing",
                 detail=f"{master.mpn} does not state a GPIO count — pin budget unchecked.",
                 subject=master_id,
                 involved=involved,
@@ -546,7 +559,7 @@ def pin_budget(board: Board) -> list[Verdict]:
         return [
             Verdict(
                 rule="pin_budget",
-                status="fail",
+                status="failed",
                 detail=f"{detail_tail} need {required} GPIO — {required - master.pins_available} short.",
                 subject=master_id,
                 involved=involved,
@@ -564,7 +577,7 @@ def pin_budget(board: Board) -> list[Verdict]:
         return [
             Verdict(
                 rule="pin_budget",
-                status="warn",
+                status="evidence_missing",
                 detail=(
                     f"At least {required} of {master.pins_available} GPIO used by "
                     f"{detail_tail} — {names} state no pin count."
@@ -578,7 +591,7 @@ def pin_budget(board: Board) -> list[Verdict]:
     return [
         Verdict(
             rule="pin_budget",
-            status="pass",
+            status="satisfied",
             detail=f"{required} of {master.pins_available} GPIO used by {detail_tail}.",
             subject=master_id,
             involved=involved,
@@ -601,7 +614,7 @@ def current_budget(board: Board) -> list[Verdict]:
         verdict = _check_rail_current(board, rail)
         if verdict is not None:
             verdicts.append(verdict)
-    return verdicts
+    return verdicts or [_not_applicable("current_budget", board, "This board has no rails with a current budget to check.")]
 
 
 
@@ -634,7 +647,7 @@ def _check_rail_current(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="current_budget",
             scope=rail.id,
-            status="warn",
+            status="evidence_missing",
             detail=f"{supply} does not state a current rating — {rail.id} budget unchecked.",
             subject=subject,
             involved=involved,
@@ -653,7 +666,7 @@ def _check_rail_current(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="current_budget",
             scope=rail.id,
-            status="fail",
+            status="failed",
             detail=(
                 f"{fmt.milliamps(draw)} on {rail.id} plus {fmt.percent(margin)} margin "
                 f"= {fmt.milliamps(required)}, above the {fmt.milliamps(limit)} rating of "
@@ -671,7 +684,7 @@ def _check_rail_current(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="current_budget",
             scope=rail.id,
-            status="warn",
+            status="evidence_missing",
             detail=(
                 f"At least {fmt.milliamps(draw)} of {fmt.milliamps(limit)} on {rail.id}, "
                 f"leaving {headroom} — but {names} {verb} no draw, so the real figure is higher."
@@ -686,7 +699,7 @@ def _check_rail_current(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="current_budget",
             scope=rail.id,
-            status="fail",
+            status="failed",
             detail=(
                 f"{fmt.milliamps(draw)} on {rail.id} plus {fmt.percent(margin)} margin "
                 f"= {fmt.milliamps(required)}, above the {fmt.milliamps(limit)} "
@@ -702,7 +715,8 @@ def _check_rail_current(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="current_budget",
             scope=rail.id,
-            status="warn",
+            status="satisfied",
+            margin=f"{fmt.percent(1 - draw / limit)} of rating",
             detail=f"{headline} — inside the {headroom} derating band.",
             subject=subject,
             involved=involved,
@@ -712,7 +726,7 @@ def _check_rail_current(board: Board, rail: Rail) -> Verdict | None:
     return Verdict(
         rule="current_budget",
         scope=rail.id,
-        status="pass",
+        status="satisfied",
         detail=headline,
         subject=subject,
         involved=involved,
@@ -741,7 +755,7 @@ def thermal_dissipation(board: Board) -> list[Verdict]:
         verdict = _check_rail_thermal(board, rail)
         if verdict is not None:
             verdicts.append(verdict)
-    return verdicts
+    return verdicts or [_not_applicable("thermal_dissipation", board, "This board has no regulator to assess for thermal dissipation.")]
 
 
 def _dissipation(
@@ -825,7 +839,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="thermal_dissipation",
             scope=rail.id,
-            status="warn",
+            status="evidence_missing",
             detail=f"{regulator.mpn} {blocked} — dissipation could not be computed.",
             subject=subject,
             involved=involved,
@@ -837,7 +851,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="thermal_dissipation",
             scope=rail.id,
-            status="warn",
+            status="evidence_missing",
             detail=(
                 f"{regulator.mpn} dissipates {_power_range(power_low, power_high)}, but no θJA is known "
                 f"for {regulator.package or 'its package'} — temperature rise unchecked."
@@ -894,7 +908,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="thermal_dissipation",
             scope=rail.id,
-            status="warn",
+            status="evidence_missing",
             detail=(
                 f"{regulator.mpn} dissipates {_power_range(power_low, power_high)} — "
                 f"{rise}, but it states no maximum temperature to check that against."
@@ -925,7 +939,8 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
             return Verdict(
                 rule="thermal_dissipation",
                 scope=rail.id,
-                status="warn",
+                status="satisfied",
+                margin=fmt.celsius(limit - junction_high),
                 detail=(
                     f"{sum_line} = {fmt.watts(power_high)}{worst_case} — "
                     f"{fmt.celsius(rise_high)} rise from "
@@ -940,7 +955,8 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="thermal_dissipation",
             scope=rail.id,
-            status="warn" if partial else "pass",
+            status="evidence_missing" if partial else "satisfied",
+            margin=None if partial else fmt.celsius(limit - junction_high),
             detail=(
                 f"{sum_line} ={floor} {fmt.watts(power_high)}{worst_case} — "
                 f"{fmt.celsius(rise_high)} rise from {fmt.celsius(requirements.ambient_c)} ambient "
@@ -959,7 +975,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         return Verdict(
             rule="thermal_dissipation",
             scope=rail.id,
-            status="fail",
+            status="failed",
             detail=(
                 f"{sum_line} ={floor} {fmt.watts(power_low)}{best_case} in "
                 f"{regulator.package or 'its package'} — {fmt.celsius(rise_low)} rise from "
@@ -977,7 +993,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
     return Verdict(
         rule="thermal_dissipation",
         scope=rail.id,
-        status="warn",
+        status="evidence_missing",
         detail=(
             f"{sum_line} spans {_power_range(power_low, power_high)} — passes at or above "
             f"~{fmt.percent(critical_efficiency)} efficiency, fails below it; the datasheet's "
@@ -1022,7 +1038,7 @@ def _thermal_sum(
 def availability(board: Board) -> list[Verdict]:
     """Sourcing, not electrical — and the trigger our interviews said actually bites.
 
-    FAIL below the stock floor; WARN on end-of-life status or a long lead time.
+    Fail below the stock floor; a lifecycle concern or long lead time is satisfied with a margin.
     """
     verdicts: list[Verdict] = []
     for slot_id, slot in board.slots.items():
@@ -1044,7 +1060,7 @@ def _check_availability(board: Board, slot_id: str, part: PartSpec) -> Verdict:
     if part.stock is None:
         return Verdict(
             rule="availability",
-            status="warn",
+            status="evidence_missing",
             detail=f"{part.distributor} reports no stock figure for {part.mpn}.",
             subject=slot_id,
             involved=(slot_id,),
@@ -1055,7 +1071,7 @@ def _check_availability(board: Board, slot_id: str, part: PartSpec) -> Verdict:
         late = part.lead_time_days is not None and part.lead_time_days > requirements.max_lead_days
         return Verdict(
             rule="availability",
-            status="fail",
+            status="failed",
             detail=(
                 f"{part.mpn}: {fmt.count(part.stock)} in stock at {part.distributor}, "
                 f"below the {fmt.count(requirements.min_stock)} minimum."
@@ -1079,7 +1095,12 @@ def _check_availability(board: Board, slot_id: str, part: PartSpec) -> Verdict:
     if concerns:
         return Verdict(
             rule="availability",
-            status="warn",
+            status="satisfied",
+            margin=(
+                f"{part.lead_time_days}-day lead time"
+                if part.lead_time_days is not None
+                else "lifecycle concern"
+            ),
             detail=f"{stocked}, but {fmt.listing(concerns)}.",
             subject=slot_id,
             involved=(slot_id,),
@@ -1088,7 +1109,7 @@ def _check_availability(board: Board, slot_id: str, part: PartSpec) -> Verdict:
 
     return Verdict(
         rule="availability",
-        status="pass",
+        status="satisfied",
         detail=f"{stocked}.",
         subject=slot_id,
         involved=(slot_id,),
@@ -1132,7 +1153,7 @@ def _check_temperature_rating(board: Board, slot_id: str, part: PartSpec) -> Ver
             cited.append("temp_max")
         return Verdict(
             rule="temperature_rating",
-            status="fail",
+            status="failed",
             detail=f"{part.mpn} misses {fmt.listing(failed_ends)}.",
             subject=slot_id,
             involved=(slot_id,),
@@ -1147,7 +1168,7 @@ def _check_temperature_rating(board: Board, slot_id: str, part: PartSpec) -> Ver
     if missing:
         return Verdict(
             rule="temperature_rating",
-            status="warn",
+            status="evidence_missing",
             detail=(
                 f"{part.mpn} states no {fmt.listing(missing)} — its temperature grade "
                 "could not be checked."
@@ -1159,7 +1180,7 @@ def _check_temperature_rating(board: Board, slot_id: str, part: PartSpec) -> Ver
 
     return Verdict(
         rule="temperature_rating",
-        status="pass",
+        status="satisfied",
         detail=(
             f"{part.mpn} is rated {fmt.celsius(part.temp_min)}–{fmt.celsius(part.temp_max)}, "
             f"covering {fmt.celsius(required_min)}–{fmt.celsius(required_max)}."
@@ -1194,7 +1215,8 @@ def footprint(board: Board) -> list[Verdict]:
         verdicts.append(
             Verdict(
                 rule="footprint",
-                status="warn",
+                status="satisfied",
+                margin=f"{fmt.num(side - ceiling, 1)} mm over target",
                 detail=(
                     f"{part.mpn} in {part.package} is {fmt.num(side, 1)} mm on its longest "
                     f"side, over the {fmt.num(ceiling, 1)} mm target."
@@ -1234,7 +1256,7 @@ def rail_coverage(board: Board) -> list[Verdict]:
         verdicts.append(
             Verdict(
                 rule="rail_coverage",
-                status="warn",
+                status="evidence_missing",
                 detail=(
                     f"{part.mpn} is on no modelled power rail, so voltage, current budget "
                     f"and thermal dissipation could not be checked for it. Every other rule "
@@ -1287,7 +1309,7 @@ def energy_budget(board: Board) -> list[Verdict]:
         return [
             Verdict(
                 rule="energy_budget",
-                status="warn",
+                status="evidence_missing",
                 detail=(
                     f"This board is asked to run for {fmt.duration(required)}, but its supply "
                     f"states no capacity, so how long it lasts cannot be checked."
@@ -1313,7 +1335,7 @@ def energy_budget(board: Board) -> list[Verdict]:
         return [
             Verdict(
                 rule="energy_budget",
-                status="warn",
+                status="evidence_missing",
                 detail=(
                     f"This board is asked to run for {fmt.duration(required)} on "
                     f"{capacity:g} mAh, but {fmt.listing(unstated)} "
@@ -1333,7 +1355,7 @@ def energy_budget(board: Board) -> list[Verdict]:
     return [
         Verdict(
             rule="energy_budget",
-            status="pass" if met else "warn",
+            status="satisfied" if met else "evidence_missing",
             detail=(
                 f"{capacity:g} mAh at {total * 1000:.1f} mA continuous is "
                 f"{fmt.duration(hours)}, against the {fmt.duration(required)} asked for"
@@ -1357,6 +1379,20 @@ def _energy_subject(board: Board) -> str:
     return max(placed, key=lambda pair: pair[1].draw or 0.0)[0]
 
 
+def not_assessed(board: Board) -> list[Verdict]:
+    """Declare checks the BOM engine deliberately cannot perform for every board.
+
+    These are coverage boundaries rather than missing inputs. Returning them on every
+    evaluation gives an approver an honest denominator without making a board look as if
+    its geometry, emissions, or regulator stability had been inspected.
+    """
+    subject = next(iter(board.slots), "board")
+    return [
+        Verdict(rule=rule, status="not_assessed", detail=reason, subject=subject)
+        for rule, reason in NOT_ASSESSED
+    ]
+
+
 RULES = (
     voltage_overlap,
     interface_role_match,
@@ -1369,6 +1405,7 @@ RULES = (
     energy_budget,
     # Last: it reports on the *absence* of the checks above rather than on the board.
     rail_coverage,
+    not_assessed,
 )
 
 
@@ -1378,11 +1415,11 @@ def evaluate(board: Board) -> list[Verdict]:
 
 
 def failures(verdicts: list[Verdict]) -> list[Verdict]:
-    return [v for v in verdicts if v.status == "fail"]
+    return [v for v in verdicts if v.status == "failed"]
 
 
 def passing(verdicts: list[Verdict]) -> list[Verdict]:
-    return [v for v in verdicts if v.status == "pass"]
+    return [v for v in verdicts if v.status == "satisfied"]
 
 
 def for_subject(verdicts: list[Verdict], slot_id: str) -> list[Verdict]:

@@ -10,7 +10,7 @@ import pytest
 from dataclasses import replace
 
 from continuity.engine import draw as rail_current, packages, rules
-from continuity.engine.models import AMBIENT_DEFAULT_SOURCE, Evidence, PartSpec, Requirements
+from continuity.engine.models import AMBIENT_DEFAULT_SOURCE, NOT_ASSESSED, Evidence, PartSpec, Requirements
 from tests import parts
 from tests.boards import slot, usb_board
 
@@ -40,7 +40,7 @@ def test_part_within_rail_range_passes():
 
     verdict = only(rules.voltage_overlap(board), "voltage_overlap", "mcu")
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert "3 V–3.6 V" in verdict.detail
 
 
@@ -53,7 +53,7 @@ def test_part_below_rail_range_fails_and_implicates_the_rail_source():
 
     verdict = only(rules.voltage_overlap(board), "voltage_overlap", "mcu")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "is above that" in verdict.detail
     # the regulator is implicated too — changing its output is a legitimate fix
     assert set(verdict.involved) == {"mcu", "regulator"}
@@ -70,7 +70,7 @@ def test_a_one_sided_rating_still_catches_an_overvoltage():
 
     verdict = only(rules.voltage_overlap(board), "voltage_overlap", "mcu")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "rated to 3.6 V" in verdict.detail
 
 
@@ -81,7 +81,7 @@ def test_a_satisfied_one_sided_rating_warns_about_the_missing_bound():
 
     verdict = only(rules.voltage_overlap(board), "voltage_overlap", "mcu")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "publishes no minimum" in verdict.detail
 
 
@@ -102,7 +102,7 @@ def test_unstated_supply_range_warns_rather_than_passing_quietly():
 
     verdict = only(rules.voltage_overlap(board), "voltage_overlap", "mcu")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "could not be checked" in verdict.detail
 
 
@@ -211,7 +211,7 @@ def test_shared_bus_passes():
 
     verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert "on I2C" in verdict.detail
 
 
@@ -227,7 +227,7 @@ def test_an_smbus_sensor_is_satisfied_by_an_i2c_master():
 
     verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert "SMBus" in verdict.detail
     assert "I2C" in verdict.detail
 
@@ -243,7 +243,7 @@ def test_an_i2c_sensor_is_not_satisfied_by_an_smbus_only_master():
 
     verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
 
 
 def test_single_bus_matches_one_wire():
@@ -258,7 +258,7 @@ def test_single_bus_matches_one_wire():
 
     verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
 
 
 def test_twi_and_i2c_masters_are_detected_as_bus_contention():
@@ -273,7 +273,7 @@ def test_twi_and_i2c_masters_are_detected_as_bus_contention():
     contention = [
         verdict
         for verdict in rules.interface_role_match(board)
-        if verdict.status == "fail" and "only one may" in verdict.detail
+        if verdict.status == "failed" and "only one may" in verdict.detail
     ]
 
     assert len(contention) == 1
@@ -292,7 +292,7 @@ def test_chip_select_pressure_canonicalises_spi_spelling():
     warnings = [
         verdict
         for verdict in rules.interface_role_match(board)
-        if verdict.status == "warn" and "chip select" in verdict.detail
+        if verdict.status == "failed" and "chip select" in verdict.detail
     ]
 
     assert len(warnings) == 1
@@ -310,7 +310,7 @@ def test_no_shared_bus_fails():
 
     verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "no shared bus" in verdict.detail
 
 
@@ -326,7 +326,7 @@ def test_two_masters_on_one_bus_fails():
     contention = [
         v
         for v in rules.interface_role_match(board)
-        if v.status == "fail" and "only one may" in v.detail
+        if v.status == "failed" and "only one may" in v.detail
     ]
 
     assert len(contention) == 1
@@ -340,7 +340,7 @@ def test_peripheral_with_no_controller_fails():
 
     verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "no controller" in verdict.detail
 
 
@@ -355,7 +355,7 @@ def test_more_spi_peripherals_than_free_gpio_warns():
     )
 
     warnings = [
-        v for v in rules.interface_role_match(board) if v.status == "warn" and "chip select" in v.detail
+        v for v in rules.interface_role_match(board) if v.status == "failed" and "chip select" in v.detail
     ]
 
     assert len(warnings) == 1
@@ -372,7 +372,7 @@ def test_pin_budget_passes_within_the_gpio_count():
 
     verdict = only(rules.pin_budget(board), "pin_budget")
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert "4 of 36 GPIO" in verdict.detail
 
 
@@ -384,7 +384,7 @@ def test_pin_budget_fails_and_says_how_short():
 
     verdict = only(rules.pin_budget(board), "pin_budget")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "1 short" in verdict.detail
 
 
@@ -394,7 +394,7 @@ def test_pin_budget_warns_when_the_controller_states_no_gpio_count():
         loads={"mcu": parts.esp32s3(pins_available=None), "sensor": parts.sht31()},
     )
 
-    assert only(rules.pin_budget(board), "pin_budget").status == "warn"
+    assert only(rules.pin_budget(board), "pin_budget").status == "evidence_missing"
 
 
 # ── R4 · current_budget ───────────────────────────────────────────────────────
@@ -405,7 +405,7 @@ def test_current_budget_passes_with_headroom():
 
     verdict = only(rules.current_budget(board), "current_budget", "regulator", RAIL)
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert verdict.detail == "1.5 mA of 600 mA (<1%)"
 
 
@@ -417,7 +417,7 @@ def test_current_budget_warns_inside_the_derating_band():
 
     verdict = only(rules.current_budget(board), "current_budget", "regulator", RAIL)
 
-    assert verdict.status == "warn"
+    assert verdict.status == "satisfied"
     assert "derating band" in verdict.detail
 
 
@@ -429,7 +429,7 @@ def test_current_budget_fails_once_margin_pushes_it_over():
 
     verdict = only(rules.current_budget(board), "current_budget", "regulator", RAIL)
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "above the 600 mA rating" in verdict.detail
     assert set(verdict.involved) == {"regulator", "mcu", "sensor", "display"}
 
@@ -448,8 +448,8 @@ def test_current_margin_is_what_moves_a_board_from_pass_to_fail():
         requirements=Requirements(current_margin=0.50),
     )
 
-    assert only(rules.current_budget(relaxed), "current_budget", "regulator", RAIL).status != "fail"
-    assert only(rules.current_budget(battery), "current_budget", "regulator", RAIL).status == "fail"
+    assert only(rules.current_budget(relaxed), "current_budget", "regulator", RAIL).status != "failed"
+    assert only(rules.current_budget(battery), "current_budget", "regulator", RAIL).status == "failed"
 
 
 def test_regulator_input_current_reflects_its_output_rail():
@@ -464,9 +464,9 @@ def test_regulator_input_current_reflects_its_output_rail():
     upstream = only(verdicts, "current_budget", "regulator", USB)
 
     # Same subject, different net — which is exactly why verdicts carry a scope.
-    assert regulated.status == "warn"
+    assert regulated.status == "satisfied"
     assert regulated.detail.startswith("501.5 mA of 600 mA")
-    assert upstream.status == "pass"
+    assert upstream.status == "satisfied"
     assert upstream.detail == "501.5 mA of 3000 mA (17%)"
 
 
@@ -491,7 +491,7 @@ def test_unstated_draw_reports_a_lower_bound_rather_than_a_pass():
 
     verdict = only(rules.current_budget(board), "current_budget", "regulator", RAIL)
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert verdict.detail.startswith("At least")
     assert "the real figure is higher" in verdict.detail
 
@@ -506,7 +506,7 @@ def test_a_provable_overload_fails_even_with_a_part_that_states_no_draw():
 
     verdict = only(rules.current_budget(board), "current_budget", "regulator", RAIL)
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "that is a floor" in verdict.detail
 
 
@@ -518,7 +518,7 @@ def test_thermal_computes_from_a_partial_draw_rather_than_declining():
 
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "at least" in verdict.detail
     assert "This is a floor" in verdict.detail
 
@@ -531,7 +531,7 @@ def test_a_thermally_fine_board_with_unknown_draws_warns_rather_than_passes():
 
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
 
 
 def test_an_unstated_pin_count_is_not_counted_as_zero():
@@ -562,7 +562,7 @@ def test_no_current_rating_warns_rather_than_assuming_one():
 
     verdict = only(rules.current_budget(board), "current_budget", "regulator", RAIL)
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "does not state a current rating" in verdict.detail
 
 
@@ -577,7 +577,7 @@ def test_linear_regulator_dissipation_is_input_minus_output_times_draw():
 
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "(5 V − 3.3 V) × 700 mA = 1.19 W" in verdict.detail
 
 
@@ -586,7 +586,7 @@ def test_switching_regulator_barely_warms():
 
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert "92% efficient" in verdict.detail
 
 
@@ -610,7 +610,7 @@ def test_a_switcher_that_passes_at_the_worst_efficiency_is_a_confident_pass():
         RAIL,
     )
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert "worst case" in verdict.detail
     assert "85%" in verdict.detail
 
@@ -623,7 +623,7 @@ def test_a_switcher_that_fails_at_the_best_efficiency_is_a_confident_fail():
         RAIL,
     )
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "best case" in verdict.detail
     assert "95%" in verdict.detail
 
@@ -639,7 +639,7 @@ def test_a_switcher_straddling_its_temperature_limit_names_the_break_even_effici
     p_crit = (125 - 25) / 250
     eta_crit = 1 / (p_crit / (3.3 * draw) + 1)
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert f"~{round(eta_crit * 100)}%" in verdict.detail
     assert "efficiency curve at 3.3 V and 800 mA" in verdict.detail
 
@@ -652,7 +652,7 @@ def test_a_linear_regulator_keeps_its_existing_thermal_wording_and_evidence():
 
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert verdict.detail == (
         "(5 V − 3.3 V) × 700 mA = 1.19 W in SOT-23-5 — "
         "298 °C rise from 25 °C ambient, 322 °C junction against a 125 °C limit."
@@ -677,7 +677,7 @@ def test_a_switching_regulator_is_identified_from_its_category_without_topology(
     board = usb_board(regulator=regulator, loads={"mcu": parts.esp32s3(i_peak=0.700)})
 
     assert regulator.regulation == "switching"
-    assert only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL).status == "pass"
+    assert only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL).status == "satisfied"
 
 
 def test_a_linear_regulator_is_identified_from_its_category_without_topology():
@@ -690,7 +690,7 @@ def test_a_linear_regulator_is_identified_from_its_category_without_topology():
 
     assert regulator.regulation == "linear"
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "(5 V − 3.3 V) × 700 mA = 1.19 W" in verdict.detail
 
 
@@ -702,7 +702,7 @@ def test_an_unclassified_regulator_warns_instead_of_assuming_linear_dissipation(
 
     assert regulator.regulation is None
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "no topology" in verdict.detail
 
 
@@ -753,7 +753,7 @@ def test_unknown_package_warns_instead_of_guessing_a_theta_ja():
 
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "no θJA is known" in verdict.detail
 
 
@@ -766,7 +766,7 @@ def test_hot_but_legal_part_warns():
 
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
 
-    assert verdict.status == "warn"
+    assert verdict.status == "satisfied"
     assert "runs hot" in verdict.detail
 
 
@@ -792,7 +792,7 @@ def test_out_of_stock_part_fails():
 
     verdict = only(rules.availability(board), "availability", "sensor")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert verdict.detail == "SHT40-AD1B-R2: 0 in stock at JLCPCB, below the 100 minimum."
     assert verdict.involved == ("sensor",)
 
@@ -800,7 +800,7 @@ def test_out_of_stock_part_fails():
 def test_stocked_part_passes():
     board = usb_board(regulator=parts.ap2112k(), loads={"sensor": parts.sht31()})
 
-    assert only(rules.availability(board), "availability", "sensor").status == "pass"
+    assert only(rules.availability(board), "availability", "sensor").status == "satisfied"
 
 
 def test_end_of_life_part_warns_even_when_stocked():
@@ -810,7 +810,7 @@ def test_end_of_life_part_warns_even_when_stocked():
 
     verdict = only(rules.availability(board), "availability", "sensor")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "satisfied"
     assert "not recommended for new designs" in verdict.detail
 
 
@@ -821,7 +821,7 @@ def test_long_lead_time_warns():
 
     verdict = only(rules.availability(board), "availability", "sensor")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "satisfied"
     assert "56-day lead time" in verdict.detail
 
 
@@ -837,14 +837,14 @@ def test_stock_floor_comes_from_the_brief():
         requirements=Requirements(min_stock=1000),
     )
 
-    assert only(rules.availability(prototype), "availability", "sensor").status == "pass"
-    assert only(rules.availability(production), "availability", "sensor").status == "fail"
+    assert only(rules.availability(prototype), "availability", "sensor").status == "satisfied"
+    assert only(rules.availability(production), "availability", "sensor").status == "failed"
 
 
 def test_missing_stock_figure_warns():
     board = usb_board(regulator=parts.ap2112k(), loads={"sensor": parts.sht31(stock=None)})
 
-    assert only(rules.availability(board), "availability", "sensor").status == "warn"
+    assert only(rules.availability(board), "availability", "sensor").status == "evidence_missing"
 
 
 # ── R7 · temperature_rating ──────────────────────────────────────────────────
@@ -869,7 +869,7 @@ def test_commercial_part_fails_the_cold_end_of_an_industrial_board():
 
     verdict = only(rules.temperature_rating(board), "temperature_rating", "sensor")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "cold" in verdict.detail
     assert "40" in verdict.detail
     assert [e.field for e in verdict.evidence] == ["Temperature Minimum", "Temperature Maximum"]
@@ -891,7 +891,7 @@ def test_part_below_the_required_hot_end_fails():
 
     verdict = only(rules.temperature_rating(board), "temperature_rating", "sensor")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "hot" in verdict.detail
     assert "15" in verdict.detail
     assert [e.field for e in verdict.evidence] == ["Temperature Maximum"]
@@ -904,7 +904,7 @@ def test_industrial_rated_part_passes_on_an_industrial_board():
         requirements=Requirements(temp_range=(-40, 85)),
     )
 
-    assert only(rules.temperature_rating(board), "temperature_rating", "sensor").status == "pass"
+    assert only(rules.temperature_rating(board), "temperature_rating", "sensor").status == "satisfied"
 
 
 def test_commercial_rated_part_passes_on_a_commercial_board():
@@ -914,7 +914,7 @@ def test_commercial_rated_part_passes_on_a_commercial_board():
         requirements=Requirements(temp_range=(0, 70)),
     )
 
-    assert only(rules.temperature_rating(board), "temperature_rating", "sensor").status == "pass"
+    assert only(rules.temperature_rating(board), "temperature_rating", "sensor").status == "satisfied"
 
 
 def test_part_with_no_temperature_bounds_warns_naming_the_missing_fields():
@@ -925,7 +925,7 @@ def test_part_with_no_temperature_bounds_warns_naming_the_missing_fields():
 
     verdict = only(rules.temperature_rating(board), "temperature_rating", "sensor")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "temp_min" in verdict.detail
     assert "temp_max" in verdict.detail
 
@@ -940,7 +940,7 @@ def test_one_sided_temperature_rating_still_catches_a_hot_end_failure():
 
     verdict = only(rules.temperature_rating(board), "temperature_rating", "sensor")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "hot" in verdict.detail
 
 
@@ -953,7 +953,7 @@ def test_satisfied_one_sided_temperature_rating_warns_about_the_missing_bound():
 
     verdict = only(rules.temperature_rating(board), "temperature_rating", "sensor")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "temp_min" in verdict.detail
 
 
@@ -982,7 +982,7 @@ def test_footprint_warns_over_the_size_target_but_never_fails():
 
     verdicts = rules.footprint(board)
 
-    assert [v.status for v in verdicts] == ["warn"]
+    assert [v.status for v in verdicts] == ["satisfied"]
     assert "10 mm on its longest side" in verdicts[0].detail
 
 
@@ -1002,7 +1002,7 @@ def test_a_part_on_no_rail_is_reported_as_unchecked():
 
     verdict = only(rules.evaluate(board), "rail_coverage", subject="charger")
 
-    assert verdict.status == "warn", "a gap in what we know, not a fault in the board"
+    assert verdict.status == "evidence_missing", "a gap in what we know, not a fault in the board"
     assert "no modelled power rail" in verdict.detail
     # It has to name the checks it missed, or the reader cannot tell this part apart from
     # one that passed everything. Only the three rail-based rules are named: the others ran,
@@ -1035,7 +1035,7 @@ def test_coverage_never_fails_so_it_cannot_start_a_repair_loop():
 
     coverage = [v for v in rules.evaluate(board) if v.rule == "rail_coverage"]
 
-    assert coverage and all(v.status == "warn" for v in coverage)
+    assert coverage and all(v.status == "evidence_missing" for v in coverage)
     # The board has its own faults; none of them is this rule's, and the slot it reports
     # on contributes nothing to the failure set that drives a repair.
     assert "charger" not in {v.subject for v in rules.failures(rules.evaluate(board))}
@@ -1056,7 +1056,10 @@ def test_every_verdict_names_a_rule_the_contract_declares():
 def test_rule_names_and_functions_agree():
     from continuity.engine.models import RULE_NAMES
 
-    assert tuple(rule.__name__ for rule in rules.RULES) == RULE_NAMES
+    # The three explicitly unassessed checks share one rule-shaped producer because
+    # their reasons are data, rather than three functions with identical control flow.
+    assert tuple(rule.__name__ for rule in rules.RULES[:-1]) == RULE_NAMES[:-3]
+    assert rules.RULES[-1] is rules.not_assessed
 
 
 def test_subject_is_always_among_the_involved_slots():
@@ -1111,7 +1114,7 @@ def test_a_peripheral_placed_before_its_controller_is_not_a_fault():
 
     verdict = only(rules.interface_role_match(mid_placement), "interface_role_match", "sensor")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "no controller has been chosen yet" in verdict.detail
 
 
@@ -1122,7 +1125,7 @@ def test_a_complete_board_with_no_controller_is_a_fault():
 
     verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "no controller to drive it" in verdict.detail
 
 
@@ -1140,7 +1143,7 @@ def test_dissipation_reads_the_rail_not_an_adjustable_parts_range():
 
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator")
 
-    assert verdict.status != "pass" or "−" not in verdict.detail
+    assert verdict.status != "satisfied" or "−" not in verdict.detail
     assert "32" not in verdict.detail, "the adjustment range maximum must not reach a verdict"
 
 
@@ -1155,7 +1158,7 @@ def test_a_regulator_that_cannot_reach_the_rail_voltage_fails():
 
     verdict = only(rules.voltage_overlap(board), "voltage_overlap", "regulator", scope="3V3")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "1.8" in verdict.detail
 
 
@@ -1169,7 +1172,7 @@ def test_a_linear_regulator_cannot_boost():
 
     verdict = only(rules.voltage_overlap(board), "voltage_overlap", "regulator", scope="3V3")
 
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "step up" in verdict.detail or "boost" in verdict.detail
 
 
@@ -1183,7 +1186,7 @@ def test_an_adjustable_regulator_set_within_its_range_passes():
 
     verdict = only(rules.voltage_overlap(board), "voltage_overlap", "regulator", scope="3V3")
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
 
 
 def test_a_regulator_stating_no_output_range_is_unchecked_not_failed():
@@ -1195,7 +1198,7 @@ def test_a_regulator_stating_no_output_range_is_unchecked_not_failed():
 
     verdict = only(rules.voltage_overlap(board), "voltage_overlap", "regulator", scope="3V3")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
 
 
 # ── switching regulators, with no efficiency published anywhere ────────────────
@@ -1215,7 +1218,7 @@ def test_a_switcher_with_no_stated_efficiency_is_still_evaluated():
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator")
 
     assert "states no efficiency figure" not in verdict.detail
-    assert verdict.status in {"pass", "warn", "fail"}
+    assert verdict.status in {"satisfied", "evidence_missing", "failed"}
 
 
 def test_an_efficiency_band_is_named_in_evidence():
@@ -1294,7 +1297,7 @@ def test_i2c_devices_share_one_pair_of_pins():
         pinned=(),
     )
 
-    assert only(rules.pin_budget(board), "pin_budget", "mcu").status == "pass"
+    assert only(rules.pin_budget(board), "pin_budget", "mcu").status == "satisfied"
 
 
 def test_single_bus_uses_the_one_wire_pin_cost():
@@ -1311,7 +1314,7 @@ def test_single_bus_uses_the_one_wire_pin_cost():
 
     verdict = only(rules.pin_budget(board), "pin_budget", "mcu")
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert verdict.detail.startswith("1 of 1 GPIO")
 
 
@@ -1330,7 +1333,7 @@ def test_each_spi_device_needs_its_own_chip_select():
 
     verdict = only(rules.pin_budget(board), "pin_budget", "mcu")
 
-    assert verdict.status == "fail", "3 shared + 3 chip selects = 6 on a 5-GPIO part"
+    assert verdict.status == "failed", "3 shared + 3 chip selects = 6 on a 5-GPIO part"
     assert "short" in verdict.detail
 
 
@@ -1344,7 +1347,7 @@ def test_a_stated_pin_count_beats_the_bus_estimate():
         pinned=(),
     )
 
-    assert only(rules.pin_budget(board), "pin_budget", "mcu").status == "fail"
+    assert only(rules.pin_budget(board), "pin_budget", "mcu").status == "failed"
 
 
 def test_a_peripheral_with_neither_a_bus_nor_a_count_is_still_named():
@@ -1359,7 +1362,7 @@ def test_a_peripheral_with_neither_a_bus_nor_a_count_is_still_named():
 
     verdict = only(rules.pin_budget(board), "pin_budget", "mcu")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "MYSTERY" in verdict.detail or "state no pin count" in verdict.detail
 
 
@@ -1380,8 +1383,8 @@ def test_an_unknown_downstream_draw_does_not_pass_the_rail_above_it():
         v.scope: v for v in rules.current_budget(board) if v.rule == "current_budget"
     }
 
-    assert budgets["3V3"].status == "warn", "the load states no draw"
-    assert budgets[USB].status == "warn", "so neither does the rail feeding its regulator"
+    assert budgets["3V3"].status == "evidence_missing", "the load states no draw"
+    assert budgets[USB].status == "evidence_missing", "so neither does the rail feeding its regulator"
     assert "states no draw" in budgets[USB].detail
 
 
@@ -1391,7 +1394,7 @@ def test_a_fully_stated_board_still_reflects_a_real_number_upstream():
 
     budget = only(rules.current_budget(board), "current_budget", scope=USB)
 
-    assert budget.status == "pass"
+    assert budget.status == "satisfied"
     assert budget.detail.startswith("500 mA of"), "a real reflected figure, not a fallback"
 
 
@@ -1413,7 +1416,7 @@ def test_a_bus_speaking_part_with_no_role_is_reported_rather_than_skipped():
 
     verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "UJA1075ATW" in verdict.detail
     assert "not checked" in verdict.detail
 
@@ -1451,7 +1454,7 @@ def test_an_rs485_transceiver_is_satisfied_by_a_uart_controller():
 
     verdict = only(rules.interface_role_match(board), "interface_role_match", "sensor")
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
 
 
 def test_a_uart_peripheral_is_not_satisfied_by_an_rs485_line():
@@ -1487,7 +1490,7 @@ def test_a_board_that_lasts_flat_out_passes():
 
     verdict = only(rules.energy_budget(board), "energy_budget")
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert "against the 1 year asked for" in verdict.detail
 
 
@@ -1501,7 +1504,7 @@ def test_a_board_that_cannot_last_flat_out_warns_with_both_figures():
 
     verdict = only(rules.energy_budget(board), "energy_budget")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "225 mAh" in verdict.detail
     assert "1 year asked for" in verdict.detail
     assert "duty cycling" in verdict.detail
@@ -1512,7 +1515,7 @@ def test_an_unstated_draw_is_reported_unchecked_rather_than_treated_as_zero():
 
     verdict = only(rules.energy_budget(board), "energy_budget")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "no current draw" in verdict.detail
 
 
@@ -1522,7 +1525,7 @@ def test_a_supply_with_no_capacity_says_so_rather_than_passing():
 
     verdict = only(rules.energy_budget(board), "energy_budget")
 
-    assert verdict.status == "warn"
+    assert verdict.status == "evidence_missing"
     assert "no capacity" in verdict.detail
 
 
@@ -1580,7 +1583,7 @@ def test_a_declared_load_silences_the_floor_caveat_it_does_not_apply_to():
 
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
 
-    assert verdict.status == "pass"
+    assert verdict.status == "satisfied"
     assert "floor" not in verdict.detail
 
 
@@ -1611,7 +1614,7 @@ def test_the_junction_limit_is_checked_not_the_ambient_grade():
     verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
 
     # 45 + (5.0 - 3.3) * 0.420 * 160 = 159.2 °C, over 150 but under nothing at 125.
-    assert verdict.status == "fail"
+    assert verdict.status == "failed"
     assert "150" in verdict.detail
     assert "125" not in verdict.detail
 
@@ -1681,8 +1684,8 @@ def test_each_thermal_verdict_names_the_ambient_that_produced_its_junction():
         RAIL,
     )
 
-    assert ambient_25.status == "pass"
-    assert ambient_70.status == "fail"
+    assert ambient_25.status == "satisfied"
+    assert ambient_70.status == "failed"
     assert "82 °C junction" in ambient_25.detail
     assert "127 °C junction" in ambient_70.detail
     for verdict, ambient in ((ambient_25, "25 °C"), (ambient_70, "70 °C")):
@@ -1732,4 +1735,88 @@ def test_ambient_alone_can_move_an_identical_board_from_pass_to_fail():
         RAIL,
     )
 
-    assert (bench.status, installation.status) == ("pass", "fail")
+    assert (bench.status, installation.status) == ("satisfied", "failed")
+
+
+# ── coverage labels ───────────────────────────────────────────────────────────
+
+
+def test_a_board_with_no_buses_reports_interface_matching_as_not_applicable():
+    """An absent bus has no subject, so it is neither a passed check nor missing evidence."""
+    board = usb_board(regulator=parts.ap2112k(role="passive", interfaces=()), loads={})
+
+    verdict = only(rules.interface_role_match(board), "interface_role_match")
+
+    assert verdict.status == "not_applicable"
+    assert "no buses" in verdict.detail
+
+
+def test_a_thermal_check_one_degree_under_its_limit_is_satisfied_with_a_margin():
+    """A narrow thermal pass remains a pass; the margin preserves the important qualifier."""
+    theta = (124 - 25) / ((5.0 - 3.3) * 0.420)
+    board = _declared(
+        usb_board(
+            regulator=parts.ap2112k(theta_ja=theta, theta_ja_source_line="test thermal figure"),
+            loads={"mcu": parts.esp32s3()},
+        ),
+        0.420,
+    )
+
+    verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
+
+    assert verdict.status == "satisfied"
+    assert verdict.margin == "1 °C"
+
+
+def test_a_regulator_without_a_known_theta_ja_reports_evidence_missing():
+    """Thermal arithmetic cannot start when neither the part nor the package table supplies θJA."""
+    board = usb_board(
+        regulator=parts.ap2112k(i_max=1.0, package="XYZ-99", theta_ja=None),
+        loads={"mcu": parts.esp32s3(i_peak=0.700)},
+    )
+
+    verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
+
+    assert verdict.status == "evidence_missing"
+    assert "no θJA is known" in verdict.detail
+
+
+def test_evidence_missing_and_satisfied_have_separate_coverage_counts():
+    """Coverage must not fold an unknown voltage bound into a checked, satisfied result."""
+    board = usb_board(
+        regulator=parts.ap2112k(),
+        loads={
+            "known": parts.esp32s3(),
+            "unknown": parts.sht31(vmin=None, vmax=None),
+        },
+    )
+
+    voltage = rules.voltage_overlap(board)
+    counts = {status: sum(v.status == status for v in voltage) for status in {v.status for v in voltage}}
+
+    assert counts["satisfied"] >= 1
+    assert counts["evidence_missing"] == 1
+
+
+def test_every_board_declares_the_checks_continuity_does_not_assess():
+    board = usb_board(regulator=parts.ap2112k(), loads={"mcu": parts.esp32s3()})
+
+    verdicts = [v for v in rules.evaluate(board) if v.status == "not_assessed"]
+
+    assert {(v.rule, v.detail) for v in verdicts} == set(NOT_ASSESSED)
+    assert all(v.detail for v in verdicts)
+
+
+def test_chip_select_shortfall_is_failed():
+    board = usb_board(
+        regulator=parts.ap2112k(),
+        loads={
+            "mcu": parts.esp32s3(pins_available=5),
+            "flash": parts.spi_flash(),
+            "display": parts.oled(pins_required=1, interfaces=("SPI",)),
+        },
+    )
+
+    verdict = next(v for v in rules.interface_role_match(board) if "chip select" in v.detail)
+
+    assert verdict.status == "failed"

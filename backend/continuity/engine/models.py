@@ -20,7 +20,7 @@ from .format import listing
 Tier = Literal["core", "power", "peripherals", "passives"]
 """Render order left-to-right is POWER · CORE · PERIPHERALS · PASSIVES, not this order."""
 
-CheckStatus = Literal["pass", "warn", "fail"]
+CheckStatus = Literal["satisfied", "failed", "not_applicable", "not_assessed", "evidence_missing"]
 SlotStatus = Literal["pending", "searching", "pass", "conflict"]
 EdgeKind = Literal["power", "data"]
 EdgeStatus = Literal["pending", "pass", "conflict", "unchecked"]
@@ -46,6 +46,9 @@ RULE_NAMES = (
     "temperature_rating",
     "energy_budget",
     "rail_coverage",
+    "output_capacitor_stability",
+    "emc",
+    "signal_integrity",
 )
 
 
@@ -91,6 +94,14 @@ class Verdict:
     involved: tuple[str, ...] = ()
     evidence: tuple[Evidence, ...] = ()
 
+    margin: str | None = None
+    """How narrowly a satisfied check holds, in the rule's own units.
+
+    Only meaningful on `satisfied`. A check that holds by one degree and one that holds by
+    eighty are both satisfied, and an approver needs to tell them apart — that is the whole
+    reason this is an attribute rather than a fourth colour.
+    """
+
     scope: str | None = None
     """The net this verdict is about, where one applies — a rail id like "3V3".
 
@@ -108,7 +119,7 @@ class Verdict:
 
     @property
     def failed(self) -> bool:
-        return self.status == "fail"
+        return self.status == "failed"
 
 
 # ── parts ─────────────────────────────────────────────────────────────────────
@@ -128,6 +139,15 @@ cook. Stated exactly like θJA and an inferred supply: assumed, and said out lou
 """
 
 ASSUMED_EFFICIENCY_SOURCE = "Continuity assumption — no efficiency published"
+
+# Source: the engine's declared coverage boundary, rather than an absent result.
+NOT_ASSESSED = (
+    ("output_capacitor_stability", "Proving a regulator is stable with a given output "
+     "capacitor needs simulation. Explicit violations of a published requirement are "
+     "checkable and are a separate rule; stability itself is not."),
+    ("emc", "Radiated and conducted emissions are a measurement, not a datasheet field."),
+    ("signal_integrity", "Needs board geometry and a stackup, which a BOM does not carry."),
+)
 
 AMBIENT_DEFAULT_C = 25
 """Bench ambient used when a brief supplies no local operating temperature.

@@ -140,7 +140,7 @@ def test_unknown_added_category_is_refused_and_falls_back_to_a_swap():
         {"VIN": Rail("VIN", 5.0, None, ("mcu",))},
     )
     resolution = policy.Resolution(
-        Verdict("voltage_overlap", "fail", "wrong supply", "mcu"), ("mcu",), False
+        Verdict("voltage_overlap", "failed", "wrong supply", "mcu"), ("mcu",), False
     )
     proposal = reviewer.build_repair(
         {"slot": "mcu", "action": "add_part", "constraint": {"category": "flux_capacitor"}}

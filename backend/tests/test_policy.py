@@ -264,7 +264,7 @@ def rail_move_board(*, pinned: bool = False) -> Board:
 
 def rail_move_resolution(board: Board, slot: str = "phy") -> policy.Resolution:
     return policy.Resolution(
-        Verdict("voltage_overlap", "fail", "wrong rail", slot, (slot,)),
+        Verdict("voltage_overlap", "failed", "wrong rail", slot, (slot,)),
         (slot,),
         False,
     )

@@ -443,8 +443,8 @@ def test_live_stock_replaces_indexed_stock_and_r6_fails_on_the_live_figure(monke
     )
 
     assert part.stock == 19
-    assert rules.availability(live_board)[-1].status == "fail"
-    assert rules.availability(indexed_board)[-1].status == "pass"
+    assert rules.availability(live_board)[-1].status == "failed"
+    assert rules.availability(indexed_board)[-1].status == "satisfied"
 
 
 def test_a_live_stock_figure_of_zero_is_not_treated_as_missing(monkeypatch):

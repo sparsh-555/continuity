@@ -317,7 +317,7 @@ def _regulator_conflict():
     )
     conflict = next(
         v for v in rules.voltage_overlap(board)
-        if v.status == "fail" and v.subject == "regulator"
+        if v.status == "failed" and v.subject == "regulator"
     )
     return board, conflict, policy.plan_resolution(conflict, board, [])
 

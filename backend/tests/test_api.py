@@ -257,7 +257,7 @@ def test_every_conflict_has_the_failing_check_that_produced_it():
     skipped — the conflict arrived with a check log of five clean passes beside it.
     """
     frames = run(stream("/design", {"prompt": DEMO}))
-    checks = {(f["slot"], f["rule"]) for f in frames if f["type"] == "check" and f["status"] == "fail"}
+    checks = {(f["slot"], f["rule"]) for f in frames if f["type"] == "check" and f["status"] == "failed"}
 
     for conflict in (f for f in frames if f["type"] == "conflict"):
         assert any(
@@ -399,7 +399,7 @@ def test_a_waived_fault_stays_visible_as_a_warning():
 
     waived = [
         f for f in second
-        if f["type"] == "check" and f["status"] == "warn" and "Accepted by you" in f["detail"]
+            if f["type"] == "check" and f["status"] == "evidence_missing" and "Accepted by you" in f["detail"]
     ]
 
     assert waived, "the finding must remain on screen, downgraded rather than deleted"
@@ -444,7 +444,7 @@ def test_a_slot_that_finds_nothing_is_reported_not_dropped(monkeypatch):
 
     unfilled = [
         f for f in frames
-        if f["type"] == "check" and f["status"] == "warn" and "no part" in f["detail"].lower()
+            if f["type"] == "check" and f["status"] == "evidence_missing" and "no part" in f["detail"].lower()
     ]
 
     assert unfilled, "an unfilled slot must produce a verdict naming what was not found"
@@ -634,10 +634,10 @@ def test_a_warning_about_another_slot_still_reaches_the_stream():
 
     emitted = {(f["slot"], f["rule"], f.get("scope"), f["status"]) for f in checks}
     other_subject_warnings = {
-        (slot, rule, scope) for slot, rule, scope, status in emitted if status != "pass"
+        (slot, rule, scope) for slot, rule, scope, status in emitted if status != "satisfied"
     }
 
-    assert other_subject_warnings, "a run with conflicts must carry non-pass checks"
+    assert other_subject_warnings, "a run with conflicts must carry unsatisfied checks"
     # Every non-pass verdict the engine reached is on the wire, whichever slot was current.
     assert any(rule == "current_budget" for _slot, rule, _scope in other_subject_warnings) or any(
         f["rule"] == "current_budget" for f in checks

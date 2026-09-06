@@ -57,7 +57,7 @@ def test_ams1117_thermal_passes_at_both_published_extremes():
             assert junction < AMS1117.t_j_max
             # 90 °C/W crosses R5's independent 60 °C rise advisory band on the gateway,
             # which is a margin attribute rather than a failure.
-            assert thermal.status != "fail"
+            assert thermal.status == "satisfied"
 
 
 def test_ld1117_clears_every_line_but_only_just_on_the_gateway():
@@ -72,7 +72,7 @@ def test_ld1117_clears_every_line_but_only_just_on_the_gateway():
     would ship it. That is the whole argument for carrying margin as an attribute of a
     passing check rather than collapsing it into a green tick.
     """
-    expected = {"A": (53.0, "pass"), "B": (123.5, "warn"), "C": (112.4, "pass")}
+    expected = {"A": (53.0, "satisfied"), "B": (123.5, "satisfied"), "C": (112.4, "satisfied")}
     for line in LINES:
         thermal = verdict(make_board(line, LD1117), "thermal_dissipation")
         junction = line.ambient_c + (line.input_voltage - 3.3) * line.load * LD1117.theta_ja
@@ -94,14 +94,14 @@ def test_tlv1117_fails_only_the_12v_line_and_stays_thermally_safe():
         board = make_board(line, TLV1117)
         voltage = verdict(board, "voltage_overlap", scope="vin")
         thermal = verdict(board, "thermal_dissipation")
-        assert (voltage.status == "fail") is (line.id == "C")
-        assert thermal.status != "fail"
+        assert (voltage.status == "failed") is (line.id == "C")
+        assert thermal.status == "satisfied"
 
 
 def test_ncp1117_fails_thermal_only_on_gateway_at_its_junction_limit():
     for line in LINES:
         thermal = verdict(make_board(line, NCP1117), "thermal_dissipation")
-        assert (thermal.status == "fail") is (line.id == "B")
+        assert (thermal.status == "failed") is (line.id == "B")
         if line.id == "B":
             assert "159" in thermal.detail
             assert "150 °C limit" in thermal.detail
@@ -130,8 +130,8 @@ def test_every_theta_ja_in_the_matrix_comes_from_a_datasheet():
 def test_the_sourced_fixture_exposes_the_two_board_specific_candidate_failures():
     """The engine distinguishes a voltage-limited and a thermally-limited replacement."""
     assert [verdict(make_board(line, TLV1117), "voltage_overlap", "vin").status for line in LINES] == [
-        "warn", "warn", "fail"
+        "evidence_missing", "evidence_missing", "failed"
     ]
     assert [verdict(make_board(line, NCP1117), "thermal_dissipation").status for line in LINES] == [
-        "pass", "fail", "warn"
+        "satisfied", "failed", "satisfied"
     ]

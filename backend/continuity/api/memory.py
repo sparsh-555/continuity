@@ -128,7 +128,12 @@ class FindingRecorder:
         slot = event.get("slot")
         rule = event.get("rule")
         status = event.get("status")
-        if not isinstance(slot, str) or not isinstance(rule, str) or status == "fail":
+        # Only a *satisfied* check confirms a repair. This compared against "fail"
+        # until the five coverage labels landed, and the retired spelling would have
+        # matched nothing — so a rule still failing, or one that could no longer be
+        # evaluated at all, would have been recorded as repaired. Memory carrying a
+        # fix that did not work is worse than memory carrying nothing.
+        if not isinstance(slot, str) or not isinstance(rule, str) or status != "satisfied":
             return
         finding = next(
             (

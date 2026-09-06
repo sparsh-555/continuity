@@ -520,7 +520,7 @@ def resolved_edges(board: Board, verdicts: Sequence) -> list[Edge]:
     # status, and shows up against the rule rather than against the wire.
     worst: dict[str, str] = {}
     for verdict in verdicts:
-        if verdict.status != "fail":
+        if verdict.status != "failed":
             continue
         for slot_id in verdict.involved:
             key = f"{verdict.scope}:{slot_id}" if verdict.scope else slot_id

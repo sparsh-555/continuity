@@ -71,8 +71,8 @@ def test_a_higher_input_voltage_fails_a_regulator_that_cannot_take_it():
             if v.subject == "regulator" and v.scope == topology.INPUT_RAIL_ID
         )
 
-    assert supply(usb).status == "pass"
-    assert supply(barrel).status == "fail"
+    assert supply(usb).status == "satisfied"
+    assert supply(barrel).status == "failed"
     assert "VIN at 12 V is above that" in supply(barrel).detail
 
 
@@ -92,7 +92,7 @@ def test_a_coin_cell_cannot_supply_a_radio():
         if v.scope == topology.INPUT_RAIL_ID
     )
 
-    assert budget.status == "fail"
+    assert budget.status == "failed"
 
 
 def test_a_dual_supply_is_sized_against_the_higher_voltage():
@@ -170,9 +170,9 @@ def test_the_input_rail_makes_thermal_computable():
         topology.build_board(slots, [DEMO_RAIL], Requirements())
     )
 
-    assert without[0].status == "warn"
+    assert without[0].status == "evidence_missing"
     assert "no known input rail" in without[0].detail
-    assert with_input[0].status == "fail"
+    assert with_input[0].status == "failed"
 
 
 # ── the grouping that edges cannot express ────────────────────────────────────
@@ -184,7 +184,7 @@ def test_members_of_one_rail_are_budgeted_together():
 
     budget = [v for v in rules.evaluate(board) if v.rule == "current_budget" and v.scope == "3V3"]
 
-    assert budget[0].status == "fail"
+    assert budget[0].status == "failed"
     assert "541.5 mA" in budget[0].detail
 
 

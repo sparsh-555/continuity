@@ -52,7 +52,7 @@ def test_beat_2_the_radio_and_regulator_are_chosen_and_the_rail_is_tight():
 
     current = [v for v in rules.evaluate(board) if v.rule == "current_budget" and v.scope == RAIL]
 
-    assert current[0].status == "warn"
+    assert current[0].status == "satisfied"
     assert current[0].detail == "500.3 mA of 600 mA (83%) — inside the 20% derating band."
 
 
@@ -60,7 +60,7 @@ def test_beat_2_foreshadows_the_conflict_that_arrives_four_beats_later():
     """The regulator is flagged tight before the display ever touches it."""
     board = board_with(parts.ldo_600ma(), mcu=parts.esp32s3(), sensor=parts.sht40())
 
-    warned = [v for v in rules.evaluate(board) if v.status == "warn" and v.subject == "regulator"]
+    warned = [v for v in rules.evaluate(board) if v.status == "satisfied" and v.subject == "regulator"]
 
     assert any("derating band" in v.detail for v in warned)
 
@@ -143,7 +143,7 @@ def test_beat_7_a_bigger_ldo_clears_the_current_budget():
 
     current = [v for v in rules.evaluate(board) if v.rule == "current_budget" and v.scope == RAIL]
 
-    assert current[0].status == "pass"
+    assert current[0].status == "satisfied"
     assert current[0].detail == "701.5 mA of 1000 mA (70%)"
 
 
@@ -223,7 +223,7 @@ def test_beat_9_the_buck_converter_barely_warms():
 
     thermal = [v for v in rules.evaluate(board) if v.rule == "thermal_dissipation"]
 
-    assert thermal[0].status == "pass"
+    assert thermal[0].status == "satisfied"
     assert thermal[0].detail == (
         "92% efficient at 3.3 V × 701.5 mA = 0.2 W — 11 °C rise from 25 °C ambient "
         "in VSON-HR-8, 36 °C junction."
@@ -241,7 +241,7 @@ def test_the_board_goes_green():
     verdicts = rules.evaluate(board)
 
     assert rules.failures(verdicts) == []
-    assert [v.status for v in verdicts if v.status == "warn"] == []
+    assert [v.status for v in verdicts if v.status == "evidence_missing"] == []
 
 
 def test_one_loop_handles_a_sourcing_failure_and_an_electrical_one_identically():

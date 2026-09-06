@@ -37,7 +37,7 @@ def _state(requirements: Requirements) -> dict[str, Any]:
         "constraint": {"topology": "buck"},
         "guidance": "try a buck",
         "escalation": "The fence closed.",
-        "verdicts": [Verdict("availability", "fail", "too little stock", "sensor")],
+        "verdicts": [Verdict("availability", "failed", "too little stock", "sensor")],
         "accepted": [("availability", "sensor")],
     }
 
@@ -138,7 +138,7 @@ def test_relaxing_stock_removes_only_that_requirement_and_reports_every_check(mo
         max_lead_days=10,
     )
     state = _state(requirements)
-    conflict = Verdict("availability", "fail", "too little stock", "sensor")
+    conflict = Verdict("availability", "failed", "too little stock", "sensor")
     state["verdicts"] = [conflict]
     emitted = []
     monkeypatch.setattr(nodes, "_emit", emitted.append)

@@ -112,6 +112,23 @@ that passes at 25 °C fails at 70 °C, so the ambient is provably an operand.
 
 ## 3 · Coverage semantics
 
+**Split in two.** The engine vocabulary and the screen are separate jobs with separate risk:
+`warn` appears at 22 sites in `rules.py` and each has to be classified as *checked and holds
+narrowly* or *could not check* — judgment, not a rename — while the wire and the frontend are
+mechanical once the labels settle. Doing both at once means a broken UI hiding a
+misclassification.
+
+- **3a · the engine** — `engine/models.py`, `engine/rules.py`, `graph/nodes.py`, `api/bom.py`.
+  Brief: [tasks/ITEM-3A.md](tasks/ITEM-3A.md), which carries the site-by-site mapping decided
+  in advance so it is transcribed rather than re-derived.
+- **3b · the wire and the screen** — `api/events.py`, `frontend/src/app/lib/types.ts` and the
+  components reading `'pass' | 'warn' | 'fail'`.
+
+**One rule changes what it decides**, and only one: a chip-select shortfall — *"3 SPI
+peripherals need a chip select each, but only 1 GPIO remains"* — was a `warn` because the old
+vocabulary had nowhere to put a checked constraint that does not hold. It is a `failed`. That
+it was hiding there is the clearest argument for the split.
+
 **Files** `engine/models.py` (`Verdict` status), `engine/rules.py`, `api/events.py`, frontend
 
 **Done when** every rule returns one of **satisfied / failed / not applicable / not assessed /

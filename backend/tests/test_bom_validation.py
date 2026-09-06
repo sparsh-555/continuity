@@ -93,12 +93,12 @@ def test_industrial_brief_fails_a_commercial_part_that_defaults_accept(monkeypat
         event
         for event in default_checks
         if event["type"] == "check" and event["rule"] == "temperature_rating"
-    )["status"] == "pass"
+        )["status"] == "satisfied"
     assert next(
         event
         for event in industrial_checks
         if event["type"] == "check" and event["rule"] == "temperature_rating"
-    )["status"] == "fail"
+        )["status"] == "failed"
 
 
 def test_production_brief_raises_the_availability_floor(monkeypatch):
@@ -115,12 +115,12 @@ def test_production_brief_raises_the_availability_floor(monkeypatch):
         event
         for event in default_checks
         if event["type"] == "check" and event["rule"] == "availability"
-    )["status"] == "pass"
+        )["status"] == "satisfied"
     assert next(
         event
         for event in production_checks
         if event["type"] == "check" and event["rule"] == "availability"
-    )["status"] == "fail"
+        )["status"] == "failed"
 
 
 def test_no_brief_keeps_exact_requirements_defaults(monkeypatch):
@@ -284,7 +284,7 @@ def test_unresolved_mpn_warns_by_name_and_the_remaining_rows_finish(monkeypatch)
     _no_rails(monkeypatch)
     result = run(frames({"bom": "FOUND\nMISSING"}))
 
-    warn = next(event for event in result if event["type"] == "check" and event["status"] == "warn")
+    warn = next(event for event in result if event["type"] == "check" and event["status"] == "evidence_missing")
     assert warn["rule"] == "availability"
     assert "MISSING" in warn["detail"]
     assert result[-1]["type"] == "done"
@@ -300,7 +300,9 @@ def test_every_unresolved_row_is_a_well_formed_completed_stream(monkeypatch):
     assert result[0]["type"] == "plan"
     assert result[-2:][0]["type"] == "bom"
     assert result[-1]["type"] == "done"
-    assert all(event["status"] == "warn" for event in result if event["type"] == "check")
+    statuses = {event["status"] for event in result if event["type"] == "check"}
+    assert statuses <= {"evidence_missing", "not_applicable", "not_assessed"}
+    assert "evidence_missing" in statuses
 
 
 def test_inferred_rail_with_a_source_not_in_the_bom_is_dropped(monkeypatch):
@@ -315,7 +317,7 @@ def test_inferred_rail_with_a_source_not_in_the_bom_is_dropped(monkeypatch):
     plan = result[0]
     assert plan["edges"] == []
     voltage = next(event for event in result if event["type"] == "check" and event["rule"] == "voltage_overlap")
-    assert voltage["status"] == "warn"
+    assert voltage["status"] == "evidence_missing"
 
 
 def test_no_usable_rails_keeps_non_rail_checks_and_never_passes_rail_rules(monkeypatch):
@@ -329,10 +331,10 @@ def test_no_usable_rails_keeps_non_rail_checks_and_never_passes_rail_rules(monke
         event
         for event in checks
         if event["rule"] in {"voltage_overlap", "current_budget", "thermal_dissipation"}
-        and event["status"] == "pass"
+            and event["status"] == "satisfied"
     ]
     assert {"voltage_overlap", "current_budget", "thermal_dissipation"} <= {
-        event["rule"] for event in checks if event["status"] == "warn"
+            event["rule"] for event in checks if event["status"] == "evidence_missing"
     }
 
 

@@ -458,7 +458,7 @@ async def select(state: DesignState, config) -> DesignState:
         _emit(ev.reasoning(slot_id, f"No {label.lower()} found for “{query}”{_within(slot_id, slots)}."))
         unfilled = Verdict(
             rule="availability",
-            status="warn",
+            status="evidence_missing",
             detail=(
                 f"No part found for {label} — searched JLCPCB for “{query}”"
                 f"{_within(slot_id, slots)}."
@@ -532,7 +532,7 @@ def validate(state: DesignState, config) -> DesignState:
             (v.rule, v.subject, v.scope): v for v in (state.get("verdicts") or [])
         }
         for verdict in verdicts:
-            if verdict.subject == current or verdict.status == "pass":
+            if verdict.subject == current or verdict.status == "satisfied":
                 continue
             before = previous.get((verdict.rule, verdict.subject, verdict.scope))
             if before is not None and (before.status, before.detail) == (
@@ -579,10 +579,10 @@ def _apply_waivers(verdicts: list, accepted: list) -> list:
     return [
         replace(
             v,
-            status="warn",
+            status="evidence_missing",
             detail=f"{v.detail} Accepted by you, so this is not blocking.",
         )
-        if v.status == "fail" and (v.rule, v.subject) in waived
+        if v.status == "failed" and (v.rule, v.subject) in waived
         else v
         for v in verdicts
     ]
