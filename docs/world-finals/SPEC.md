@@ -114,6 +114,16 @@ The input that makes us different, and an honest adoption cost.
 | `mounting` | Copper area and board construction — the basis for any θJA we apply |
 | `source` | Where each number came from. A guess is labelled a guess. |
 
+**The profile's load is declared, not derived, and that is the correct model here.** When
+Continuity designs a board from a brief it chose every part, so summing what it placed *is* the
+rail load. A product line already exists: it has a BOM of a couple of hundred lines and a power
+budget somebody computed once and signed. Deriving the load from the handful of parts we
+modelled would under-count by construction, and picking parts until the sum reached the number
+we wanted would be fabricating a board out of real components. So `i_load_max` reaches the
+engine as `Rail.i_load`, travelling with the basis that says where it came from — the same
+discipline as quoting θJA with its mounting condition. Design mode leaves the field unset and
+keeps summing parts.
+
 ### AML and AVL are separate lists
 
 - **AML** — manufacturer parts qualified for an internal part number.
@@ -136,7 +146,7 @@ ever raises a flag"*, and it returns nothing at all unless the brief stated a si
 |---|---|---|
 | **`power_dissipation_max`** | Does computed dissipation exceed the part's own stated absolute maximum? | `PartSpec` has no field for it. A part can sit inside its junction limit and over its power rating — this is a different question from `thermal_dissipation`, and missing it is how a 340 mW load passed against a 300 mW ceiling. |
 | **`footprint_compatibility`** | Does the candidate fit the land pattern the outgoing part leaves, and do its pin functions map? | Needs a **baseline** — the part being replaced — which no rule currently has. Distinct from `footprint`, which asks whether a part is under a size target. Both keep their job. |
-| **`capacitor_requirements`** | Does the candidate's stated output-capacitor requirement conflict with what is on this board? | Named by research as the first thing a hardware engineer attacks on an LDO substitution. Explicit violations are checkable without simulation: AMS1117 wants 22 µF tantalum, TI's TLV1117LV says *"do not use an electrolytic output capacitor"*, NCP1117 specifies an ESR window. |
+| **`capacitor_requirements`** | Does the candidate's stated output-capacitor requirement conflict with what is on this board? | Named by research as the first thing a hardware engineer attacks on an LDO substitution. Explicit violations are checkable without simulation, and the four datasheets disagree with each other: AMS1117 asks for *"22 µF solid tantalum"*, TLV1117LV requires *"1.0-µF ceramic… X5R- and X7R-type"* with effective capacitance above 0.5 µF and is *"stable with no ESR"*, NCP1117 and LD1117 characterise at 10 µF. The demo boards carry a 22 µF X5R ceramic, which satisfies TI and is a real open question against AMS1117's tantalum. |
 
 `capacitor_requirements` reports **failed** on an explicit conflict and **evidence missing**
 where the requirement is unpublished. It does not claim stability — that needs simulation —
@@ -204,11 +214,12 @@ The engine emits `warn` today for two unrelated things, and they split different
   It does hold. It holds narrowly, and the cell shows how narrowly.
 - *"could not check — the distributor states no minimum"* → **evidence missing**.
 
-Keeping margin as an attribute rather than a label matters for our own demo: LD1117S33 on the
-gateway sits at 100 °C against a 125 °C limit. Calling that anything other than satisfied
-would be wrong, and showing it without the margin would be worse — a thin margin is exactly
-what an approver needs to see, and it is what makes the choice between one qualified part and
-two approved ones a real decision rather than an obvious one.
+Keeping margin as an attribute rather than a label matters for our own demo: NCP1117ST33 on the
+cabinet controller sits at 139 °C against onsemi's 150 °C die limit, having failed the gateway
+outright. Calling 139 °C anything other than satisfied would be wrong, and showing it without
+the margin would be worse — eleven degrees is exactly what an approver needs to see, and it is
+what makes the choice between one qualified part and two approved ones a real decision rather
+than an obvious one.
 
 This is why "nine of ten rules passed" is a number we stop quoting: several rules have no
 subject on a two-part board, so the denominator was never ten.
@@ -250,24 +261,35 @@ coverage labels are what make that honest rather than a dodge.
 
 ## Decisions taken
 
-**θJA is quoted, not looked up.** From the datasheet, with the mounting case named.
+**θJA is quoted with its mounting condition, or it is not quoted at all.** Every figure below
+was read from the manufacturer's own datasheet and bound to the right column of the right
+table. [PARTS.md](PARTS.md) carries the quotes, the listings and the provenance.
 
-For the incumbent it changes no verdict, and saying so is stronger than picking a number:
-AMS1117 across its entire published range of **46 to 95 °C/W** puts line C between **52 °C and
-81 °C** — passing at every value. The conclusion is robust to the whole spread, which is a
-better answer to *"where did that number come from"* than a single confident figure.
+| Part | θJA, SOT-223 | The condition it was measured under |
+|---|---|---|
+| AMS1117-3.3 | 46 to >90 | Copper-area dependent; the datasheet's Table 1 gives 55–80 °C/W by area, on 1/16″ FR-4 with 1 oz copper |
+| TLV1117LV33 | 62.9 | TI thermal information, a single package column, unambiguous |
+| LD1117S33 | 110 | ST Table 2, SOT-223 column — **Rev 38**; Rev 26 omits it |
+| NCP1117ST33 | 160 | **Minimum size pad** — onsemi's own qualifier |
+
+**These four were not measured on the same board, which is why the profile has to state the
+copper.** Comparing AMS1117's headline figure against NCP1117's minimum-size-pad figure is
+comparing two different installations, and it is the first thing a hardware engineer would
+catch. That is what `mounting` is for: the board states its copper area, AMS1117's own table
+converts it into a θJA we can quote, and where a manufacturer publishes only one condition we
+use that one and name it.
+
+**LD1117S33's 110 °C/W is real, and reading the wrong revision nearly cost us it.** Rev 26 of
+ST's datasheet publishes `RthJA` for TO-220 only, so a reader of that document concludes ST
+never characterised the part in SOT-223. Rev 38 publishes all four columns — 110 / 55 / 100 /
+50 — and the SOT-223 figure has been there since 2012. Two opposite traps for item 5's
+extractor, then: taking TO-220's 50 for a SOT-223 part, and concluding from a stale mirror that
+nothing was published. Bind the value to the column, and record the revision.
 
 **One footprint family for the candidates.** All SOT-223, so thermal resistance is the
 variable under test rather than being confounded by physical incompatibility. This is why
 ME6211 is out: SOT-23-5 does not fit a SOT-223 land pattern on any line, so it never belonged
 in the comparison.
-
-| Part | θJA | Role |
-|---|---|---|
-| AMS1117-3.3 | 46–95, mounting-dependent | Going end-of-life |
-| TLV1117LV33 | 62.9 | Candidate |
-| LD1117S33 | 110 | Candidate |
-| NCP1117ST33 | 160 | Candidate |
 
 **Ambient and component grade are separate fields.** `ambient_max_c` comes from the operating
 profile; `temp_range` stays a component grade. Conflating them was a real defect, and it is
@@ -280,31 +302,52 @@ what made the fixture's 25 °C ambient sit unexamined beside a 0–70 °C range.
 Five product lines. Three carry AMS1117-3.3; the other two exist so that "3 of your 5 lines"
 means something.
 
-| Line | Supply | Load | Dissipation | Role in the story |
-|---|---|---|---|---|
-| **A · Sensor node** | 5 V | 150 mA | 0.255 W | The easy case — everything passes |
-| **B · Gateway** | 5 V | 400 mA | 0.680 W | Kills the hot candidate on **thermal** |
-| **C · Industrial node** | 12 V | 60 mA | 0.522 W | Kills the cool candidate on **voltage** |
-| D, E | — | — | — | Do not contain the part |
+Every number below is a distributor row, a datasheet quote, or arithmetic on those two.
+[PARTS.md](PARTS.md) is the audit trail.
 
-Computed against a 125 °C junction limit at the stated ambient:
+| Line | Supply | 3V3 load | Ambient | Copper | Dissipation | Role in the story |
+|---|---|---|---|---|---|---|
+| **A · Sensor node** | 5 V | 150 mA | 25 °C | 1000 mm² | 0.255 W | The easy case |
+| **B · Gateway** | 5 V | 420 mA | 45 °C | 1000 mm² | 0.714 W | Kills the manufacturer's own recommendation on **thermal** |
+| **C · Cabinet controller** | 12 V | 60 mA | 55 °C | 1000 mm² | 0.522 W | Kills the cool candidate on **voltage** |
+| D, E | — | — | — | — | — | Do not contain the part |
+
+All three lines require a commercial **0 to 70 °C** component grade. Widening line C to
+industrial −40 to +85 is a deliberate variation held back for Q&A rather than an oversight:
+LD1117S33 and NCP1117ST33 are both 0 °C parts, so the same matrix re-run at industrial grade
+fails them on `temperature_rating` as well and leaves line C with no candidate at all. That is
+a good answer to *"what happens when nothing works"* — shown live, not described.
+
+Load, ambient and copper area are stated by the line's operating profile and cited as such.
+They are what a product line's power budget and stackup say — not something we re-derive from a
+partial BOM.
+
+Junction temperature is `T_A + P × θJA`, each part against its own published limit:
 
 | | A | B | C |
 |---|---|---|---|
-| **AMS1117-3.3** — today, at its *worst* published θJA (95) | 49 °C | 90 °C | 75 °C |
-| **TLV1117LV33** — 62.9 °C/W | 41 °C | 68 °C | **fails: 12 V exceeds its 5.5 V ceiling** |
-| **LD1117S33** — 110 °C/W | 53 °C | warm, 100 °C | 82 °C |
-| **NCP1117ST33** — 160 °C/W | 66 °C | **fails: 134 °C** | warm, 109 °C |
+| **AMS1117-3.3** — today, 60 °C/W at the stated copper, limit 125 °C | 40 °C | 88 °C | 86 °C |
+| **TLV1117LV33** — 62.9 °C/W, limit 125 °C | 41 °C | 90 °C | **fails: 12 V exceeds a 5.5 V ceiling** |
+| **LD1117S33** — 110 °C/W, limit 125 °C | 53 °C | 123.5 °C — **1.5 °C of margin** | 112 °C |
+| **NCP1117ST33** — 160 °C/W at minimum pad, limit 150 °C | 66 °C | **fails: 159 °C** | 139 °C, 11 °C of margin |
 
-Three things this buys:
+Four things this buys:
 
-- **Two different rules fire.** `thermal_dissipation` on B, `voltage_overlap` on C. The engine
-  is not a thermal calculator with extra steps.
-- **The incumbent passes everywhere even at its worst θJA**, so the boards are fine today and
-  the substitution is the entire problem. The conclusion is robust to the 46–95 spread.
-- **No candidate is free.** LD1117S33 clears all three but runs at 100 °C on the gateway and
-  is not on the AML. So the decision put to a human is real: qualify one new part and use it
-  everywhere, or run two already-approved parts across three boards.
+- **Two different rules fire, and every θJA comes from a datasheet.** `thermal_dissipation` on
+  B, `voltage_overlap` on C — the engine is not a thermal calculator with extra steps. And no
+  cell rests on our own package table: all four manufacturers published a figure, so every
+  number on screen cites a document a judge can open.
+- **The incumbent passes everywhere across its entire published spread.** At 46 °C/W the
+  gateway sits at 78 °C and at 90 °C/W it sits at 109 °C, both under 125. The boards are fine
+  today, the substitution is the whole problem, and the conclusion does not depend on which
+  end of AMS1117's range you believe.
+- **The manufacturer's own recommendation cooks a board.** NCP1117ST33 is what the notice
+  proposes, and on the gateway it lands at 159 °C against onsemi's own 150 °C die limit.
+- **No candidate is free, and the cheapest-looking one is the trap.** TLV1117LV33 works on A
+  and B but not C. NCP1117ST33 works on A and C, with 11 °C of margin. LD1117S33 clears all
+  three — and on the gateway it clears by **1.5 °C**, which no engineer would ship. That last
+  cell is the argument for carrying margin as an attribute of a passing check: the engine says
+  satisfied, and a person looking at 1.5 °C says no. So the decision put to a human is real.
 
 The PCN recommends **NCP1117ST33** — plausible, since onsemi is a genuine AMS1117 second
 source — and it fails the gateway. The manufacturer's own recommendation cooks one of your

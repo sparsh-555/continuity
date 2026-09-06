@@ -36,28 +36,64 @@ acceptance tests to build against rather than a description.
 
 # Phase 1 · Foundations
 
-## 1 · Real fixture, real parts
+## 1 · Real fixture, real parts, and the fields it needs — **DONE**
 
-Everything downstream quotes these numbers.
+Suite 721 → **735 passed, 5 skipped**. Fourteen new tests, none existing moved. Five model
+fields shipped rather than four: `Rail.i_load_basis` had to be separate from `Rail.basis`, or R1
+would cite a power budget as the source of a rail's *voltage*. `rail_draw` had five call sites,
+not three — `energy_budget` and `situation.py` were missed by the original survey.
 
-**Files** `backend/tools/eol_differential.py`
+**No cell in the demo rests on the package table.** All four manufacturers publish a θJA, so
+every number on screen cites a datasheet. LD1117S33 briefly looked unpublished because Rev 26 of
+ST's datasheet omits the SOT-223 column that Rev 38 carries — a correction worth remembering,
+because it is a trap for item 5's extractor in the opposite direction from the usual one.
 
-**Done when** the four parts carry specs sourced from JLCPCB through `graph.sourcing` — MPN,
-manufacturer, package, voltage and current limits, temperature grade, stock, price — with no
-value invented and no manufacturer's specification attached to another's listing. Boards gain
-an output capacitor, so they are three slots rather than two.
+Everything downstream quotes these numbers. Verifying them is what showed that four of the
+figures SPEC originally carried had no source — see [PARTS.md](PARTS.md), which is now the
+record. This item makes the code match it.
 
-**Test** the script reproduces the SPEC matrix: A passes for all candidates; B fails
-NCP1117ST33 on thermal; C fails TLV1117LV33 on voltage; AMS1117-3.3 passes all three at its
-worst published θJA.
+**Files** `engine/models.py`, `engine/draw.py`, `engine/rules.py`,
+`backend/tools/eol_differential.py`. The implementation brief is
+[tasks/ITEM-1.md](tasks/ITEM-1.md) — hand that over whole.
+
+**The model additions come first**, because the fixture cannot state an honest θJA or an
+honest dissipation without them. All are additive: design mode leaves them unset and behaves
+exactly as it does today. A fifth, `Rail.i_load_basis`, is described in the summary above.
+
+- **`PartSpec.theta_ja_mounting`** — the condition the value was measured under. Without it,
+  160 °C/W at a minimum-size pad and 60 °C/W at 1000 mm² of copper look like the same kind of
+  number, and comparing them is the first thing a hardware engineer would catch.
+- **`PartSpec.t_j_max`** — the junction limit, separately from the ambient grade. `temp_max`
+  does both jobs today, and for NCP1117 they differ: the distributor states `0~125 ℃ @(Ta)`
+  while onsemi's datasheet states a 150 °C maximum die junction temperature. Failing that part
+  against 125 would be failing it against a number that is not a junction limit.
+- **`Requirements.mounting`** — the board's copper area, so AMS1117's own Table 1 can be
+  applied to the board it is actually sitting on, and so the thermal verdict can cite it.
+- **`Rail.i_load`** — the product line's declared rail load. `draw.rail_draw()` returns it when
+  set and falls back to summing parts when it is not. That one function is the single change
+  point: `thermal_dissipation` (`rules.py:785`) and `current_budget` (`rules.py:600`) both
+  reach the draw through it, so they stay consistent for free.
+
+**Done when** the four regulators and the output capacitor carry the listings recorded in
+PARTS.md — TI's `C15578` for TLV1117LV33DCYR, never JSMSEMI's `C48937499` — every θJA carries
+its quoted line and its mounting condition, `mpn="LOAD"` is replaced by the real module each
+line carries, and each line states its own ambient, copper area and rail load with a basis.
+
+**Test** the script reproduces the SPEC matrix: the incumbent passes all three lines at both
+ends of its 46-to->90 spread; TLV1117LV33 fails C on voltage against a 5.5 V ceiling;
+NCP1117ST33 fails B on thermal at 159 °C against onsemi's 150 °C limit and clears C with 11 °C
+of margin; LD1117S33 clears all three and lands on B with 1.5 °C to spare.
 
 ## 2 · Operating profile
 
 **Files** `engine/models.py`, `engine/rules.py`, `api/store.py`
 
+Item 1 adds the fields the engine needs. This item makes them a persisted property of a product
+line rather than something a fixture sets.
+
 **Done when** `ambient_max_c` belongs to the profile and `temp_range` means component grade
-only — one object conflates them today. Every thermal verdict cites the ambient it used and
-where that number came from.
+only — one object conflates them today — and ambient, copper and load reach a run from the
+stored profile. Every thermal verdict cites the ambient it used and where that number came from.
 
 **Test** the same board at 25 °C and 70 °C returns different verdicts, each naming its ambient.
 A board with no profile returns *evidence missing* for thermal rather than assuming 25 °C.
@@ -69,9 +105,11 @@ A board with no profile returns *evidence missing* for thermal rather than assum
 **Done when** every rule returns one of **satisfied / failed / not applicable / not assessed /
 evidence missing**, and a cell is green only when every applicable check is satisfied.
 
-**Test** a board reports `interface_role_match` as *not applicable* rather than passing; a part
-with no stated θJA reports *evidence missing* rather than falling back silently; a green cell
-shows its count of unassessed checks.
+**Test** a board reports `interface_role_match` as *not applicable* rather than passing; a green
+cell shows its count of unassessed checks; and a part with no stated θJA whose package the table
+*does* know reports *evidence missing* rather than falling back silently. The demo's four
+regulators no longer supply that case — all four publish a figure — so build the case from a
+part that genuinely publishes none.
 
 ## 4 · Three bug fixes
 
@@ -101,8 +139,21 @@ extraction binds the value to the correct table column rather than only checking
 appears somewhere, and the cache is keyed by document identity rather than by MPN — today a
 cached result can shadow a newly uploaded datasheet, which is a live demo hazard.
 
-**Test** each of the four datasheets yields the right θJA with the right quote; uploading a
-different datasheet for the same MPN returns the new value, not the cached one.
+**And when the package-table fallback stops answering substitution questions.**
+`packages.theta_ja("SOT-223")` returns **62.0**, against a published 62.9 from TI on a JEDEC
+board and **160** from onsemi at a minimum pad — for the same package. A single figure spanning
+a 2.6× spread is not an approximation, it is the optimistic end presented as a default, and it
+is what would let LD1117S33 report a temperature ST never published. The table can stay for
+design mode, where an approximate number beats refusing to answer a brief; it must not stand in
+for a datasheet when the question is *"is this substitute safe on this board"*. That is the
+difference `evidence missing` exists to express.
+
+**Test** all four datasheets yield the right θJA with the right quote, bound to the right
+column — the ST LD1117 document is the hard case in **both** directions: Rev 38's Table 2 prints
+110 / 55 / 100 / 50 across SOT-223 / SO-8 / DPAK / TO-220, so taking 50 for a SOT-223 part fails
+this test, and so does concluding nothing was published when handed Rev 26, which omits the
+column entirely. The extraction must record the document revision alongside the value. Uploading
+a different datasheet for the same MPN returns the new value, not the cached one.
 
 ## 6 · `power_dissipation_max`
 
@@ -134,8 +185,11 @@ effective capacitance, ESR window, permitted dielectric — against the capacito
 board. It reports **failed** on an explicit conflict, **evidence missing** where the
 requirement is unpublished, and never claims stability.
 
-**Test** an electrolytic on a board whose candidate forbids one fails; a candidate with no
-published requirement reports *evidence missing*.
+**Test** a board carrying 0.1 µF on the output fails TLV1117LV33, which states *"effective
+output capacitance… must be greater than 0.5 µF"*; the demo boards' 22 µF X5R satisfies it,
+because TI also names X5R and X7R explicitly. AMS1117's *"22 µF solid tantalum"* against that
+same ceramic is a **dielectric the datasheet does not address**, so it reports evidence missing
+rather than either a pass or a fail — the datasheet recommends a type, it does not rule one out.
 
 ## 9 · Repair vocabulary
 

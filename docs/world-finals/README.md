@@ -15,12 +15,14 @@ Read in this order.
 |---|---|
 | **[SPEC.md](SPEC.md)** | The contract. Flow diagram, data model, rules, coverage semantics, the demo case with its arithmetic, how the handoff is shown. |
 | **[BUILD.md](BUILD.md)** | Eighteen ordered work items across five phases, each with its files, its done-condition and its own acceptance test. **Start here for what to do next.** |
+| **[PARTS.md](PARTS.md)** | Every listing and datasheet value the demo rests on, with its quote and its provenance. Read before changing any number in SPEC.md's matrix. |
 | [SCENARIO-B.md](SCENARIO-B.md) | The assigned scenario, and the ECR/ECO framing that replaced our first answer |
 | [FLOW.md](FLOW.md) | The narrative version of the flow, and what remains unproven |
 | [EOL-RESEARCH.md](EOL-RESEARCH.md) | Sourced research on how EOL response actually works, with every figure's provenance |
 | [PRELIM-IDEA.md](PRELIM-IDEA.md) | The 200-word submission, and why each line is worded as it is |
 | [COMPETITORS.md](COMPETITORS.md) | What each vendor documents, why Zuken is not the counterexample it looked like, and the questions this prepares for |
 | [WORKBUDDY.md](WORKBUDDY.md) | What WorkBuddy is, and why we are not building on it |
+| [tasks/](tasks/) | Implementation briefs, one per BUILD item, written to be handed to a coding agent whole. Each is self-contained. |
 | RESEARCH-BRIEF.md, RESEARCH-BRIEF-2.md | The two adversarial passes. Kept for provenance — their findings are already folded into the documents above. |
 
 ## The challenge

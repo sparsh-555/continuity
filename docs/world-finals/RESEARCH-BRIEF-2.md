@@ -34,6 +34,9 @@ Accepted and already acted on:
 - Our θJA figures (62 for SOT-223, 250 for SOT-23-5) are **not defensible**. The AMS
   datasheet says 95 °C/W with strong copper-area dependence. ME6211's 250 could not be
   substantiated at all, and its 150 °C is **TOPR**, not a junction limit.
+  *(Later correction: the AMS datasheet was subsequently opened and parsed. It says
+  **90 °C/W**, footnoted "46 °C/W to >90 °C/W", with a copper-area table. See
+  [PARTS.md](PARTS.md).)*
 - The fixture mixes a **JSMSEMI** listing with **TI** specifications for TLV1117LV. TI's part
   is 6 V absolute maximum, not the 12 V in our fixture.
 - The `footprint` rule checks a **package-size ceiling**, not land-pattern compatibility.
