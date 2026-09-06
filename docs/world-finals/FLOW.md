@@ -47,42 +47,61 @@ demo can still change shape, and each item names the test that settles it.
 
 ## The flow
 
-**0 · Standing state.** Three product lines with BOMs already in the system. Each
-department's constraints registered as inputs *they* own — procurement's approved-vendor
-list, manufacturing's placeable footprints, design's per-board requirements. Plus precedents.
+Output changed on 6 Sep. The run used to end with three repaired boards; it now ends with
+**three change requests awaiting approval**, because a released design cannot be altered
+without sign-off. See [SCENARIO-B.md](SCENARIO-B.md) on ECR/ECO. The mechanics up to that
+point are unchanged.
 
-**1 · The notice arrives.** An unstructured PCN or PDN, PDF or forwarded email. The
-orchestrator parses it into `{MPN, notice type, effective date, LTB date, recommended
-replacement}`. The model fills declared fields and never adds one; an unparseable notice
-escalates rather than gets guessed at. *This replaces the planner.*
+**0 · Standing state.** The dashboard lists **product lines** — the brief's own word, and
+better than "projects", which sounds like an engineer's workspace rather than a thing the
+company ships. Each was added by **uploading its KiCad project**, which yields the BOM the
+rules need and the board the footprint view draws, from a file the engineer already has.
+Each department's constraints are registered as inputs *they* own: procurement's
+approved-vendor list, manufacturing's placeable footprints, design's per-board requirements.
 
-**2 · Exposure.** Match the MPN across every BOM. Deterministic, no model. This is also the
-join SiliconExpert and Z2Data structurally cannot do, because they do not know your BOMs.
+**1 · The notice arrives.** A PCN, as an unstructured PDF or a forwarded email — either the
+mailbox connector finds it or an engineer drops it in. Parsed into `{MPN, notice type,
+effective date, LTB date, recommended replacement}`. The model fills declared fields and never
+adds one; an unparseable notice escalates rather than gets guessed at. *This replaces the
+planner.*
 
-**3 · Candidates.** In order: the manufacturer's recommended replacement straight from the
-notice, because that is what a human tries first; then model-proposed alternates sourced
-through the distributor MCP, with precedents consulted. The model proposes only MPNs that
-exist in distributor data.
+**2 · Exposure.** Match the MPN across every line. Deterministic, no model. *"AMS1117-3.3
+appears in 3 of your 5 product lines."* This is the join SiliconExpert and Z2Data cannot do —
+they know the part, they do not know your BOMs.
 
-**4 · The core loop.** For every candidate on every affected board, drop it into the slot and
-run `evaluate(board)` — all ten rules on the whole board, not just the changed part. Three
-candidates across three boards is nine whole-board evaluations. Unchanged code.
+**3 · The manufacturer's own suggestion, first.** Because that is what a person does. Then
+model-proposed alternates through the distributor MCP, with precedents consulted.
 
-**5 · The matrix.** Candidates down, boards across, every cell carrying the role that owns
-any failure. The reveal lives here: **the manufacturer's own recommended replacement passes
-two boards and fails the third.** Industry names that failure mode itself — "assuming the
-recommended replacement is drop-in" is a documented standard mistake.
+**4 · The core loop.** For every candidate on every affected line, drop it in and run
+`evaluate(board)` — all ten rules on the whole board. Unchanged code.
 
-**6 · Repair and escalation.** If nothing passes everywhere, `review` proposes beyond a
-straight swap, `policy` validates each proposal, the engine re-checks the whole board after
-every one, capped at three. When the engine cannot resolve it, or the only survivor violates
-a role-owned constraint, escalate to the owner.
+**5 · The matrix, and the reveal.** Candidates down, lines across, every cell carrying the
+role that owns any failure. The manufacturer's recommended replacement passes two lines and
+fails the third. Industry names that failure mode itself: assuming a recommended replacement
+is drop-in is a documented standard mistake.
 
-**7 · Three decisions, not one.** Per board: drop-in, or drop-in with a layout change, or no
-candidate. Then the cost bucket for each.
+**6 · The approval gate.** When the engine cannot decide, or the only survivor violates a
+role-owned constraint, it stops and addresses the decision to its owner. *"TLV1117LV33DCYR
+passes all three lines but is not on the approved-vendor list. This is procurement's
+decision."* Not a question to whoever is at the keyboard. The answer resumes the run and is
+recorded against the change.
 
-**8 · Record.** Write the precedent — resolutions *and rejections* — and emit the change
-record the mandatory checklist demands.
+**7 · A change request per line.** Affected part, reason, evidence, cost delta, approvals
+required. Continuity assembled the packet; the board decides.
+
+**8 · The boards, after approval.** And this is where the real parts pay off:
+
+- **Sensor Node and Gateway** take ME6211 at $0.0597 — but that is **SOT-23-5 against the
+  outgoing SOT-223**. The pads move, connections break, both boards need layout work.
+- **Display Unit** takes TLV1117 at $0.1115 — **same SOT-223 footprint, a true drop-in.**
+
+So the footprint view shows two boards with broken connections lit and one untouched, and it
+**inverts the obvious answer**: the cheap part is not cheap once you count respinning two
+boards, and the expensive one is free to adopt. That is a decision no parametric search
+reaches, and it is why the KiCad view earns its place rather than decorating.
+
+**9 · Record.** Precedents — resolutions *and* rejections — plus the audit trail the ECO
+process requires.
 
 ### What survives from the current graph
 

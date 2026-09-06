@@ -70,9 +70,41 @@ instead of across rules.
 
 ## What role specificity has to mean
 
-The prompt's verb is *coordinate*, not *serve*. It asks for a chain with handoffs, not three
-products. Three things have to be true, and building three separate dashboards is the wrong
-answer to all of them:
+**Corrected 6 Sep.** The earlier answer here was that Continuity *collapses* the need for
+coordination by checking every department's constraints at once. That is half right and it
+led somewhere wrong, because a tool that clears a substitution on its own is not coordinating
+a team — it is replacing one, and in this industry that is an audit finding rather than a
+product.
+
+### The industry already has a name for this
+
+Cross-team coordination on a part change is **ECR → ECO → ECN**, governed by a **Change
+Control Board**.
+
+| Stage | What it is | Who owns it |
+|---|---|---|
+| **ECR** Engineering Change Request | Proposes the change, documents rationale and impact. *"Should we do this?"* | Any stakeholder — engineer, quality, manufacturing, supplier |
+| **ECO** Engineering Change Order | Authorises implementation after review. *"How do we do it correctly?"* | Design authority or the CCB |
+| **ECN** Engineering Change Notice | Notifies affected parties it is done | Configuration management |
+
+The CCB is *"the cross-functional group that decides whether a proposed change proceeds. Its
+composition should mirror the change's blast radius: engineering, quality, manufacturing and
+procurement at minimum."* And the most common audit finding in the field: *"Any change to a
+released design must be approved before implementation — no exceptions. Emergency changes
+should follow an expedited approval process, not bypass approval entirely."*
+
+### So Continuity drafts the ECR. It does not approve it.
+
+The job it takes is the **impact analysis** — which products are affected, and does a
+candidate satisfy each department's constraints — and the **packet** that carries the answer
+to the people who must sign. The humans still approve; the board still decides. What changes
+is that procurement's approval becomes one click on evidence already gathered, instead of
+three days of investigation they run themselves.
+
+That is the honest answer to *"how does your tool coordinate the cross-team response"*, and
+it is stated in the industry's own vocabulary rather than ours.
+
+Three things follow:
 
 1. **Each role owns a constraint the others cannot silently override.** Today all ten rules
    are hardcoded and answer to nobody. An engineer who finds an electrically perfect
@@ -80,8 +112,9 @@ answer to all of them:
    rule, not by procurement's email three days later.
 2. **Each role sees the same verdict in its own terms.** One finding, three renderings — a
    view layer over one shared result, never three engines.
-3. **The handoff is visible, and it is `escalate`.** Today escalation asks the one user
-   through `interrupt()`. Here it routes to the role that owns the answer.
+3. **The handoff is an approval gate, not a question.** `escalate` today asks whoever is at
+   the keyboard. Here it is addressed to the role that owns the decision, and the answer is
+   recorded against the change.
 
 ## Gap analysis
 
