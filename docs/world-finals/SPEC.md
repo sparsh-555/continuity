@@ -185,10 +185,89 @@ what made the fixture's 25 °C ambient sit unexamined beside a 0–70 °C range.
 
 ---
 
-## Open
+## The demo case
 
-- Which three of the five lines carry the part, and their operating profiles — the loads that
-  make one candidate clear some lines and fail others.
-- Whether the footprint rule ships as a real land-pattern comparison or stays a size ceiling
-  with the difference reported as *not assessed*.
-- Whether the mailbox connector is in the live demo or narrated over a recording.
+Five product lines. Three carry AMS1117-3.3; the other two exist so that "3 of your 5 lines"
+means something.
+
+| Line | Supply | Load | Dissipation | Role in the story |
+|---|---|---|---|---|
+| **A · Sensor node** | 5 V | 150 mA | 0.255 W | The easy case — everything passes |
+| **B · Gateway** | 5 V | 400 mA | 0.680 W | Kills the hot candidate on **thermal** |
+| **C · Industrial node** | 12 V | 60 mA | 0.522 W | Kills the cool candidate on **voltage** |
+| D, E | — | — | — | Do not contain the part |
+
+Computed against a 125 °C junction limit at the stated ambient:
+
+| | A | B | C |
+|---|---|---|---|
+| **AMS1117-3.3** — today, at its *worst* published θJA (95) | 49 °C | 90 °C | 75 °C |
+| **TLV1117LV33** — 62.9 °C/W | 41 °C | 68 °C | **fails: 12 V exceeds its 5.5 V ceiling** |
+| **LD1117S33** — 110 °C/W | 53 °C | warm, 100 °C | 82 °C |
+| **NCP1117ST33** — 160 °C/W | 66 °C | **fails: 134 °C** | warm, 109 °C |
+
+Three things this buys:
+
+- **Two different rules fire.** `thermal_dissipation` on B, `voltage_overlap` on C. The engine
+  is not a thermal calculator with extra steps.
+- **The incumbent passes everywhere even at its worst θJA**, so the boards are fine today and
+  the substitution is the entire problem. The conclusion is robust to the 46–95 spread.
+- **No candidate is free.** LD1117S33 clears all three but runs at 100 °C on the gateway and
+  is not on the AML. So the decision put to a human is real: qualify one new part and use it
+  everywhere, or run two already-approved parts across three boards.
+
+The PCN recommends **NCP1117ST33** — plausible, since onsemi is a genuine AMS1117 second
+source — and it fails the gateway. The manufacturer's own recommendation cooks one of your
+boards, which is a documented industry failure mode rather than a contrivance.
+
+---
+
+## How the handoff is shown
+
+The research on enterprise agent evaluation is blunt: *"Nobody puts governance on the
+highlight reel"*, and the gap between a demo and something compliance will sign off on is
+*"audit logs, human-in-the-loop approvals, and role-based access."* Also worth citing:
+**46% of enterprises name integration with existing systems as their primary challenge**
+deploying agents.
+
+So the plumbing is the differentiator, and it is shown by its **record**, never by an inbox.
+
+**Intake — the run starts because an email arrived.** Nothing is typed. The first trace line
+is *"PCN from Advanced Monolithic Systems, received 09:14"*, sourced from the mailbox. Five
+seconds, and it reframes the demo from *I asked a tool* to *the world happened and the system
+responded*.
+
+**Handoff — email out, approval in-app.** The send is one-way SMTP, so no round trip sits in
+the critical path. The approval is performed by a **different signed-in identity**, because a
+second click in the presenter's own session proves nothing — a demo where one person creates
+and approves in two minutes is the exact failure sophisticated buyers call out.
+
+What goes on screen is the audit record:
+
+```
+Routed to Engineering + Quality · 09:16 · rule: AML gate · evidence: 3 boards, 27 checks
+Approved by priya@… · 09:17 · "Qualified on Rev C, evidence QUAL-014"
+```
+
+Named identity, timestamp, the rule that fired, and a rationale bound to the decision. That
+is the direct answer to *"who approved the decision your agent made three months ago"* — the
+question the research says enterprises cannot answer and never demonstrate.
+
+**Approval by replying to the email** uses the same connector in the other direction and is
+the answer to *"what if procurement will not log in?"* — a Q&A answer, not the stage path,
+because an IMAP round trip on stage is dead air.
+
+**This works only if every part of it is real.** A different identity, a real send, a real
+record. Staging any of it collapses credibility on the one beat that invites scrutiny.
+
+---
+
+## Shipping rule
+
+**Nothing is labelled where we could have built it.** *Not assessed* is for work genuinely
+outside scope — output-capacitor stability needs simulation and datasheet parameters we do
+not hold. It is never a place to put something we chose to skip. A judge who finds a label
+covering an unbuilt feature will ask about it first, and the honest answer costs the room.
+
+This is why the footprint rule ships as a real land-pattern and pin-function comparison
+rather than a size ceiling with the difference waved at.
