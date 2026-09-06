@@ -18,6 +18,20 @@ every matrix cell means. **Coverage semantics** determine what green means, so n
 aggregate cells before they exist. **Authorisation** has to be real before an approval gate is
 anything but a label. Getting any of them wrong later is rework of everything above.
 
+## How to work through it
+
+**Items 1 to 9 are surgical** — small changes in code that has been read closely. They need no
+planning ceremony and no documentation research. Do them directly, and keep the suite green
+after each.
+
+**Items 11 to 13 rewrite how the graph carries state and who may answer a question.** Check
+LangGraph's documentation for the pinned version before planning them — `interrupt`, `resume`
+and state semantics move between releases, and the repo pins `langgraph 1.2.11`. This is also
+the natural point to hand a bounded spec to a subagent, since by then items 1 to 9 have green
+acceptance tests to build against rather than a description.
+
+**Item 18 is unexplored** and should be researched before it is planned at all.
+
 ---
 
 # Phase 1 · Foundations

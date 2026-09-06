@@ -1,5 +1,18 @@
 # Render blueprint: one web service serving both the API and the built UI.
 #
+# ## This file no longer drives the deployment
+#
+# The blueprint was deleted from Render on 7 Sep, so both services are now standalone and
+# configured in the dashboard. Everything below had already been applied and survives on the
+# service — build command, start command, health check path, plan, region — but **editing this
+# file changes nothing**. Change it in the dashboard, and mirror it here so the reasoning
+# stays with the configuration.
+#
+# Re-adopting a blueprint would mean Render reconciling this against services that already
+# exist, which can create duplicates rather than adopt. If you ever do, note that `plan:
+# starter` below would cost money on a service you intended to be free.
+#
+#
 # It used to be two — a static site for the UI and a web service for the API — and that is
 # what broke Safari. `onrender.com` is on the Public Suffix List, so the two hosts were two
 # different *sites*, the session cookie was third-party, and WebKit refuses to store those.

@@ -19,6 +19,7 @@ Read in this order.
 | [FLOW.md](FLOW.md) | The narrative version of the flow, and what remains unproven |
 | [EOL-RESEARCH.md](EOL-RESEARCH.md) | Sourced research on how EOL response actually works, with every figure's provenance |
 | [PRELIM-IDEA.md](PRELIM-IDEA.md) | The 200-word submission, and why each line is worded as it is |
+| [COMPETITORS.md](COMPETITORS.md) | What each vendor documents, why Zuken is not the counterexample it looked like, and the questions this prepares for |
 | [WORKBUDDY.md](WORKBUDDY.md) | What WorkBuddy is, and why we are not building on it |
 | RESEARCH-BRIEF.md, RESEARCH-BRIEF-2.md | The two adversarial passes. Kept for provenance — their findings are already folded into the documents above. |
 
