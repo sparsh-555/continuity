@@ -122,6 +122,63 @@ is not qualified. Different lists, different owners, different gates.
 
 ---
 
+## Rules
+
+Ten today. Three are added, and one existing rule is weaker than its name suggests.
+
+**`footprint` is inert on our boards.** Its docstring says it *"never fails a board — it only
+ever raises a flag"*, and it returns nothing at all unless the brief stated a size limit. So
+"ten rules ran" was overcounting before coverage labels existed.
+
+| New rule | Question it answers | Why it is not covered today |
+|---|---|---|
+| **`power_dissipation_max`** | Does computed dissipation exceed the part's own stated absolute maximum? | `PartSpec` has no field for it. A part can sit inside its junction limit and over its power rating — this is a different question from `thermal_dissipation`, and missing it is how a 340 mW load passed against a 300 mW ceiling. |
+| **`footprint_compatibility`** | Does the candidate fit the land pattern the outgoing part leaves, and do its pin functions map? | Needs a **baseline** — the part being replaced — which no rule currently has. Distinct from `footprint`, which asks whether a part is under a size target. Both keep their job. |
+| **`capacitor_requirements`** | Does the candidate's stated output-capacitor requirement conflict with what is on this board? | Named by research as the first thing a hardware engineer attacks on an LDO substitution. Explicit violations are checkable without simulation: AMS1117 wants 22 µF tantalum, TI's TLV1117LV says *"do not use an electrolytic output capacitor"*, NCP1117 specifies an ESR window. |
+
+`capacitor_requirements` reports **failed** on an explicit conflict and **evidence missing**
+where the requirement is unpublished. It does not claim stability — that needs simulation —
+but it turns the first-attack question from *"not assessed"* into an answer.
+
+**AML and AVL are not rules.** They run in the policy layer beside `RULES`. Physics is
+derivable from a datasheet; an approval list is derivable from nothing but the company.
+
+### Consequences
+
+**The demo boards gain a capacitor.** Two slots become at least three — regulator, load,
+output capacitor — which is more sourcing and also makes them look like boards rather than
+fixtures.
+
+**`PartSpec` gains fields**: `p_dis_max`, the θJA mounting condition it was measured under,
+and the capacitor requirement (minimum effective capacitance, ESR window, permitted
+dielectric).
+
+**`CONSTRAINT_FIELDS` gains entries** so a repair can demand what the new rules check —
+`theta_ja_max` so a thermal repair can ask for a better-cooling package class rather than
+naming one exact package, `p_dis_min`, and `approved_only` for the policy layer.
+
+---
+
+## Authorisation
+
+The approval gate does not work on the current code, and this is not a detail.
+
+**`/resume` authorises the thread owner.** It calls `store.thread_for_user(thread_id,
+user.id)`, so a procurement account cannot resume an engineer's run. Naming a role in the
+interrupt payload does not grant anyone the right to answer it.
+
+**Waivers are keyed by `(rule, slot)`** — `graph/state.py:58` — with no candidate or revision.
+So an exception approved for one candidate is inherited by the next candidate in that slot.
+
+Both must change for an approval to mean anything:
+
+- A run carries the roles permitted to answer each open decision, and `/resume` checks the
+  answering user against that, not against ownership.
+- An approval is scoped to **candidate and revision**, and does not survive either changing.
+- The record holds identity, timestamp, the rule that fired, and a rationale.
+
+---
+
 ## Coverage semantics
 
 A bare "pass" is what lets a green cell mean nothing. Every check reports one of five:
