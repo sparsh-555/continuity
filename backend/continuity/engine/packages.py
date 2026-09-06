@@ -9,8 +9,31 @@ keep one here.
 **These are approximations and every verdict that uses one says so.** θJA is a
 board-level property, not a package property: the same SOT-23-5 measures ~250 °C/W on
 a JEDEC low-K single-layer board and nearer 180 °C/W on a 2s2p board with copper pour
-(JESD51-2 / JESD51-7). The values below are the *low-K, single-layer* case, which is
-the conservative direction — it over-estimates temperature rise rather than under-.
+(JESD51-2 / JESD51-7).
+
+This block used to claim the values below were all the low-K single-layer case, and so
+erred toward over-estimating temperature rise. **That claim was false and has been
+removed.** Most of these rows have never been checked against a datasheet, and one of
+them — SOT-223 — was the opposite of conservative: 62 °C/W, which is TI's figure for a
+square inch of copper, against 136 °C/W measured on the same part at minimum copper.
+A promise of conservatism that the table cannot keep is worse than no promise, because
+it invites the reader to trust a number nobody verified.
+
+So: **a row is a rough approximation unless the comment beside it cites a datasheet.**
+Checked so far, against the manufacturers named:
+
+- `SOT223` — TI LM1117 Table 9-2 (66 °C/W at 1 in² of copper, 136 at 0.0123 in²),
+  onsemi NCP1117 (160 at minimum pad), AMS1117 (90 headline, 46 to >90 by copper area).
+- `TO252` / `DPAK` — TI LM1117 Table 9-2 (47 at 1 in², 103 at minimum copper),
+  onsemi NCP1117 (67 at minimum pad), AMS1117 (80).
+- `SOT235` — Diodes AP2112 (184, no heatsink). Ours is more conservative.
+- `SOT89` — Diodes AP2112 (120), AMS1117 (102). Ours is more conservative.
+- `TO263` — TI LM1117 (41.3). `WSON8` — TI LM1117 (39.3). Both conservative.
+- `SOIC8` / `SO8` — Diodes AP2112 says 114, AMS1117 says 160. Unresolved; ours sits
+  between them and is not obviously wrong in either direction.
+
+Everything else is unverified. That is not a reason to distrust it more than the
+sentence above already says — it is a reason not to write a stronger sentence.
 
 This matters on stage. When R5 fails a part, the evidence rows cite the package
 verbatim from the distributor payload, and cite θJA against `THETA_JA_SOURCE` — never
@@ -25,7 +48,13 @@ from __future__ import annotations
 
 import re
 
-THETA_JA_SOURCE = "Continuity package table (JESD51-2 low-K board, approximate)"
+THETA_JA_SOURCE = "Continuity package table (per-package approximation, board unknown)"
+"""What a verdict cites when no datasheet supplied the number.
+
+Deliberately no longer says "JESD51-2 low-K board". Most rows were never measured
+against that standard or any other, and naming a standard we did not follow is a
+stronger claim than naming none at all.
+"""
 
 _ALNUM = re.compile(r"[^A-Z0-9]")
 
@@ -128,6 +157,17 @@ _THETA_JA: dict[str, float] = {
     "SOT563": 250.0,
     "SOT89": 140.0,
     "SOT893": 140.0,
+    # Known optimistic, and deliberately left alone. TI's LM1117 Table 9-2 measures this
+    # package from 66 °C/W at 1 in² of copper to 136 at 0.0123 in², so 62.0 is the
+    # well-copper-ed end of a 2× spread. Raising it to 136 was tried and reverted: it
+    # turns a 0.85 W SOT-223 from a clean pass into a hard fail, and with the board's
+    # copper unstated neither verdict is supportable — the number is not the problem,
+    # having to pick one is.
+    #
+    # That is tolerable because this table is a *fallback*: it exists so a part whose
+    # datasheet publishes nothing does not halt a run. Where a manufacturer did publish,
+    # `sourcing.choose` now always goes and gets it rather than stopping because this
+    # table had an answer, which is the change that actually mattered here.
     "SOT223": 62.0,
     "SOT2233": 62.0,
     # tabbed power packages

@@ -63,7 +63,7 @@ def signature(conflict: Verdict, board: Board, *, category: str | None = None) -
             drop = _band(input_rail.voltage - supplied_rail.voltage, DROP_BANDS)
             if drop is not None:
                 components.append(f"drop:{drop}")
-            load, unstated = draw.rail_draw(board, draw.consumers(board, supplied_rail))
+            load, unstated = draw.rail_draw(board, supplied_rail, draw.consumers(board, supplied_rail))
             if not unstated:
                 current = _band(load, CURRENT_BANDS)
                 if current is not None:

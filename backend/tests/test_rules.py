@@ -476,7 +476,7 @@ def test_switcher_draws_less_input_current_than_it_delivers():
 
     def usb_draw(board):
         rail = board.rails["5V0"]
-        draw, _ = rail_current.rail_draw(board, rail_current.consumers(board, rail))
+        draw, _ = rail_current.rail_draw(board, rail, rail_current.consumers(board, rail))
         return draw
 
     assert usb_draw(linear) == pytest.approx(0.500, abs=1e-6)
@@ -1258,7 +1258,7 @@ def test_r4_keeps_its_conservative_input_current_for_an_unstated_switcher_effici
         regulator=parts.buck_3v3(efficiency=None), loads={"mcu": parts.esp32s3()}
     )
     input_rail = board.rails[USB]
-    draw, unstated = rail_current.rail_draw(board, rail_current.consumers(board, input_rail))
+    draw, unstated = rail_current.rail_draw(board, input_rail, rail_current.consumers(board, input_rail))
 
     assert unstated == []
     assert draw == pytest.approx(3.3 * 0.5 / (0.80 * 5.0))
@@ -1523,3 +1523,123 @@ def test_a_supply_with_no_capacity_says_so_rather_than_passing():
 
     assert verdict.status == "warn"
     assert "no capacity" in verdict.detail
+
+
+# ── declared rail load, junction limit, mounting ──────────────────────────────
+#
+# The four fields item 1 added, each tested for the behaviour it exists to produce
+# rather than for its presence on the dataclass.
+
+
+def _declared(board, amps: float, basis: str = "product line power budget Rev C"):
+    """The same board with its 3V3 load stated by the design instead of summed."""
+    rail = board.rails[RAIL]
+    rails = dict(board.rails)
+    rails[RAIL] = replace(rail, i_load=amps, i_load_basis=basis)
+    return replace(board, rails=rails)
+
+
+def test_a_declared_rail_load_is_used_instead_of_summing_the_parts():
+    board = usb_board(regulator=parts.ap2112k(), loads={"mcu": parts.esp32s3()})
+    summed, _ = rail_current.rail_draw(board, board.rails[RAIL], rail_current.consumers(board, board.rails[RAIL]))
+    assert summed == pytest.approx(0.500)
+
+    stated = _declared(board, 0.420)
+    rail = stated.rails[RAIL]
+    draw, unstated = rail_current.rail_draw(stated, rail, rail_current.consumers(stated, rail))
+
+    assert draw == pytest.approx(0.420)
+    assert unstated == []
+
+
+def test_a_declared_load_reflects_onto_the_rail_above_it():
+    """The input rail must see the stated figure, not the sum it replaced."""
+    board = _declared(
+        usb_board(regulator=parts.ap2112k(), loads={"mcu": parts.esp32s3()}), 0.420
+    )
+    usb = board.rails[USB]
+
+    draw, unstated = rail_current.rail_draw(board, usb, rail_current.consumers(board, usb))
+
+    assert draw == pytest.approx(0.420)
+    assert unstated == []
+
+
+def test_a_declared_load_silences_the_floor_caveat_it_does_not_apply_to():
+    """A part stating no draw cannot make a stated total partial."""
+    board = _declared(
+        usb_board(
+            # A θJA that keeps this board thermally uninteresting: the point under test
+            # is the caveat, not the physics, and SOT-23-5's 250 °C/W fails on its own.
+            regulator=parts.ap2112k(theta_ja=60.0, theta_ja_source_line="60 °C/W"),
+            loads={"mcu": parts.esp32s3(), "sensor": parts.esp32s3(i_typ=None, i_peak=None)},
+        ),
+        0.420,
+    )
+
+    verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
+
+    assert verdict.status == "pass"
+    assert "floor" not in verdict.detail
+
+
+def test_a_declared_load_cites_its_document_rather_than_each_part():
+    board = _declared(
+        usb_board(regulator=parts.ap2112k(), loads={"mcu": parts.esp32s3()}),
+        0.420,
+        basis="gateway power budget Rev C",
+    )
+
+    verdict = only(rules.current_budget(board), "current_budget", "regulator", RAIL)
+    fields = {row.field: row for row in verdict.evidence}
+
+    assert "3V3 load (declared)" in fields
+    assert fields["3V3 load (declared)"].source == "gateway power budget Rev C"
+    assert not any(row.field == "i_peak" for row in verdict.evidence)
+
+
+def test_the_junction_limit_is_checked_not_the_ambient_grade():
+    """NCP1117's case: rated to 125 °C ambient, 150 °C junction. They are not the same."""
+    ambient_graded = parts.ap2112k(theta_ja=160.0, temp_max=125.0, t_j_max=150.0)
+    board = _declared(
+        usb_board(regulator=ambient_graded, loads={"mcu": parts.esp32s3()}),
+        0.420,
+    )
+    board = replace(board, requirements=Requirements(ambient_c=45, temp_range=(0, 70)))
+
+    verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
+
+    # 45 + (5.0 - 3.3) * 0.420 * 160 = 159.2 °C, over 150 but under nothing at 125.
+    assert verdict.status == "fail"
+    assert "150" in verdict.detail
+    assert "125" not in verdict.detail
+
+
+def test_without_t_j_max_the_grade_is_still_the_limit():
+    """Every part that predates the field must behave exactly as it did."""
+    board = usb_board(regulator=parts.ap2112k(theta_ja=160.0, temp_max=125.0), loads={"mcu": parts.esp32s3()})
+    board = replace(board, requirements=Requirements(ambient_c=45, temp_range=(0, 70)))
+
+    verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
+
+    assert "125" in verdict.detail
+
+
+def test_a_thermal_verdict_names_both_mounting_conditions():
+    """The θJA's own condition, and the board it was applied to."""
+    regulator = parts.ap2112k(
+        theta_ja=160.0,
+        theta_ja_source_line="Thermal Resistance, Junction-to-Ambient, Minimum Size Pad — 160 °C/W",
+        theta_ja_mounting="minimum size pad, Case 318H (SOT-223)",
+    )
+    board = usb_board(regulator=regulator, loads={"mcu": parts.esp32s3()})
+    board = replace(
+        board,
+        requirements=Requirements(mounting="1000 mm² top and back copper, 1/16in FR-4, 1 oz"),
+    )
+
+    verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
+    fields = {row.field: row.value for row in verdict.evidence}
+
+    assert fields["θJA measured on"] == "minimum size pad, Case 318H (SOT-223)"
+    assert fields["board mounting"] == "1000 mm² top and back copper, 1/16in FR-4, 1 oz"

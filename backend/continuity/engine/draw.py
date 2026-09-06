@@ -19,8 +19,26 @@ def consumers(board: Board, rail: Rail) -> list[tuple[str, PartSpec]]:
 
 
 def rail_draw(
-    board: Board, consumers: list[tuple[str, PartSpec]], seen: frozenset[str] = frozenset()
+    board: Board,
+    rail: Rail,
+    consumers: list[tuple[str, PartSpec]],
+    seen: frozenset[str] = frozenset(),
 ) -> tuple[float, list[str]]:
+    """What a rail carries: the figure its design states, or the sum of what sits on it.
+
+    A declared `i_load` returns an empty `unstated` list, and that is deliberate rather
+    than a shortcut. The "this is a floor, some parts state no draw" caveat exists
+    because a partial sum can only grow; a figure taken from the board's own power
+    budget is not partial, and carrying the caveat on it would attach a warning about
+    our data to a number that is not ours.
+
+    `rail` is required rather than optional. Every caller already holds it, and a
+    default would mean a caller that forgot to pass it silently ignored the declared
+    load and answered from an under-counted sum — a wrong number rather than an error.
+    """
+    if rail.i_load is not None:
+        return rail.i_load, []
+
     total = 0.0
     unstated: list[str] = []
     for slot_id, part in consumers:
@@ -73,7 +91,7 @@ def reflected_draw(
     if downstream is None:
         return None
 
-    total, unstated = rail_draw(board, consumers(board, downstream), seen)
+    total, unstated = rail_draw(board, downstream, consumers(board, downstream), seen)
     if unstated:
         return None
 

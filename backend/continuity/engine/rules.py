@@ -76,6 +76,21 @@ def _supply_evidence(rail: Rail, subject: str, *, current: bool = False) -> tupl
     return (Evidence(subject, label, value, rail.basis),)
 
 
+def _load_evidence(rail: Rail, subject: str) -> tuple[Evidence, ...]:
+    """Cite a rail load the design stated, so it can never read as a sum of parts.
+
+    A declared load and a summed one are different claims and a verdict must not blur
+    them. Summing cites each consumer's `i_peak` and inherits our own caveats about
+    coincident peaks; a declared figure cites the document it came from and carries none
+    of that, because none of it applies.
+    """
+    if rail.i_load is None:
+        return ()
+    return (
+        Evidence(subject, f"{rail.id} load (declared)", fmt.milliamps(rail.i_load), rail.i_load_basis),
+    )
+
+
 CURRENT_BASIS_SOURCE = "no duty cycle is published by any distributor"
 """Why R5 sizes heat from peak current rather than an average.
 
@@ -594,7 +609,7 @@ def _check_rail_current(board: Board, rail: Rail) -> Verdict | None:
     if not consumers:
         return None
 
-    draw, unstated = rail_current.rail_draw(board, consumers)
+    draw, unstated = rail_current.rail_draw(board, rail, consumers)
     limit, source = rail_current.rail_limit(board, rail)
     subject = rail_current.current_subject(board, rail, consumers)
     involved = (subject, *(s for s, _ in consumers))
@@ -605,11 +620,14 @@ def _check_rail_current(board: Board, rail: Rail) -> Verdict | None:
         evidence += source.cite(rail.source, "i_max")
     else:
         evidence += _supply_evidence(rail, subject, current=True)
-    evidence += tuple(
-        row
-        for slot_id, part in sorted(consumers, key=lambda p: -(p[1].draw or 0.0))
-        for row in part.cite(slot_id, "i_peak")
-    )[:MAX_EVIDENCE_ROWS]
+    if rail.i_load is not None:
+        evidence += _load_evidence(rail, subject)
+    else:
+        evidence += tuple(
+            row
+            for slot_id, part in sorted(consumers, key=lambda p: -(p[1].draw or 0.0))
+            for row in part.cite(slot_id, "i_peak")
+        )[:MAX_EVIDENCE_ROWS]
 
     if limit is None:
         return Verdict(
@@ -782,7 +800,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         return None
 
     consumers = rail_current.consumers(board, rail)
-    draw, unstated = rail_current.rail_draw(board, consumers)
+    draw, unstated = rail_current.rail_draw(board, rail, consumers)
     if not consumers or draw <= 0:
         return None
 
@@ -798,6 +816,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
     input_rail = board.input_rail(subject)
     if input_rail is not None:
         evidence += _supply_evidence(input_rail, subject)
+    evidence += _load_evidence(rail, subject)
     power_low, power_high, topology, blocked, band = _dissipation(board, rail, regulator, draw)
     if regulator.is_switching:
         evidence += efficiency_evidence(regulator, subject, band)
@@ -846,8 +865,21 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         theta_evidence,
         Evidence(subject, "current basis", "peak, assumed continuous", CURRENT_BASIS_SOURCE),
     )
+    # θJA is a property of the installation, so the two conditions travel together: what
+    # the manufacturer measured on, and what this board actually is. A reader comparing
+    # 160 °C/W at a minimum pad against 60 °C/W at 1000 mm² of copper can only see that
+    # they are different questions if both rows are on the screen.
+    if regulator.theta_ja_mounting:
+        evidence += (
+            Evidence(subject, "θJA measured on", regulator.theta_ja_mounting, regulator.datasheet),
+        )
+    if requirements.mounting:
+        evidence += (Evidence(subject, "board mounting", requirements.mounting),)
 
-    if regulator.temp_max is None:
+    # The junction limit, which is not the ambient grade. See `PartSpec.t_j_max`.
+    limit = regulator.t_j_max if regulator.t_j_max is not None else regulator.temp_max
+
+    if limit is None:
         rise = f"{fmt.celsius(power_high * theta)} {'worst-case ' if band is not None else ''}rise"
         return Verdict(
             rule="thermal_dissipation",
@@ -866,7 +898,6 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
     rise_high = power_high * theta
     junction_low = requirements.ambient_c + rise_low
     junction_high = requirements.ambient_c + rise_high
-    limit = regulator.temp_max
     sum_line = _thermal_sum(board, rail, regulator, draw, topology, band)
 
     floor = " at least" if partial else ""
@@ -1260,7 +1291,7 @@ def energy_budget(board: Board) -> list[Verdict]:
     for rail in board.rails.values():
         if rail.source is not None:
             continue
-        amps, missing = rail_current.rail_draw(board, rail_current.consumers(board, rail))
+        amps, missing = rail_current.rail_draw(board, rail, rail_current.consumers(board, rail))
         total += amps
         unstated += [f"{s} ({p.mpn})" for s in missing if (p := board.part(s)) is not None]
 

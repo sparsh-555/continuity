@@ -415,11 +415,24 @@ def _push_down(
 
 
 async def choose(candidate: Candidate) -> PartSpec:
-    """Normalise one candidate into something the engine can check."""
-    missing_theta_ja = (
-        datasheet._load(candidate.mpn) is None and packages.theta_ja(candidate.package) is None
+    """Normalise one candidate into something the engine can check.
+
+    The datasheet lookup is attempted whenever we have no *quoted* θJA for this MPN,
+    and deliberately not gated on whether `packages` happens to know the package.
+
+    It used to be gated that way, and the effect was the opposite of the intent: a
+    package present in the table was treated as already answered, so the datasheet was
+    never opened and the table's approximation won permanently. SOT-223 is the case that
+    exposed it — the table's 62 °C/W is the well-copper-ed end of a 66–136 °C/W spread TI
+    publishes for that package, and no SOT-223 part ever got to correct it, because
+    having a rough answer is what stopped us looking for the real one.
+
+    The fetch is a background task that caches for later runs, so this costs nothing on
+    the current one.
+    """
+    return await normalize.normalize(
+        candidate, fetch_missing_theta_ja=datasheet._load(candidate.mpn) is None
     )
-    return await normalize.normalize(candidate, fetch_missing_theta_ja=missing_theta_ja)
 
 
 def alternatives(

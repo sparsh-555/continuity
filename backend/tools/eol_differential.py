@@ -1,104 +1,203 @@
-"""Does the engine produce a per-board differential for one substitute? Yes.
+"""Compare sourced 3.3 V LDO substitutes across three existing product lines.
 
-Three product lines share a 3.3 V linear regulator that is going end-of-life. The obvious
-cheap replacement passes on two of them and cooks on the third, and the engine derives that
-itself — we choose the boards, it computes the physics.
+Each board uses its signed 3V3 power-budget load rather than a synthetic component sum.
+Listing values were captured through the JLCPCB sourcing path on 7 Sep 2026; thermal
+values retain their manufacturer's quoted installation beside the number.
 
-**Every part here is real.** MPNs, packages, voltage and current limits, temperature ratings,
-stock and price were pulled from JLCPCB through `graph.sourcing`, the same path the product
-uses, on 6 Sep 2026. θJA is not on the distributor rows, so the engine falls back to its own
-package table — SOT-223 at 62 °C/W against SOT-23-5 at 250 °C/W, a four-fold difference that
-is the whole story. Uploading a datasheet through `/datasheet` replaces that approximation
-with a quoted figure, which is the stronger version of this demo.
-
-    python -m tools.eol_differential      (from backend/, with PYTHONPATH=.)
-
-## What it shows
-
-    | candidate                  | A 120 mA | B 200 mA | C 350 mA          |
-    | AMS1117-3.3   SOT-223      | pass     | pass     | pass              |  today
-    | ME6211C33M5G  SOT-23-5     | pass     | hot      | FAIL 174 vs 150   |  the cheap swap
-    | TLV1117LV33   SOT-223      | pass     | pass     | pass              |  same package
-
-Three things worth noticing, none of them staged:
-
-1. **The result is three-state.** Line B clears its limit at 110 °C and the engine still
-   warns that it runs hot. Pass / marginal / fail is a better matrix than pass / fail.
-2. **The failure is a property of the board, not the part.** The same regulator is fine on
-   A and lethal on C. That is the argument for validating a whole board rather than looking
-   up a pin-compatible substitute.
-3. **The answer is per-board.** ME6211 at $0.0597 is correct for two lines; the third needs
-   TLV1117 at $0.1115, nearly twice the price. A single verdict cannot express that.
-
-## Known blemish
-
-`voltage_overlap` warns on every row: the distributor states a maximum but no minimum, and
-these are all LDOs whose real minimum is dropout above 3.3 V. It is honest — the engine says
-what it could not check — but it is noise on nine cells out of nine, and a datasheet upload
-would clear it.
+Run from ``backend`` with ``PYTHONPATH=. python -m tools.eol_differential``.
 """
+
+from __future__ import annotations
+
+from dataclasses import dataclass
 
 from continuity.engine.models import Board, PartSpec, Rail, Requirements, Slot
 from continuity.engine.rules import evaluate
 
+
 LDO = "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators"
+EIA_RS_198 = "EIA RS-198 X5R dielectric rating (−55 °C to +85 °C)"
+"""The capacitor listing states X5R, not an operating-temperature range."""
 
-# Going end-of-life. SOT-223, the default 3.3V rail part; 1.49M in stock at JLCPCB.
+
+# JLCPCB C6186; AMS Table 1's 1000 mm² copper row, not its 46–>90 °C/W headline range.
 AMS1117 = PartSpec(
-    mpn="AMS1117-3.3", manufacturer="Advanced Monolithic Systems", category=LDO,
-    description="3.3V fixed LDO, SOT-223", topology="ldo", package="SOT-223",
-    vmax=15.0, vout_min=3.3, vout_max=3.3, i_max=1.0,
-    temp_min=-40.0, temp_max=125.0, stock=1495109, unit_price=0.2176,
-    datasheet="https://www.ic-components.tw/files/4b/AMS1117-1.2.pdf",
+    mpn="AMS1117-3.3", manufacturer="Advanced Monolithic Systems",
+    description="3.3 V fixed low-dropout regulator", category=LDO, package="SOT-223",
+    vmax=15.0, vout_min=3.3, vout_max=3.3, i_max=1.0, temp_min=-40.0, temp_max=125.0,
+    t_j_max=125.0,  # AMS datasheet: maximum junction temperature must not exceed 125 °C.
+    theta_ja=60.0,
+    theta_ja_source_line="1000 Sq. mm / 1000 Sq. mm / 1000 Sq. mm — 60 °C/W",
+    theta_ja_mounting=(
+        "Table 1, 1000 mm² top and back copper on a 1000 mm² board, 1/16in FR-4, 1 oz foil"
+    ),
+    topology="ldo", stock=1_493_359, unit_price=0.2176, distributor="JLCPCB",
+    datasheet="http://www.advanced-monolithic.com/pdf/ds1117.pdf",
+    product_url="https://jlcpcb.com/partdetail/C6186",
 )
 
-# The cheap, obvious swap. SOT-23-5, half the price, lower dropout.
-ME6211 = PartSpec(
-    mpn="ME6211C33M5G-N", manufacturer="MICRONE", category=LDO,
-    description="3.3V fixed LDO, SOT-23-5", topology="ldo", package="SOT-23-5",
-    vmax=6.0, vout_min=3.3, vout_max=3.3, i_max=0.5,
-    temp_min=-40.0, temp_max=150.0, stock=328862, unit_price=0.0597,
-    datasheet="https://datasheet.lcsc.com/szlcsc/1811131510_MICRONE-Nanjing-Micro-One-Elec-ME6211C33M5G-N_C82942.pdf",
-)
-
-# Same package as the part leaving, so the same thermal behaviour. Costs more, thinner stock.
+# JLCPCB C15578 is TI's listing. C48937499 is JSMSEMI's conflicting listing, and is not used.
 TLV1117 = PartSpec(
-    mpn="TLV1117LV33DCYR", manufacturer="JSMSEMI", category=LDO,
-    description="3.3V fixed LDO, SOT-223", topology="ldo", package="SOT-223",
-    vmax=12.0, vout_min=3.3, vout_max=3.3, i_max=1.0,
-    temp_min=-40.0, temp_max=125.0, stock=3447, unit_price=0.1115,
-    datasheet="https://jlcpcb.com/partdetail/C48937499", lifecycle="active",
+    mpn="TLV1117LV33DCYR", manufacturer="Texas Instruments",
+    description="3.3 V fixed low-dropout regulator", category=LDO, package="SOT-223",
+    vmax=5.5, vout_min=3.3, vout_max=3.3, i_max=1.0, temp_min=-40.0, temp_max=125.0,
+    t_j_max=125.0,  # TI recommends limiting reliable operation to a 125 °C junction.
+    theta_ja=62.9,
+    theta_ja_source_line="RθJA Junction-to-ambient thermal resistance 62.9 °C/W",
+    theta_ja_mounting="TI thermal information, DCY (SOT-223) 4 pins",
+    topology="ldo", stock=3_416, unit_price=0.3345, distributor="JLCPCB",
+    datasheet="https://www.ti.com/lit/ds/symlink/tlv1117lv.pdf",
+    product_url="https://jlcpcb.com/partdetail/C15578",
 )
 
-def load(draw: float) -> PartSpec:
-    return PartSpec(mpn="LOAD", manufacturer="-", category="Microcontrollers",
-                    description="downstream load", role="mcu", i_typ=draw * 0.6, i_peak=draw,
-                    vmin=3.0, vmax=3.6, temp_min=-40, temp_max=85, stock=50000)
+# JLCPCB C86781. Read the revision on the datasheet before touching this number: Rev 26's
+# thermal table publishes RthJA for TO-220 only, and Rev 38 adds SOT-223, SO-8 and DPAK.
+# ST's own revision history dates the addition to 19 Oct 2012.
+LD1117 = PartSpec(
+    mpn="LD1117S33TR", manufacturer="STMicroelectronics",
+    description="3.3 V fixed low-dropout regulator", category=LDO, package="SOT-223",
+    vmax=15.0, vout_min=3.3, vout_max=3.3, i_max=0.8, temp_min=0.0, temp_max=125.0,
+    t_j_max=125.0,  # ST specifies the electrical characteristics over TJ = 0 to 125 °C.
+    theta_ja=110.0,
+    theta_ja_source_line="RthJA Thermal resistance junction-ambient — SOT-223 110 °C/W",
+    theta_ja_mounting="ST LD1117 Table 2, thermal data, SOT-223 column",
+    topology="ldo", stock=41_254, unit_price=0.2429, distributor="JLCPCB",
+    datasheet="https://www.st.com/resource/en/datasheet/ld1117.pdf",
+    product_url="https://jlcpcb.com/partdetail/C86781",
+)
 
-def board(draw: float, regulator: PartSpec) -> Board:
+# JLCPCB C26537; onsemi specifies this SOT-223 figure on a minimum-size pad.
+NCP1117 = PartSpec(
+    mpn="NCP1117ST33T3G", manufacturer="onsemi",
+    description="3.3 V fixed low-dropout regulator", category=LDO, package="SOT-223",
+    vmax=20.0, vout_min=3.3, vout_max=3.3, i_max=1.0, temp_min=0.0,
+    temp_max=125.0,  # The listing's explicitly ambient 0–125 °C range.
+    t_j_max=150.0,  # onsemi datasheet: maximum die junction temperature TJ −55 to 150 °C.
+    theta_ja=160.0,
+    theta_ja_source_line="Thermal Resistance, Junction-to-Ambient, Minimum Size Pad — 160 °C/W",
+    theta_ja_mounting="minimum size pad, Case 318H (SOT-223)",
+    topology="ldo", stock=78_632, unit_price=0.2354, distributor="JLCPCB",
+    datasheet="https://www.onsemi.com/pdf/datasheet/ncp1117-d.pdf",
+    product_url="https://jlcpcb.com/partdetail/C26537",
+)
+
+# JLCPCB C12891 states X5R; EIA RS-198 supplies the -55–85 °C dielectric range.
+OUTPUT_CAPACITOR = PartSpec(
+    mpn="CL31A226KAHNNNE", manufacturer="Samsung Electro-Mechanics",
+    description="22 µF ±10% 25 V X5R ceramic capacitor",
+    category="Multilayer Ceramic Capacitors MLCC - SMD/SMT", package="1206", vmax=25.0,
+    temp_min=-55.0, temp_max=85.0, stock=1_473_130, unit_price=0.1725,
+    distributor="JLCPCB", product_url="https://jlcpcb.com/partdetail/C12891",
+    provenance={"temp_min": EIA_RS_198, "temp_max": EIA_RS_198},
+)
+
+
+@dataclass(frozen=True)
+class ProductLine:
+    """One product line's declared supply, load and ambient conditions."""
+
+    id: str
+    label: str
+    input_voltage: float
+    input_limit: float
+    input_basis: str
+    load: float
+    load_basis: str
+    ambient_c: int
+    load_part: PartSpec
+
+
+LINE_A = ProductLine(
+    "A", "Sensor node", 5.0, 3.0, "USB Type-C default Rp advertisement", 0.150,
+    "sensor node power budget Rev C — 150 mA continuous at 3V3", 25,
+    PartSpec(
+        mpn="ESP32-C3-MINI-1-N4", manufacturer="Espressif", description="Wi-Fi and BLE module",
+        category="RF Modules", vmin=3.0, vmax=3.6, i_peak=0.350, i_typ=0.084,
+        temp_min=-40.0, temp_max=85.0, stock=18_086, unit_price=3.8336,
+        distributor="JLCPCB", product_url="https://jlcpcb.com/partdetail/C2838502",
+    ),
+)
+LINE_B = ProductLine(
+    "B", "Gateway", 5.0, 3.0, "USB Type-C default Rp advertisement", 0.420,
+    "gateway power budget Rev C — 420 mA continuous at 3V3", 45,
+    PartSpec(
+        mpn="ESP32-WROOM-32E-N4", manufacturer="Espressif", description="Wi-Fi and BLE module",
+        category="RF Modules", vmin=3.0, vmax=3.6, i_peak=0.239, i_typ=0.112,
+        temp_min=-40.0, temp_max=85.0, stock=28_108, unit_price=3.7312,
+        distributor="JLCPCB", product_url="https://jlcpcb.com/partdetail/C701341",
+    ),
+)
+LINE_C = ProductLine(
+    "C", "Cabinet controller", 12.0, 1.0,
+    "12 V DIN-rail supply, product line power budget Rev C", 0.060,
+    "cabinet controller power budget Rev C — 60 mA continuous at 3V3", 55,
+    PartSpec(
+        # JLCPCB C8734 states no current, so i_peak and i_typ deliberately remain unset.
+        mpn="STM32F103C8T6", manufacturer="STMicroelectronics", description="ARM Cortex-M3 MCU",
+        category="Microcontrollers (MCU)", vmin=2.0, vmax=3.6, temp_min=-40.0, temp_max=85.0,
+        stock=224_069, unit_price=1.7203, distributor="JLCPCB",
+        product_url="https://jlcpcb.com/partdetail/C8734",
+    ),
+)
+LINES = (LINE_A, LINE_B, LINE_C)
+
+
+def make_board(line: ProductLine, regulator: PartSpec) -> Board:
+    """Model the relevant BOM slots while retaining the whole-board declared rail load.
+
+    The module and capacitor remain real slots so other rules inspect their ratings;
+    they do not pretend these three parts make up the production BOM.
+    """
     return Board(
-        requirements=Requirements(ambient_c=25, temp_range=(0, 70)),
-        slots={"u1": Slot(id="u1", label="3V3 regulator", tier="power", status="pass", part=regulator),
-               "u2": Slot(id="u2", label="load", tier="core", status="pass", part=load(draw))},
-        rails={"vin": Rail(id="vin", voltage=5.0, source=None, members=("u1",), i_limit=3.0,
-                           basis="USB Type-C default Rp advertisement"),
-               "3v3": Rail(id="3v3", voltage=3.3, source="u1", members=("u2",))},
+        requirements=Requirements(
+            ambient_c=line.ambient_c, temp_range=(0, 70),
+            mounting="1000 mm² top and back copper, 1/16in FR-4, 1 oz",
+        ),
+        slots={
+            "u1": Slot("u1", "3V3 regulator", "power", status="pass", part=regulator),
+            "u2": Slot("u2", line.label + " module", "core", status="pass", part=line.load_part),
+            "c1": Slot("c1", "3V3 output capacitor", "passives", status="pass", part=OUTPUT_CAPACITOR),
+        },
+        rails={
+            "vin": Rail("vin", line.input_voltage, members=("u1",), i_limit=line.input_limit,
+                        basis=line.input_basis),
+            "3v3": Rail("3v3", 3.3, source="u1", members=("u2", "c1"), i_load=line.load,
+                        i_load_basis=line.load_basis),
+        },
     )
 
-LINES = [("Line A · sensor node   120 mA", 0.120),
-         ("Line B · gateway       200 mA", 0.200),
-         ("Line C · display unit  350 mA", 0.350)]
 
-for name, part in (("TODAY — the part going EOL", AMS1117),
-                   ("CANDIDATE 1 — the cheap swap", ME6211),
-                   ("CANDIDATE 2 — same package", TLV1117)):
-    print(f"\n{'='*84}\n{name}: {part.mpn}  ({part.package}, ${part.unit_price})\n{'='*84}")
-    for label, draw in LINES:
-        v = evaluate(board(draw, part))
-        bad = [x for x in v if x.status in ("fail", "warn")]
-        p = (5.0 - 3.3) * draw
-        print(f"\n  {label}   P={p:.3f} W")
-        print(f"    {sum(1 for x in v if x.status=='pass')} pass, "
-              f"{sum(1 for x in v if x.status=='fail')} FAIL, {sum(1 for x in v if x.status=='warn')} warn")
-        for x in bad:
-            print(f"    [{x.status.upper():4}] {x.rule}: {x.detail}")
+def _print_line(line: ProductLine, regulator: PartSpec) -> None:
+    """Print non-pass verdicts so the matrix and its qualifications travel together."""
+    verdicts = evaluate(make_board(line, regulator))
+    bad = [item for item in verdicts if item.status in ("fail", "warn")]
+    power = (line.input_voltage - 3.3) * line.load
+    print("\n  {} · {}   P={:.3f} W".format(line.id, line.label, power))
+    print(
+        "    {} pass, {} FAIL, {} warn".format(
+            sum(item.status == "pass" for item in verdicts),
+            sum(item.status == "fail" for item in verdicts),
+            sum(item.status == "warn" for item in verdicts),
+        )
+    )
+    for item in bad:
+        print("    [{:4}] {}: {}".format(item.status.upper(), item.rule, item.detail))
+
+
+def main() -> None:
+    """Render the sourced candidate-by-product-line matrix for hardware review."""
+    for heading, regulator in (
+        ("INCUMBENT — part undergoing end-of-life review", AMS1117),
+        ("CANDIDATE — TI low-voltage replacement", TLV1117),
+        ("CANDIDATE — ST replacement", LD1117),
+        ("CANDIDATE — onsemi replacement", NCP1117),
+    ):
+        print("\n{}\n{}: {}  ({}, USD {})\n{}".format(
+            "=" * 84, heading, regulator.mpn, regulator.package, regulator.unit_price, "=" * 84
+        ))
+        for line in LINES:
+            _print_line(line, regulator)
+
+
+if __name__ == "__main__":
+    main()

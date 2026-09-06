@@ -175,11 +175,34 @@ class PartSpec:
     package: str | None = None
     theta_ja: float | None = None
     theta_ja_source_line: str | None = None
+    theta_ja_mounting: str | None = None
+    """The installation the θJA was measured on, in the datasheet's own words.
+
+    θJA is a property of the board, not of the package. onsemi publishes 160 °C/W for
+    the NCP1117 in SOT-223 at a *minimum size pad*; AMS publishes 46 to >90 °C/W for the
+    same package, and a copper-area table to pick from. Those are not comparable
+    figures, and without the condition beside them nothing on screen says so.
+    """
     topology: str | None = None
     synchronous: bool | None = None
     efficiency: float | None = None
     temp_min: float | None = None
     temp_max: float | None = None
+    t_j_max: float | None = None
+    """Maximum junction temperature, where a part states one apart from its grade.
+
+    `temp_min`/`temp_max` are an *ambient* grade — the conditions a part is rated to sit
+    in — and that is what R9 checks the board's requirement against. A junction limit is
+    a different quantity. For most parts a distributor publishes only one of the two, so
+    the fields coincided and nothing ever forced the distinction.
+
+    They do not coincide on NCP1117ST33T3G. Its listing states `0℃~+125℃@(Ta)`,
+    explicitly ambient, while onsemi's datasheet states a maximum die junction
+    temperature of 150 °C. Checking a computed junction temperature against 125 would be
+    checking it against a number that is not a junction limit at all.
+
+    R5 falls back to `temp_max` when this is unset, which is what every part did before.
+    """
 
     # commercial
     unit_price: float | None = None
@@ -317,6 +340,14 @@ class Requirements:
     30% this once defaulted to was double-conservative and rejected real designs.
     """
 
+    mounting: str | None = None
+    """The board's copper area and construction, as the θJA we applied was measured on.
+
+    A string rather than a number, because nothing interpolates it: it records which row
+    of a manufacturer's thermal table a figure was taken from, so a reader can check
+    that the θJA on a verdict belongs to the board the verdict is about.
+    """
+
     max_package_mm: float | None = None
     input_source: str = "usb-5v"
     input_voltage: float | None = None
@@ -403,6 +434,36 @@ class Rail:
 
     i_limit: float | None = None
     """Current ceiling for an externally-sourced rail, e.g. USB-C 5 V at 3 A."""
+
+    i_load: float | None = None
+    """The load this rail actually carries, where the design states it rather than us.
+
+    Not a ceiling — `i_limit` is the ceiling. This is the draw itself, and it exists
+    because the two directions Continuity works in derive it differently.
+
+    Designing a board from a brief, Continuity chose every part on it, so summing what
+    it placed *is* the rail load; nothing is missing because nothing exists that we did
+    not put there. Checking a substitution into a *product line* is the other direction:
+    that board already exists, its BOM runs to a couple of hundred lines, and its rail
+    load is a figure from a power budget somebody computed once and signed. Re-deriving
+    it from the handful of parts we happen to have modelled would under-count by
+    construction, and choosing parts until the sum reached the figure we wanted would be
+    fabricating a board out of real components.
+
+    So a stated load wins, and `i_load_basis` says where it came from — the same
+    discipline as quoting θJA with its mounting condition. Left unset, the sum is used,
+    which is every board Continuity designs.
+    """
+
+    i_load_basis: str | None = None
+    """Where `i_load` came from. Separate from `basis`, which covers the rail's supply.
+
+    They are two numbers from two sources and a single string cannot honestly carry
+    both: a rail can take its ceiling from a published standard ("USB Type-C default Rp
+    advertisement") while taking its load from a company document. Folding the load into
+    `basis` would also make R1 cite a power budget as the source of the rail's *voltage*,
+    which is not what the power budget says.
+    """
 
     basis: str | None = None
     """Where this rail's own numbers came from, when they were not derived from a part.
