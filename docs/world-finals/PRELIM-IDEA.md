@@ -11,22 +11,22 @@ rather than impressive.
 > We are taking topic B. A component goes end-of-life across three product lines, and the
 > engineering team has 48 hours to find approved substitutes.
 >
-> Everyone in this market can already tell you a part is affected. SiliconExpert, Z2Data and
-> PCNshark match a notice to your bill of materials and route it. None can tell you whether
-> the replacement works on your board, because their answer is one row per part and the real
-> answer differs per board.
+> Today that means matching the notice to a bill of materials, cross-referencing candidates
+> on parametric attributes, and applying one replacement across every affected design in a
+> single step. The last part is the mistake. Whether a substitute works depends on the board
+> it sits in — its load, its supply, its thermal environment — so the right answer differs
+> from board to board.
 >
 > Continuity computes that answer. A deterministic engine evaluates a whole board against
 > every constraint, a language model reads the notice and proposes candidates, and the engine
 > re-checks everything after each change. No compatibility verdict is produced by a model.
 >
-> The proof is that one substitute passes on one line and fails on another. The
-> manufacturer's own recommended replacement clears our 120 mA board and overheats our 350 mA
-> one, on thermal resistance quoted from its datasheet rather than a lookup table.
+> The proof is that one substitute passes on one line and fails on another, on thermal
+> resistance quoted from the manufacturer's datasheet rather than a lookup table.
 >
 > Design, procurement and production each own constraints, evaluated together on every
-> candidate. Where the engine cannot decide it routes to the role that owns the answer,
-> producing a change request a human approves.
+> candidate. Where the engine cannot decide, it routes to the role that owns the answer,
+> producing an engineering change request a human approves.
 
 ## Why it is shaped this way
 
