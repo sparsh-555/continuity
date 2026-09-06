@@ -11,55 +11,67 @@ rather than impressive.
 > We are taking topic B. A component goes end-of-life across three product lines, and the
 > engineering team has 48 hours to find approved substitutes.
 >
-> Continuity already divides that work. A deterministic engine proves what is electrically
-> broken, a language model decides which repair to try, and the engine re-checks the whole
-> board after every change. No compatibility verdict is ever produced by a model.
+> Everyone in this market can already tell you a part is affected. SiliconExpert, Z2Data and
+> PCNshark match a notice to your bill of materials and route it. None can tell you whether
+> the replacement works on your board, because their answer is one row per part and the real
+> answer differs per board.
 >
-> Scenario B turns that division into an organisational one. Design owns the electrical
-> rules, procurement owns availability and the approved-vendor list, production owns
-> footprint. All three are evaluated on the same candidate at the same instant, so every
-> substitute arrives pre-cleared by every department. Where the engine cannot decide, it
-> escalates to the role that owns the answer.
+> Continuity computes that answer. A deterministic engine evaluates a whole board against
+> every constraint, a language model reads the notice and proposes candidates, and the engine
+> re-checks everything after each change. No compatibility verdict is produced by a model.
 >
-> Our test case uses real parts. When AMS1117-3.3 goes end-of-life, the obvious cheaper
-> replacement passes two lines and reaches 174 °C against a 150 °C limit on the third,
-> because SOT-23-5 carries four times the thermal resistance of SOT-223. No single part is
-> right for all three boards.
+> The proof is that one substitute passes on one line and fails on another. The
+> manufacturer's own recommended replacement clears our 120 mA board and overheats our 350 mA
+> one, on thermal resistance quoted from its datasheet rather than a lookup table.
 >
-> Industry figures put a substitution like this at 40 weeks. The prompt allows 48 hours.
-
----
+> Design, procurement and production each own constraints, evaluated together on every
+> candidate. Where the engine cannot decide it routes to the role that owns the answer,
+> producing a change request a human approves.
 
 ## Why it is shaped this way
 
-**It names the topic in the first six words.** Someone reading 42 of these should not have
-to infer which one we picked.
+**Rewritten 6 Sep, after an adversarial research pass falsified the previous version.** The
+old text claimed matching a notice to a bill of materials was something competitors could not
+do. It is exactly what SiliconExpert, Z2Data and PCNshark already sell, and a judge who works
+in this industry would have known within a sentence.
 
-**The architecture claim is stated once and moved past.** It is what won the preliminary, and
-the finals rubric weights technical innovation at 10 points against 45 for business value and
-efficiency. Restating it at length would be answering last month's question.
+**The second paragraph now names them and concedes that ground deliberately.** Conceding the
+commodity step is what makes the next claim land — and it demonstrates we know the market
+rather than hoping nobody checks.
 
-**The middle paragraph is the actual answer to the brief.** The challenge asks for multi-role
-collaboration, so the three departments and the routed escalation are the load-bearing part.
+**The differentiator is structural, not a feature list.** A parametric cross-reference holds
+one row per part, so it cannot produce an answer that differs per board. Ours differs per
+board by construction. That is not a claim about effort; it is a claim about what their data
+model can represent.
 
-**The fourth paragraph is evidence, not illustration.** Real MPNs, a number the engine
-derived, and a mechanism — four times the thermal resistance in a smaller package — that a
-parametric search cannot see. It is checkable, which is the point.
+**The proof is a single sentence anyone can test.** One substitute, two boards, opposite
+verdicts.
 
-**It closes on the gap.** 40 weeks against 48 hours is the whole business case in nine words,
-and the 40 comes from the US DoD's DMSMS cost metrics rather than from us.
+**"Quoted from its datasheet rather than a lookup table"** is doing real work. Our own package
+table is an approximation whose provenance we could not defend — the research found the
+manufacturer states a different figure, varying with copper area. Reading the number out of
+the PDF, with the line quoted, is both the honest version and the stronger one. No competitor
+opens the datasheet.
 
 ## Deliberately left out
 
-- **The cost spread** ($1,281 for an approved part against $955K for a redesign). Strong, but
-  it needs room to be credible, and the 40-weeks line already lands the gap.
-- **WorkBuddy.** The deck does not require it, and claiming an integration we have not built
-  would be the easiest thing in here to puncture.
-- **The engineering plan** — fan-out, the decision matrix, the policy layer. This is a
-  200-word statement of intent, not a design document.
+- **Specific temperatures.** The earlier draft said "174 °C against a 150 °C limit." Both
+  numbers rest on a thermal resistance we cannot yet source, and the 150 is an operating
+  temperature range rather than a junction limit. The claim is now qualitative — clears one
+  board, overheats another — until the datasheet extraction makes it quotable.
+- **The cost spread** ($1,281 against $955K). The sources disagree between consecutive slides
+  and the figures describe defence obsolescence resolutions, not commercial PCB respins.
+- **40 weeks versus 48 hours.** Strong, but it compares software runtime against a
+  qualification programme, which is not the same clock.
+- **WorkBuddy.** The deck does not require it and we have not built an integration.
 
-## Sources for every figure
+## Provenance
 
-174 °C, 150 °C, 62 versus 250 °C/W: `backend/tools/eol_differential.py`, computed by the
-engine from JLCPCB part data. 40 weeks: US BIS / DoD *DMSMS NRE Cost Metric Update*, the
-"complex substitute" row — see [EOL-RESEARCH.md](EOL-RESEARCH.md).
+The submission now carries no numeric claim that needs a citation, which was the point of
+rewriting it. The 120 mA and 350 mA figures are our own stated demo operating profile, not
+measurements of a shipping product, and should be described that way if asked.
+
+The qualitative claim — one substitute, opposite verdicts on two boards — is reproduced by
+`backend/tools/eol_differential.py`. The thermal resistances behind it are currently from the
+engine's package table and are **not yet defensible**; see the θJA work at the top of the
+build order in [FLOW.md](FLOW.md).
