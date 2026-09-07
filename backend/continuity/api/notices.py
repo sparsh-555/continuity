@@ -135,8 +135,7 @@ async def review(
     """
     store = store_of(request)
 
-    notices = {row["id"]: row for row in await store.notices_for_org(user.org_id, limit=200)}
-    notice = notices.get(notice_id)
+    notice = await store.notice_for_org(notice_id, user.org_id)
     if notice is None:
         raise HTTPException(404, "no such notice")
 

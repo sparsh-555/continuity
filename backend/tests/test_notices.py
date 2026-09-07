@@ -525,3 +525,42 @@ def test_another_organisations_notice_is_a_404():
                 )
 
     assert run(go()).status_code == 404
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_an_older_notice_can_still_be_reviewed(model):
+    """It was found by scanning the recent ones, which fails on a notice plainly on screen."""
+    model(reply())
+
+    async def go():
+        async with a_store() as store:
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=30.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "old@example.com", "password": "a-good-password"},
+                )
+                me = (await http.get("/auth/me")).json()
+                first = (
+                    await http.post(
+                        "/notices",
+                        json={"document": base64.b64encode(PCN.encode()).decode()},
+                    )
+                ).json()["id"]
+
+                # Bury it under more notices than any listing page would return.
+                async with store.pool.connection() as conn:
+                    for index in range(250):
+                        await conn.execute(
+                            "INSERT INTO notices (id, org_id, mpn, mpn_line, source) "
+                            "VALUES (%s, %s, %s, %s, %s)",
+                            (f"filler-{index}", me["org_id"], "X", "X", "api"),
+                        )
+
+                return await store.notice_for_org(first, me["org_id"])
+
+    found = run(go())
+
+    assert found is not None, "a notice older than one page became unreachable"
+    assert found["mpn"] == "AMS1117-3.3"

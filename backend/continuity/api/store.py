@@ -1032,6 +1032,24 @@ class Store:
             )
         return notice_id
 
+    async def notice_for_org(self, notice_id: str, org_id: str) -> dict[str, Any] | None:
+        """One notice, by id, scoped to the organisation that received it.
+
+        A direct read rather than a scan of the recent ones: reviewing a notice older than
+        whatever page size the listing happened to use would fail with "no such notice"
+        about a notice plainly on screen.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT id, mpn, mpn_line, manufacturer, effective_date, replacement_mpn,
+                       reason, source, created_at
+                  FROM notices WHERE id = %s AND org_id = %s
+                """,
+                (notice_id, org_id),
+            )
+            return await cursor.fetchone()
+
     async def notices_for_org(self, org_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
