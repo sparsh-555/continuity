@@ -1003,6 +1003,47 @@ class Store:
             )
             return await cursor.fetchall()
 
+    # ── change notices ───────────────────────────────────────────────────────
+
+    async def save_notice(
+        self, org_id: str, user_id: str | None, notice: Any, *, source: str
+    ) -> str:
+        """Persist what a notice said, with the lines it was believed on.
+
+        `source` records how it arrived — a mailbox, or the endpoint the demo posts to —
+        because "where did this come from" is the first question anybody asks of a change
+        that a machine started.
+        """
+        notice_id = new_id()
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO notices (
+                    id, org_id, user_id, mpn, mpn_line, manufacturer, effective_date,
+                    effective_date_line, replacement_mpn, replacement_line, reason, source
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    notice_id, org_id, user_id, notice.mpn, notice.mpn_line,
+                    notice.manufacturer, notice.effective_date, notice.effective_date_line,
+                    notice.replacement_mpn, notice.replacement_line, notice.reason, source,
+                ),
+            )
+        return notice_id
+
+    async def notices_for_org(self, org_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT id, mpn, mpn_line, manufacturer, effective_date, replacement_mpn,
+                       reason, source, created_at
+                  FROM notices WHERE org_id = %s ORDER BY created_at DESC LIMIT %s
+                """,
+                (org_id, limit),
+            )
+            return await cursor.fetchall()
+
     async def save_part_facts(
         self, facts: Iterable[tuple[str, str, str, str | None]]
     ) -> None:

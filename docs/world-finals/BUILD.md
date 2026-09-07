@@ -478,7 +478,7 @@ somebody who typed their reasoning into it would have explained themselves and a
 nothing. The question block now shows which roles may answer, before they type, which also
 closes the audit's 🟡 about a 403 arriving too late.
 
-## 14 · Mailbox connector, both directions
+## 14 · Mailbox connector, both directions — **INBOUND DONE, TRANSPORTS BLOCKED**
 
 **Files** new module, `api/app.py`
 
@@ -488,6 +488,27 @@ the same PDF so the demo never depends on mail delivery.
 
 **Test** a PCN sent to the mailbox starts a run within one poll; a gate produces a delivered
 email; the POST path produces an identical run.
+
+**Built:** `continuity/notices.py` reads a PCN — PDF or plain text — under the same
+claim-and-verify discipline as the datasheet extractor: every value comes back with the line
+it was read from, and a line the document does not contain is refused. That check has teeth.
+A model can otherwise quote a real sentence and hang any part number off it, which satisfies
+containment while sourcing nothing, so the MPN must also appear *in the line quoted for it*.
+A notice whose part number cannot be sourced returns nothing at all rather than a partial
+guess, because everything downstream keys off that number.
+
+`POST /notices` takes the document, persists it with its quoted lines — item 15 has to cite
+the document that caused a change request, and "somebody said this part was going away" is
+not a citation — and answers the question a notice raises and never answers: which of the
+products we ship carry this part. That is `lines_exposed_to`, the b-tree probe item 10b made
+the BOM a table for.
+
+**Blocked, and it needs a decision:** IMAP polling in and SMTP out both need mailbox
+credentials this project does not have. Nothing about them is hard — the reader and the store
+are transport-agnostic and a poller is a loop around `notices.read` — but inventing a mail
+account is not mine to do. BUILD already wanted the POST path *"so the demo never depends on
+mail delivery"*, and that path is complete, so the demo does not need the mailbox; the
+outbound approval request does.
 
 ## 15 · The change request
 

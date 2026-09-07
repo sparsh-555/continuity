@@ -322,3 +322,29 @@ CREATE TABLE IF NOT EXISTS approvals (
 
 CREATE INDEX IF NOT EXISTS approvals_org_idx ON approvals(org_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS approvals_thread_idx ON approvals(thread_id);
+
+-- Added 8 Sep 2026. The trigger the whole enterprise flow hangs off. Stored because a
+-- notice is evidence: item 15's change request has to cite the document that caused it,
+-- and "somebody said this part was going away" is not a citation.
+--
+-- `mpn_line` and its siblings are the quoted lines the reader was believed on. They travel
+-- with the values for the same reason a θJA travels with its mounting: a fact whose source
+-- cannot be checked is a fact nobody can act on.
+CREATE TABLE IF NOT EXISTS notices (
+    id                  text PRIMARY KEY,
+    org_id              text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    user_id             text REFERENCES users(id) ON DELETE SET NULL,
+    mpn                 text NOT NULL,
+    mpn_line            text NOT NULL,
+    manufacturer        text,
+    effective_date      date,
+    effective_date_line text,
+    replacement_mpn     text,
+    replacement_line    text,
+    reason              text,
+    source              text NOT NULL,
+    created_at          timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS notices_org_idx ON notices(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS notices_mpn_idx ON notices(org_id, mpn);

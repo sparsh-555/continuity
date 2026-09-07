@@ -1,0 +1,270 @@
+"""Reading a change notice, and finding what it reaches.
+
+Two properties. **Nothing is believed that the document does not say** — every value comes
+back with the line it was read from, and a line that is not in the text is refused outright,
+because a notice whose part number was invented starts a review of a part nobody sells. And
+**the notice answers the question it raises**: which of the products we ship carry this part.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import os
+from contextlib import asynccontextmanager
+
+import httpx
+import pytest
+
+from continuity import notices
+from continuity.api.app import app
+from continuity.api.store import Store
+
+PCN = """\
+PRODUCT CHANGE NOTIFICATION
+PCN 2026-114 · Advanced Monolithic Systems
+Issued 1 September 2026
+
+Affected part: AMS1117-3.3 (SOT-223)
+Last time buy: 2027-03-31
+Reason: wafer fabrication line closure.
+Recommended replacement: NCP1117ST33T3G.
+"""
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+def reply(**overrides):
+    base = {
+        "mpn": "AMS1117-3.3",
+        "mpn_line": "Affected part: AMS1117-3.3 (SOT-223)",
+        "manufacturer": "Advanced Monolithic Systems",
+        "effective_date": "2027-03-31",
+        "effective_date_line": "Last time buy: 2027-03-31",
+        "replacement_mpn": "NCP1117ST33T3G",
+        "replacement_line": "Recommended replacement: NCP1117ST33T3G.",
+        "reason": "Wafer fabrication line closure.",
+    }
+    base.update(overrides)
+    return base
+
+
+@pytest.fixture
+def model(monkeypatch):
+    """Stub the read, keeping the verification this module exists to do."""
+    def answer_with(payload):
+        async def complete(_system, _user, **_kwargs):
+            return payload
+
+        monkeypatch.setattr(notices.llm, "available", lambda: True)
+        monkeypatch.setattr(notices.llm, "complete_json", complete)
+
+    return answer_with
+
+
+# ── what the document says ────────────────────────────────────────────────────
+
+
+def test_a_notice_is_read_with_the_lines_it_was_read_from(model):
+    model(reply())
+
+    notice = run(notices.read(PCN.encode()))
+
+    assert notice.mpn == "AMS1117-3.3"
+    assert notice.mpn_line == "Affected part: AMS1117-3.3 (SOT-223)"
+    assert notice.effective_date == "2027-03-31"
+    assert notice.replacement_mpn == "NCP1117ST33T3G"
+    assert notice.manufacturer == "Advanced Monolithic Systems"
+
+
+def test_a_part_number_the_document_does_not_contain_is_refused(model):
+    """The failure that matters: a review opened on a part nobody sells."""
+    model(reply(mpn="INVENTED-PART-9000", mpn_line="Affected part: INVENTED-PART-9000"))
+
+    assert run(notices.read(PCN.encode())) is None
+
+
+def test_a_quoted_line_that_is_not_in_the_document_is_refused(model):
+    model(reply(mpn_line="Affected part: AMS1117-3.3, effective immediately"))
+
+    assert run(notices.read(PCN.encode())) is None
+
+
+def test_a_real_line_with_the_wrong_part_number_attached_is_refused(model):
+    """Quoting *a* line is not sourcing *this* value.
+
+    Without this check a reply can cite any true sentence from the document and hang any
+    part number off it, which satisfies containment while sourcing nothing.
+    """
+    model(reply(mpn="LM317T", mpn_line="Reason: wafer fabrication line closure."))
+
+    assert run(notices.read(PCN.encode())) is None
+
+
+def test_an_unsourced_date_is_dropped_and_the_rest_survives(model):
+    """A notice is still useful without a date. It is useless with an invented one."""
+    model(reply(effective_date_line="Last time buy: 2026-01-01"))
+
+    notice = run(notices.read(PCN.encode()))
+
+    assert notice is not None, "one bad field must not discard the whole notice"
+    assert notice.effective_date is None
+    assert notice.mpn == "AMS1117-3.3"
+
+
+def test_a_date_that_is_not_a_date_is_dropped(model):
+    model(reply(effective_date="soon", effective_date_line="Last time buy: 2027-03-31"))
+
+    assert run(notices.read(PCN.encode())).effective_date is None
+
+
+def test_a_notice_recommending_nothing_is_still_a_notice(model):
+    model(reply(replacement_mpn=None, replacement_line=None))
+
+    notice = run(notices.read(PCN.encode()))
+
+    assert notice.replacement_mpn is None
+    assert notice.mpn == "AMS1117-3.3"
+
+
+def test_a_document_with_no_readable_text_is_refused(model):
+    model(reply())
+
+    assert run(notices.read(b"\x00\x01\x02")) is None
+    assert run(notices.read(b"")) is None
+
+
+def test_without_a_model_nothing_is_guessed(monkeypatch):
+    monkeypatch.setattr(notices.llm, "available", lambda: False)
+
+    assert run(notices.read(PCN.encode())) is None
+
+
+# ── which products it reaches ─────────────────────────────────────────────────
+
+DB_URL = os.environ.get("CONTINUITY_TEST_DB")
+
+
+@asynccontextmanager
+async def a_store():
+    from psycopg_pool import AsyncConnectionPool
+
+    async with AsyncConnectionPool(DB_URL, min_size=1, max_size=3, open=False) as pool:
+        await pool.open()
+        store = Store(pool)
+        await store.setup()
+        async with pool.connection() as conn:
+            await conn.execute(
+                "TRUNCATE users, organisations, sessions, product_lines, threads CASCADE"
+            )
+        previous = app.state.store
+        app.state.store = store
+        try:
+            yield store
+        finally:
+            app.state.store = previous
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_a_posted_notice_names_the_products_that_carry_the_part(model):
+    """The question a notice raises and never answers."""
+    model(reply())
+
+    async def go():
+        async with a_store():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=30.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "pcn@example.com", "password": "a-good-password"},
+                )
+                for name, mpn in (
+                    ("Gateway", "AMS1117-3.3"),
+                    ("Sensor node", "AMS1117-3.3"),
+                    ("Unrelated", "SOMETHING-ELSE"),
+                ):
+                    line = (await http.post("/lines", json={"name": name})).json()
+                    await http.put(
+                        f"/lines/{line['id']}/bom",
+                        json={"rows": [{"refdes": "u1", "mpn": mpn}]},
+                    )
+
+                posted = await http.post(
+                    "/notices",
+                    json={"document": base64.b64encode(PCN.encode()).decode()},
+                )
+                return posted, (await http.get("/notices")).json()
+
+    posted, listed = run(go())
+
+    assert posted.status_code == 201
+    body = posted.json()
+    assert body["notice"]["mpn"] == "AMS1117-3.3"
+    assert {row["name"] for row in body["affected"]} == {"Gateway", "Sensor node"}
+    assert all(row["refdes"] == ["u1"] for row in body["affected"])
+
+    assert len(listed) == 1
+    assert listed[0]["mpn"] == "AMS1117-3.3"
+    assert listed[0]["source"] == "api", "how it arrived is the first thing anybody asks"
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_a_notice_for_a_part_we_do_not_ship_says_so_rather_than_failing(model):
+    """An empty answer is a real result: this does not reach anything we make."""
+    model(reply())
+
+    async def go():
+        async with a_store():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=30.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "none@example.com", "password": "a-good-password"},
+                )
+                return await http.post(
+                    "/notices",
+                    json={"document": base64.b64encode(PCN.encode()).decode()},
+                )
+
+    response = run(go())
+
+    assert response.status_code == 201
+    assert response.json()["affected"] == []
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_an_unreadable_document_is_refused_with_a_reason(model):
+    model(reply(mpn="INVENTED", mpn_line="Affected part: INVENTED"))
+
+    async def go():
+        async with a_store():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=30.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "bad@example.com", "password": "a-good-password"},
+                )
+                return await http.post(
+                    "/notices",
+                    json={"document": base64.b64encode(PCN.encode()).decode()},
+                )
+
+    response = run(go())
+
+    assert response.status_code == 422
+    assert "backed by a line of the document" in response.json()["detail"]
+
+
+def test_the_endpoint_needs_an_account():
+    async def go():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as http:
+            return await http.post("/notices", json={"document": "eA=="})
+
+    assert run(go()).status_code == 401
