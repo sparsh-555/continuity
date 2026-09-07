@@ -516,7 +516,7 @@ account is not mine to do. BUILD already wanted the POST path *"so the demo neve
 mail delivery"*, and that path is complete, so the demo does not need the mailbox; the
 outbound approval request does.
 
-## 15 · The change request
+## 15 · The change request — **DONE**
 
 **Files** new module, store, frontend
 
@@ -525,6 +525,31 @@ notice that triggered it, the proposal with alternatives rejected and why, the e
 was not assessed**, cost split into recurring and one-time, and the approvals required.
 
 **Test** the three demo lines produce three requests, each naming its unassessed checks.
+
+`continuity/change.py` builds them and `POST /notices/{id}/review` runs the whole flow in one
+call — exposure finds the lines, the matrix checks every candidate against each line's own
+stored conditions, and the request is that work written down. **One per line**, because the
+answer differs per line, which is the finding a single manufacturer-wide recommendation
+cannot express and the reason any of this exists.
+
+Three things the document does that a proposal alone would not:
+
+- **Every rejected alternative carries the sentence that killed it.** A proposal on its own
+  asks to be trusted; one that shows its rejections asks to be checked. A *viable* alternative
+  that simply was not chosen is recorded too, because the second choice is where the next
+  notice starts.
+- **`not_assessed` and `no_evidence` are separate fields.** "We do not answer this" and "we
+  tried and had nothing to read" are different admissions, and folding them together loses the
+  actionable one.
+- **Cost splits recurring from one-time, and the one-time figure comes off the AML.** Item
+  15a's DoD numbers — about $1,281 with an already-approved part against $15,656 qualified
+  from scratch — make item 13's approved list pay for itself in the document. Recurring cost
+  is `None` without a stated annual volume rather than assumed, because an assumed volume
+  makes a plausible number out of nothing.
+
+The manufacturer's own recommendation is tried **first**, so a request that departs from it
+has visibly departed rather than never considered it — and on the gateway it does, with
+*"159 °C junction against a 150 °C limit"* printed as the reason.
 
 ---
 

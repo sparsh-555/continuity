@@ -357,3 +357,171 @@ def test_a_pdf_with_no_extractable_text_is_refused(model):
     model(reply())
 
     assert run(notices.read(b"%PDF-1.4\nnot really a pdf\n")) is None
+
+
+# ── a notice becomes change requests ──────────────────────────────────────────
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_a_notice_yields_one_change_request_per_affected_line(model, monkeypatch):
+    """The whole flow in one call: notice, exposure, matrix, request — per line.
+
+    Per line because the answer differs per line, which is the finding a single
+    manufacturer-wide recommendation cannot express and the reason any of this exists.
+    """
+    from continuity.api import matrix as matrix_api
+    from tools.eol_differential import (
+        AMS1117, LD1117, LINES, NCP1117, OUTPUT_CAPACITOR, TLV1117,
+    )
+
+    specs = {
+        part.mpn: part
+        for part in (AMS1117, TLV1117, LD1117, NCP1117, OUTPUT_CAPACITOR,
+                     *(line.load_part for line in LINES))
+    }
+
+    async def resolve(mpn: str):
+        return specs.get(mpn)
+
+    monkeypatch.setattr(matrix_api, "resolve", resolve)
+    model(reply())
+
+    async def go():
+        async with a_store():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=60.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "flow@example.com", "password": "a-good-password"},
+                )
+                for line in LINES:
+                    created = (await http.post("/lines", json={"name": line.label})).json()
+                    await http.put(
+                        f"/lines/{created['id']}/bom",
+                        json={
+                            "rows": [
+                                {"refdes": "u1", "mpn": AMS1117.mpn},
+                                {"refdes": "u2", "mpn": line.load_part.mpn},
+                                {"refdes": "c1", "mpn": OUTPUT_CAPACITOR.mpn},
+                            ]
+                        },
+                    )
+                    await http.put(
+                        f"/lines/{created['id']}/profile",
+                        json={
+                            "revision": "C",
+                            "profile": {
+                                "ambient_c": line.ambient_c,
+                                "ambient_source": line.ambient_basis,
+                                "mounting": "1000 mm² top and back copper, 1/16in FR-4, 1 oz",
+                                "rails": {
+                                    "vin": {
+                                        "voltage": line.input_voltage,
+                                        "i_limit": line.input_limit,
+                                        "basis": line.input_basis,
+                                        "members": ["u1"],
+                                    },
+                                    "3v3": {
+                                        "source": "u1",
+                                        "members": ["u2", "c1"],
+                                        "i_load": line.load,
+                                        "i_load_basis": line.load_basis,
+                                    },
+                                },
+                            },
+                        },
+                    )
+
+                posted = (
+                    await http.post(
+                        "/notices",
+                        json={"document": base64.b64encode(PCN.encode()).decode()},
+                    )
+                ).json()
+
+                reviewed = await http.post(
+                    f"/notices/{posted['id']}/review",
+                    json={
+                        "candidates": [TLV1117.mpn, LD1117.mpn, NCP1117.mpn],
+                        "annual_volume": 20_000,
+                    },
+                )
+                listed = (await http.get(f"/notices/{posted['id']}/review")).json()
+                return reviewed, listed
+
+    reviewed, listed = run(go())
+
+    assert reviewed.status_code == 201, reviewed.text
+    requests = reviewed.json()["requests"]
+
+    assert len(requests) == 3, "three affected lines, three requests"
+    assert len(listed) == 3, "and they were persisted"
+
+    by_line = {r["line_name"]: r for r in requests}
+    assert set(by_line) == {"Sensor node", "Gateway", "Cabinet controller"}
+
+    for request in requests:
+        assert request["not_assessed"] == [
+            "emc", "output_capacitor_stability", "signal_integrity"
+        ], f"{request['line_name']} does not say what it left unchecked"
+        assert request["baseline_mpn"] == AMS1117.mpn
+        assert request["revision"] == "C"
+        assert request["notice_mpn"] == AMS1117.mpn
+        assert request["cost"]["one_time"] > 0
+
+    # The notice recommends NCP1117 and the gateway cannot take it.
+    gateway = by_line["Gateway"]
+    assert gateway["proposal"] != NCP1117.mpn
+    rejected = {a["mpn"]: a["rejected_because"] for a in gateway["alternatives"]}
+    assert "159 °C" in (rejected.get(NCP1117.mpn) or ""), "the sentence that killed it"
+
+    # And the lines that can take it, do — which is exactly the per-line finding.
+    assert by_line["Sensor node"]["proposal"] == NCP1117.mpn
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_reviewing_a_notice_for_a_part_we_do_not_ship_is_refused_with_a_reason(model):
+    model(reply())
+
+    async def go():
+        async with a_store():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=30.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "nothing@example.com", "password": "a-good-password"},
+                )
+                posted = (
+                    await http.post(
+                        "/notices",
+                        json={"document": base64.b64encode(PCN.encode()).decode()},
+                    )
+                ).json()
+                return await http.post(
+                    f"/notices/{posted['id']}/review", json={"candidates": ["ANY-PART"]}
+                )
+
+    response = run(go())
+
+    assert response.status_code == 409
+    assert "not on any product line you ship" in response.json()["detail"]
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_another_organisations_notice_is_a_404():
+    async def go():
+        async with a_store():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=30.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "stranger@example.com", "password": "a-good-password"},
+                )
+                return await http.post(
+                    "/notices/does-not-exist/review", json={"candidates": ["X"]}
+                )
+
+    assert run(go()).status_code == 404

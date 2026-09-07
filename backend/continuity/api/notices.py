@@ -16,6 +16,7 @@ development, where nobody is sending PCNs to a test account.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 from typing import Any
@@ -24,8 +25,16 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .auth import current_user, store_of
+# Through the module, not `from ... import resolve`: a direct import binds a second
+# reference, so anything that swaps the real one — a test, or a future cache in front
+# of it — silently would not reach this caller.
+from . import matrix as matrix_api
 from .store import User
-from .. import notices as reader
+from .. import change, notices as reader
+from ..engine.models import PartSpec
+from ..matrix import evaluate_matrix
+from ..parts import normalize
+from ..profile import OperatingProfile, board_from
 
 router = APIRouter(prefix="/notices", tags=["notices"])
 
@@ -95,3 +104,165 @@ async def list_notices(
         }
         for row in rows
     ]
+
+
+class ReviewRequest(BaseModel):
+    candidates: list[str] = Field(min_length=1, max_length=10)
+    """The substitutes to try. The notice's own recommendation belongs in here — it is a
+    candidate like any other, and the demo's whole point is that it does not survive
+    everywhere."""
+
+    slot: str | None = Field(default=None, max_length=100)
+    """Which position on the board. Defaults to wherever each line carries the retired part,
+    which is what a notice actually means."""
+
+    annual_volume: int | None = Field(default=None, ge=0)
+
+
+@router.post("/{notice_id}/review", status_code=201)
+async def review(
+    notice_id: str,
+    body: ReviewRequest,
+    request: Request,
+    user: User = Depends(current_user),
+) -> dict[str, Any]:
+    """Turn a notice into one change request per affected product line.
+
+    The whole flow in one call, because every step is already built and none of it needs a
+    person in the middle: exposure finds the lines, the matrix checks every candidate
+    against each line's own stored conditions, and the request is that work written down —
+    including, per line, what was *not* assessed.
+    """
+    store = store_of(request)
+
+    notices = {row["id"]: row for row in await store.notices_for_org(user.org_id, limit=200)}
+    notice = notices.get(notice_id)
+    if notice is None:
+        raise HTTPException(404, "no such notice")
+
+    exposed = await store.lines_exposed_to(user.org_id, notice["mpn"])
+    if not exposed:
+        raise HTTPException(
+            409,
+            f"{notice['mpn']} is not on any product line you ship, so there is nothing to "
+            "review.",
+        )
+
+    approved = await store.approved_lists(user.org_id)
+    lookup_token = normalize.set_dossier_lookup(
+        lambda mpn: _facts_for(store, mpn)
+    )
+    try:
+        return await _review(
+            store, user, notice, exposed, body, approved
+        )
+    finally:
+        normalize.reset_dossier_lookup(lookup_token)
+
+
+async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any]:
+    from dataclasses import replace as _replace
+
+    lines = {}
+    boms = {}
+    for row in exposed:
+        line = await store.line_for_user(row["line_id"], user.org_id)
+        if line is None or not line.profile:
+            continue
+        lines[line.id] = line
+        boms[line.id] = await store.bom_for_line(line.id, user.org_id)
+
+    if not lines:
+        raise HTTPException(
+            409,
+            "None of the affected product lines has an operating profile, so there are no "
+            "conditions to check a substitution against.",
+        )
+
+    wanted = {r["mpn"] for bom in boms.values() for r in bom if r.get("populated", True)}
+    wanted |= set(body.candidates) | {notice["mpn"]}
+
+    ordered = sorted(wanted)
+    outcomes = await asyncio.gather(
+        *(matrix_api.resolve(mpn) for mpn in ordered), return_exceptions=True
+    )
+    specs: dict[str, PartSpec] = {}
+    ambiguous: dict[str, str] = {}
+    for mpn, outcome in zip(ordered, outcomes):
+        if isinstance(outcome, matrix_api.Ambiguous):
+            ambiguous[mpn] = str(outcome)
+        elif isinstance(outcome, BaseException):
+            raise outcome
+        elif outcome is not None:
+            specs[mpn] = outcome
+
+    # The retired part is a column too: the row that says what each board does today is the
+    # baseline every other cell is measured against, and a matrix without it can report a
+    # difference without saying what from.
+    candidates = [specs[mpn] for mpn in [notice["mpn"], *body.candidates] if mpn in specs]
+    if not candidates:
+        raise HTTPException(422, "none of those candidates could be sourced")
+
+    boards, per_line = [], {}
+    for line_id, line in lines.items():
+        slot = body.slot or next(
+            (r["refdes"] for r in boms[line_id] if r["mpn"] == notice["mpn"]), None
+        )
+        if slot is None:
+            continue
+        profile = OperatingProfile.from_json(line.profile)
+        board = _replace(board_from(profile, boms[line_id], specs), approved=approved)
+        if slot not in board.slots:
+            continue
+        boards.append((line.id, line.name, board))
+        per_line[line.id] = {"revision": line.revision, "slot": slot}
+
+    if not boards:
+        raise HTTPException(409, "no affected line could be assembled into a board")
+
+    slots = {entry["slot"] for entry in per_line.values()}
+    if len(slots) > 1:
+        raise HTTPException(
+            409,
+            f"the retired part sits at different positions across these lines ({', '.join(sorted(slots))}); "
+            "name one with `slot`",
+        )
+
+    matrix = evaluate_matrix(boards, candidates, slots.pop())
+    requests = change.for_every_line(
+        matrix,
+        notice_mpn=notice["mpn"],
+        notice_id=notice["id"],
+        lines={k: {"revision": v["revision"]} for k, v in per_line.items()},
+        annual_volume=body.annual_volume,
+        approved_mpns=sorted(approved.parts or ()),
+        # The manufacturer's own recommendation is tried first, so a request that departs
+        # from it has visibly departed from it rather than never considered it.
+        prefer=[notice["replacement_mpn"]] if notice["replacement_mpn"] else [],
+    )
+
+    ids = await store.save_change_requests(user.org_id, user.id, notice["id"], requests)
+    return {
+        "notice_id": notice["id"],
+        "unresolved": sorted(m for m in body.candidates if m not in specs and m not in ambiguous),
+        "ambiguous": ambiguous,
+        "requests": [
+            {"id": request_id, **request.to_json()}
+            for request_id, request in zip(ids, requests)
+        ],
+    }
+
+
+@router.get("/{notice_id}/review")
+async def list_requests(
+    notice_id: str, request: Request, user: User = Depends(current_user)
+) -> list[dict[str, Any]]:
+    rows = await store_of(request).change_requests_for_org(user.org_id, notice_id=notice_id)
+    return [
+        {"id": row["id"], "created_at": row["created_at"].isoformat(), **row["document"]}
+        for row in rows
+    ]
+
+
+async def _facts_for(store: Any, mpn: str) -> list[dict[str, Any]]:
+    return (await store.part_facts([mpn])).get(mpn, [])

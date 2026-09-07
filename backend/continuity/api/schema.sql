@@ -348,3 +348,25 @@ CREATE TABLE IF NOT EXISTS notices (
 
 CREATE INDEX IF NOT EXISTS notices_org_idx ON notices(org_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS notices_mpn_idx ON notices(org_id, mpn);
+
+-- Added 8 Sep 2026. What actually gets sent to a person: one per affected product line,
+-- because the answer differs per line and a single company-wide recommendation is the thing
+-- this product exists to replace.
+--
+-- The whole document is one jsonb column on purpose. It is a *record of what was decided
+-- and on what basis*, read back whole and never queried into — and a change request whose
+-- fields could drift from the run that produced them would be worse than none. The columns
+-- beside it are only the ones something needs to find a request by.
+CREATE TABLE IF NOT EXISTS change_requests (
+    id         text PRIMARY KEY,
+    org_id     text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    notice_id  text REFERENCES notices(id) ON DELETE SET NULL,
+    line_id    text NOT NULL REFERENCES product_lines(id) ON DELETE CASCADE,
+    user_id    text REFERENCES users(id) ON DELETE SET NULL,
+    proposal   text,
+    document   jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS change_requests_org_idx ON change_requests(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS change_requests_notice_idx ON change_requests(notice_id);

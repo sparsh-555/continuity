@@ -1044,6 +1044,47 @@ class Store:
             )
             return await cursor.fetchall()
 
+    # ── change requests ──────────────────────────────────────────────────────
+
+    async def save_change_requests(
+        self, org_id: str, user_id: str | None, notice_id: str | None, requests: Sequence[Any]
+    ) -> list[str]:
+        """Persist one request per line, together, so a set is never half-written."""
+        ids: list[str] = []
+        async with self.pool.connection() as conn:
+            async with conn.transaction():
+                for request in requests:
+                    request_id = new_id()
+                    ids.append(request_id)
+                    await conn.execute(
+                        """
+                        INSERT INTO change_requests
+                            (id, org_id, notice_id, line_id, user_id, proposal, document)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            request_id, org_id, notice_id, request.line_id, user_id,
+                            request.proposal, Json(request.to_json()),
+                        ),
+                    )
+        return ids
+
+    async def change_requests_for_org(
+        self, org_id: str, *, notice_id: str | None = None, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        where = "org_id = %s" + (" AND notice_id = %s" if notice_id else "")
+        params: tuple[Any, ...] = (org_id, notice_id) if notice_id else (org_id,)
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                f"""
+                SELECT id, notice_id, line_id, proposal, document, created_at
+                  FROM change_requests WHERE {where}
+                 ORDER BY created_at DESC LIMIT %s
+                """,
+                (*params, limit),
+            )
+            return await cursor.fetchall()
+
     async def save_part_facts(
         self, facts: Iterable[tuple[str, str, str, str | None]]
     ) -> None:
