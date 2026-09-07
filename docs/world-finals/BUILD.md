@@ -386,6 +386,10 @@ Not written yet, and not covered anywhere in these documents.
 
 ## Still unfixed, deliberately out of scope
 
+Moved to [DEFERRED.md](DEFERRED.md), which is now the running list and carries a severity
+against each item. These three stay here because they are answers to questions rather than
+work items:
+
 - The `/projects` retry loop has no backoff — one 401 became fifteen requests.
 - Nothing configures logging, so application warnings reach production logs only through
   Python's last-resort handler, unformatted.

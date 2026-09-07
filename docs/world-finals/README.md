@@ -22,6 +22,7 @@ Read in this order.
 | [PRELIM-IDEA.md](PRELIM-IDEA.md) | The 200-word submission, and why each line is worded as it is |
 | [COMPETITORS.md](COMPETITORS.md) | What each vendor documents, why Zuken is not the counterexample it looked like, and the questions this prepares for |
 | [WORKBUDDY.md](WORKBUDDY.md) | What WorkBuddy is, and why we are not building on it |
+| **[DEFERRED.md](DEFERRED.md)** | Everything found and not fixed, with a severity against each. Read before the demo, and before claiming anything is complete. |
 | [tasks/](tasks/) | Implementation briefs, one per BUILD item, written to be handed to a coding agent whole. Each is self-contained. |
 | RESEARCH-BRIEF.md, RESEARCH-BRIEF-2.md | The two adversarial passes. Kept for provenance — their findings are already folded into the documents above. |
 
