@@ -165,4 +165,4 @@ def _text(value: object) -> str | None:
 
 @router.get("/memory")
 async def memory(request: Request, user: User = Depends(current_user)) -> dict[str, Any]:
-    return await store_of(request).memory_for_user(user.id, part_limit=PART_LIMIT)
+    return await store_of(request).memory_for_user(user.org_id, part_limit=PART_LIMIT)

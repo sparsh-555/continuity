@@ -216,12 +216,12 @@ async def validate_pasted_bom(body: bom.BomRequest, request: Request) -> Streami
     if store is not None:
         line_id = body.line_id
         if line_id is None:
-            line_id = await store.ensure_scratch_line(user.id)
+            line_id = await store.ensure_scratch_line(user.id, user.org_id)
         elif not line_id:
             raise HTTPException(422, "line_id is required")
-        if await store.line_for_user(line_id, user.id) is None:
+        if await store.line_for_user(line_id, user.org_id) is None:
             raise HTTPException(404, "no such line")
-        await store.create_thread(thread_id, line_id, user.id, "BOM validation")
+        await store.create_thread(thread_id, line_id, user.id, user.org_id, "BOM validation")
 
     stream = STREAMS[thread_id] = events.EventStream(thread_id)
     return StreamingResponse(
@@ -327,14 +327,14 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
     if store is not None:
         line_id = body.line_id
         if line_id is None:
-            line_id = await store.ensure_scratch_line(user.id)
+            line_id = await store.ensure_scratch_line(user.id, user.org_id)
         elif not line_id:
             raise HTTPException(422, "line_id is required")
-        line = await store.line_for_user(line_id, user.id)
+        line = await store.line_for_user(line_id, user.org_id)
         if line is None:
             raise HTTPException(404, "no such line")
         profile = line.profile
-        await store.create_thread(thread_id, line_id, user.id, body.prompt)
+        await store.create_thread(thread_id, line_id, user.id, user.org_id, body.prompt)
 
     STREAMS[thread_id] = events.EventStream(thread_id)
     return StreamingResponse(
@@ -343,7 +343,7 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
             thread_id,
             {"prompt": body.prompt, "profile": profile},
             store,
-            user.id if user else None,
+            user.org_id if user else None,
         ),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -365,7 +365,7 @@ async def resume(body: ResumeRequest, request: Request) -> StreamingResponse:
     stream = STREAMS.get(body.thread_id)
 
     if store is not None:
-        thread = await store.thread_for_user(body.thread_id, user.id)
+        thread = await store.thread_for_user(body.thread_id, user.org_id)
         if thread is None:
             raise HTTPException(404, "unknown thread")
         if stream is None:
@@ -380,7 +380,7 @@ async def resume(body: ResumeRequest, request: Request) -> StreamingResponse:
             body.thread_id,
             Command(resume=body.answer),
             store,
-            user.id if user else None,
+            user.org_id if user else None,
         ),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -395,7 +395,7 @@ async def continue_thread(thread_id: str, request: Request) -> StreamingResponse
     if store is None:
         raise HTTPException(404, "unknown thread")
 
-    thread = await store.thread_for_user(thread_id, user.id)
+    thread = await store.thread_for_user(thread_id, user.org_id)
     if thread is None:
         raise HTTPException(404, "unknown thread")
     if thread.status not in {"abandoned", "error"}:
@@ -407,7 +407,7 @@ async def continue_thread(thread_id: str, request: Request) -> StreamingResponse
     STREAMS[thread_id] = events.EventStream(thread_id, last_seq=thread.last_seq)
     await store.save_progress(thread_id, thread.last_seq, "running")
     return StreamingResponse(
-        _run(request.app.state.graph, thread_id, None, store, user.id),
+        _run(request.app.state.graph, thread_id, None, store, user.org_id),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )
@@ -422,7 +422,7 @@ async def thread_board(thread_id: str, request: Request) -> dict[str, Any]:
     if store is None:
         raise HTTPException(404, "unknown thread")
 
-    thread = await store.thread_for_user(thread_id, user.id)
+    thread = await store.thread_for_user(thread_id, user.org_id)
     if thread is None:
         raise HTTPException(404, "unknown thread")
 
@@ -578,7 +578,7 @@ async def walkthrough(request: Request) -> StreamingResponse:
     store = auth.store_of(request)
     user = await auth.current_user(request)
 
-    thread_id = await store.ensure_walkthrough(user.id, walkthrough_prompt())
+    thread_id = await store.ensure_walkthrough(user.id, user.org_id, walkthrough_prompt())
     await store.mark_onboarded(user.id)
 
     return StreamingResponse(
@@ -594,7 +594,7 @@ async def export(thread_id: str, request: Request) -> PlainTextResponse:
     if store is None:
         rows = BOMS.get(thread_id)
     else:
-        thread = await store.thread_for_user(thread_id, user.id)
+        thread = await store.thread_for_user(thread_id, user.org_id)
         rows = None if thread is None else (thread.bom or BOMS.get(thread_id))
 
     if rows is None:
@@ -687,7 +687,7 @@ async def _run(
     thread_id: str,
     payload: Any,
     store: Store | None = None,
-    user_id: str | None = None,
+    org_id: str | None = None,
 ) -> AsyncIterator[str]:
     """Drive the graph on a background task, framing what it emits.
 
@@ -708,10 +708,13 @@ async def _run(
     """
     stream = STREAMS[thread_id]
     configurable: dict[str, Any] = {"thread_id": thread_id, "events": stream}
-    if store is not None and user_id is not None:
+    # The organisation, not the person: a precedent is worth more the more boards it was
+    # drawn from, and "somebody here solved this exact conflict before" is a question a
+    # company can answer and a desk cannot.
+    if store is not None and org_id is not None:
         async def precedent_lookup(signature: str) -> list[dict[str, Any]]:
             return await store.precedents_for_user(
-                user_id, signature, exclude_thread=thread_id
+                org_id, signature, exclude_thread=thread_id
             )
 
         configurable["precedent_lookup"] = precedent_lookup

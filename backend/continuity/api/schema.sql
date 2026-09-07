@@ -186,3 +186,81 @@ CREATE TABLE IF NOT EXISTS run_events (
     event     jsonb NOT NULL,
     PRIMARY KEY (thread_id, seq)
 );
+
+-- Added 7 Sep 2026. A product line is a thing a *company* ships, and an end-of-life notice
+-- reaches three departments looking at one run. Ownership was fifteen `WHERE user_id = %s`
+-- clauses, each saying "you may see what you personally created" — correct for a person
+-- designing a board alone, and the reason the second reviewer of a change gets a 404.
+--
+-- `user_id` stays on every table. It stops being the authorisation boundary and becomes
+-- what it honestly always was: who created this. A change request that cannot say who
+-- raised it is worse than one nobody can share.
+CREATE TABLE IF NOT EXISTS organisations (
+    id         text PRIMARY KEY,
+    name       text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id text REFERENCES organisations(id);
+
+-- A set, not a single value. People wear more than one hat, and the demo needs one account
+-- that can walk every gate while single-role accounts prove the refusal. The default keeps
+-- every existing account working unchanged: today's only interruption is an engineering
+-- trade-off — accept the temperature, relax the requirement.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS roles text[] NOT NULL DEFAULT '{engineering}';
+
+ALTER TABLE product_lines ADD COLUMN IF NOT EXISTS org_id text REFERENCES organisations(id);
+ALTER TABLE threads       ADD COLUMN IF NOT EXISTS org_id text REFERENCES organisations(id);
+ALTER TABLE findings      ADD COLUMN IF NOT EXISTS org_id text REFERENCES organisations(id);
+ALTER TABLE line_parts    ADD COLUMN IF NOT EXISTS org_id text REFERENCES organisations(id);
+
+-- The back-fill. Every existing account becomes an organisation of one, so nothing changes
+-- hands and no row becomes unreachable. The id is derived from the user id exactly as
+-- `_derived_id` derives the scratch line, so running this a second time inserts nothing and
+-- updates nothing — which matters, because this file runs at every boot.
+INSERT INTO organisations (id, name)
+SELECT 'org-' || u.id, u.email
+  FROM users u WHERE u.org_id IS NULL
+    ON CONFLICT (id) DO NOTHING;
+
+UPDATE users SET org_id = 'org-' || id WHERE org_id IS NULL;
+
+UPDATE product_lines p SET org_id = u.org_id FROM users u
+ WHERE u.id = p.user_id AND p.org_id IS NULL;
+UPDATE threads t SET org_id = u.org_id FROM users u
+ WHERE u.id = t.user_id AND t.org_id IS NULL;
+UPDATE findings f SET org_id = u.org_id FROM users u
+ WHERE u.id = f.user_id AND f.org_id IS NULL;
+UPDATE line_parts lp SET org_id = u.org_id FROM users u
+ WHERE u.id = lp.user_id AND lp.org_id IS NULL;
+
+-- Only once the back-fill has run can `org_id` be read as authoritative, so the NOT NULL
+-- goes on afterwards. `IF EXISTS`-style guards do not exist for this, so each is wrapped:
+-- setting a column NOT NULL twice is an error, not a no-op.
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'users' AND column_name = 'org_id'
+                 AND is_nullable = 'YES') THEN
+        ALTER TABLE users ALTER COLUMN org_id SET NOT NULL;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'product_lines' AND column_name = 'org_id'
+                 AND is_nullable = 'YES') THEN
+        ALTER TABLE product_lines ALTER COLUMN org_id SET NOT NULL;
+        ALTER TABLE threads       ALTER COLUMN org_id SET NOT NULL;
+        ALTER TABLE findings      ALTER COLUMN org_id SET NOT NULL;
+        ALTER TABLE line_parts    ALTER COLUMN org_id SET NOT NULL;
+    END IF;
+END $$;
+
+-- Each mirrors the `user_id` index it replaces as the authorisation boundary. The old ones
+-- stay: `user_id` is still read, just no longer to decide who may look.
+CREATE INDEX IF NOT EXISTS product_lines_org_idx ON product_lines(org_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS threads_org_idx       ON threads(org_id);
+CREATE INDEX IF NOT EXISTS findings_org_mpn_idx  ON findings(org_id, mpn);
+CREATE INDEX IF NOT EXISTS findings_org_line_idx ON findings(org_id, line_id);
+CREATE INDEX IF NOT EXISTS line_parts_org_mpn_idx ON line_parts(org_id, mpn);
+CREATE INDEX IF NOT EXISTS users_org_idx         ON users(org_id);

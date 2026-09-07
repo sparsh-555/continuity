@@ -60,10 +60,23 @@ class PublicUser(BaseModel):
     id: str
     email: str
     onboarded: bool
+    org_id: str
+    roles: list[str]
+    """The hats this person wears, from `store.ROLES`.
+
+    Reported now rather than when a screen first needs it: item 13's gates have to know
+    whether to offer the person an approval or tell them who to fetch, and a field that
+    appears later is a second migration through the client's types."""
 
 
 def _public(user: User) -> PublicUser:
-    return PublicUser(id=user.id, email=user.email, onboarded=user.onboarded_at is not None)
+    return PublicUser(
+        id=user.id,
+        email=user.email,
+        onboarded=user.onboarded_at is not None,
+        org_id=user.org_id,
+        roles=list(user.roles),
+    )
 
 
 def store_of(request: Request) -> Store:

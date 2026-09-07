@@ -175,23 +175,26 @@ def test_a_signed_in_run_without_a_line_uses_a_scratch_line(monkeypatch):
     calls: list[tuple] = []
 
     class Store:
-        async def ensure_scratch_line(self, user_id: str) -> str:
-            calls.append(("ensure", user_id))
+        async def ensure_scratch_line(self, user_id: str, org_id: str) -> str:
+            calls.append(("ensure", user_id, org_id))
             return "scratch-line"
 
-        async def line_for_user(self, line_id: str, user_id: str):
-            calls.append(("line", line_id, user_id))
+        async def line_for_user(self, line_id: str, org_id: str):
+            # Authorises on the *organisation* now, so the double records what it was
+            # actually given — a stand-in that took `user_id` here would keep passing
+            # while the route handed it the wrong id.
+            calls.append(("line", line_id, org_id))
             # A stand-in for `Line`, and it has to carry `profile`: `/design` reads the
             # line's stored operating conditions into the run's initial state.
             return SimpleNamespace(profile=None)
 
         async def create_thread(
-            self, thread_id: str, line_id: str, user_id: str, prompt: str
+            self, thread_id: str, line_id: str, user_id: str, org_id: str, prompt: str
         ) -> None:
-            calls.append(("thread", thread_id, line_id, user_id, prompt))
+            calls.append(("thread", thread_id, line_id, user_id, org_id, prompt))
 
     async def signed_in(request):
-        return SimpleNamespace(id="user-1")
+        return SimpleNamespace(id="user-1", org_id="org-1")
 
     async def fake_run(*args):
         yield 'data: {"thread_id":"thread-1"}\n\n'
@@ -203,9 +206,11 @@ def test_a_signed_in_run_without_a_line_uses_a_scratch_line(monkeypatch):
     frames = run(stream("/design", {"prompt": DEMO}))
 
     assert frames == [{"thread_id": "thread-1"}]
-    assert calls[0] == ("ensure", "user-1")
-    assert calls[1] == ("line", "scratch-line", "user-1")
-    assert calls[2][2:] == ("scratch-line", "user-1", DEMO)
+    # The scratch line is created for the *person* and carries their organisation; the
+    # lookup that decides whether the route may touch it authorises on the organisation.
+    assert calls[0] == ("ensure", "user-1", "org-1")
+    assert calls[1] == ("line", "scratch-line", "org-1")
+    assert calls[2][2:] == ("scratch-line", "user-1", "org-1", DEMO)
 
 
 def test_seq_is_monotonic_from_zero():

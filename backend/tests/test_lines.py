@@ -174,7 +174,7 @@ def test_a_run_records_a_thread_against_its_line():
                 line = (await http.post("/lines", json={"name": "P"})).json()
                 frames = await frames_of(http, "/design", {"prompt": DEMO, "line_id": line["id"]})
                 me = (await http.get("/auth/me")).json()
-                return await store.thread_for_user(frames[0]["thread_id"], me["id"])
+                return await store.thread_for_user(frames[0]["thread_id"], me["org_id"])
 
     thread = run(go())
     assert thread is not None
@@ -192,7 +192,7 @@ def test_designing_without_a_line_uses_one_owned_scratch_line():
                 second = await frames_of(http, "/design", {"prompt": DEMO})
                 lines = (await http.get("/lines")).json()
                 scratch = [line for line in lines if line["name"] == "Scratch designs"]
-                threads = await store.threads_for_line(scratch[0]["id"], me["id"])
+                threads = await store.threads_for_line(scratch[0]["id"], me["org_id"])
                 return first, second, scratch, threads, me
 
     first, second, scratch, threads, me = run(go())
@@ -288,7 +288,7 @@ def test_a_paused_run_is_recorded_as_awaiting():
                     http, "/design", {"prompt": UNRESOLVED, "line_id": line["id"]}
                 )
                 me = (await http.get("/auth/me")).json()
-                return await store.thread_for_user(frames[0]["thread_id"], me["id"])
+                return await store.thread_for_user(frames[0]["thread_id"], me["org_id"])
 
     thread = run(go())
     assert thread.status == "awaiting"
@@ -390,7 +390,7 @@ def test_a_finished_run_records_the_engines_own_summary():
                     http, "/design", {"prompt": DEMO, "line_id": line["id"]}
                 )
                 me = (await http.get("/auth/me")).json()
-                thread = await store.thread_for_user(frames[0]["thread_id"], me["id"])
+                thread = await store.thread_for_user(frames[0]["thread_id"], me["org_id"])
                 done = next(f for f in frames if f["type"] == "done")
                 return thread.summary, done["summary"]
 
@@ -531,7 +531,7 @@ def test_an_abandoned_thread_hydrates_its_board_trace_and_is_resumable():
                 line = (await http.post("/lines", json={"name": "P"})).json()
                 frames = await frames_of(http, "/design", {"prompt": DEMO, "line_id": line["id"]})
                 me = (await http.get("/auth/me")).json()
-                thread = await store.thread_for_user(frames[0]["thread_id"], me["id"])
+                thread = await store.thread_for_user(frames[0]["thread_id"], me["org_id"])
                 await store.save_progress(thread.id, thread.last_seq, "abandoned")
                 return await http.get(f"/threads/{thread.id}/board")
 
@@ -595,8 +595,8 @@ def test_a_running_thread_is_not_hydrated():
         async with a_store() as store:
             async with signed_in() as http:
                 me = (await http.get("/auth/me")).json()
-                line = await store.create_line(me["id"], "P")
-                await store.create_thread("still-running", line.id, me["id"], "A board")
+                line = await store.create_line(me["id"], me["org_id"], "P")
+                await store.create_thread("still-running", line.id, me["id"], me["org_id"], "A board")
                 return await http.get("/threads/still-running/board")
 
     response = run(go())
@@ -622,7 +622,7 @@ def test_another_users_thread_cannot_be_continued():
                 line = (await mine.post("/lines", json={"name": "Mine"})).json()
                 frames = await frames_of(mine, "/design", {"prompt": DEMO, "line_id": line["id"]})
                 me = (await mine.get("/auth/me")).json()
-                thread = await store.thread_for_user(frames[0]["thread_id"], me["id"])
+                thread = await store.thread_for_user(frames[0]["thread_id"], me["org_id"])
                 await store.save_progress(thread.id, thread.last_seq, "abandoned")
             async with signed_in("theirs@example.com") as theirs:
                 return await theirs.post(f"/threads/{thread.id}/continue")
@@ -636,8 +636,8 @@ def test_continue_refuses_non_continuable_statuses(status):
         async with a_store() as store:
             async with signed_in() as http:
                 me = (await http.get("/auth/me")).json()
-                line = await store.create_line(me["id"], "P")
-                await store.create_thread("cannot-continue", line.id, me["id"], "A board")
+                line = await store.create_line(me["id"], me["org_id"], "P")
+                await store.create_thread("cannot-continue", line.id, me["id"], me["org_id"], "A board")
                 await store.save_progress("cannot-continue", 4, status)
                 return await http.post("/threads/cannot-continue/continue")
 
@@ -657,8 +657,8 @@ def test_continue_reenters_with_none_and_keeps_the_persisted_sequence():
         async with a_store() as store:
             async with signed_in() as http:
                 me = (await http.get("/auth/me")).json()
-                line = await store.create_line(me["id"], "P")
-                await store.create_thread("continue-me", line.id, me["id"], "A board")
+                line = await store.create_line(me["id"], me["org_id"], "P")
+                await store.create_thread("continue-me", line.id, me["id"], me["org_id"], "A board")
                 await store.save_progress("continue-me", 41, "abandoned")
                 graph = ContinuationGraph()
                 previous = app.state.graph

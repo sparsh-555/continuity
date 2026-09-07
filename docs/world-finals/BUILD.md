@@ -333,17 +333,59 @@ of a profile is deliberately not applied to a design run — see DEFERRED.
 
 ## 11 · Authorisation and roles
 
-**Before** the gates, because a gate without this is a label.
+**Before** the gates, because a gate without this is a label. Split in two: 11a moves ownership
+to the company, 11b decides who may answer a given question.
 
-**Files** `api/store.py`, `api/auth.py`, `api/app.py`, `graph/state.py`
+### 11a · A product line belongs to a company — **DONE**
+
+**Files** `api/schema.sql`, `api/store.py`, `api/auth.py`, `api/app.py`. Brief: `tasks/ITEM-11A.md`.
+
+**Done when** an organisation owns lines, threads, findings and BOM rows; `users.roles` holds a
+set from `engineering | procurement | quality`; and every existing account is an organisation of
+one, so nothing they own changes hands.
+
+Ownership had fifteen `WHERE user_id = %s` clauses, each saying *you may see what you personally
+created*. Scenario B is three departments looking at one run, so the second of them gets a 404 —
+and that 404 is `thread_for_user` working exactly as designed, which is why the concept has to
+move rather than gain a sharing flag beside it. `user_id` stays on every table and becomes what
+it honestly always was: who created this.
+
+**Test** two organisations are invisible to each other across every listing method; two users in
+one organisation see the same lines; the back-fill is idempotent.
+
+Verified against a clone of the real database, three applications: 6 accounts each became an
+organisation of one, every line, thread, finding and BOM row back-filled, no row in an
+organisation other than its owner's, all 497 run_events preserved, and every account reaching
+exactly what it reached before. Then in a browser: a procurement account added to an engineer's
+organisation opened the engineer's line from its own dashboard. **Written, not deployed.**
+
+**Delegation note.** This was handed to Codex first and the result was reverted. Its sandbox has
+no PostgreSQL, so a *database migration* was the one task shape it cannot test at all: it shipped
+`save_findings` with 16 columns against 15 expressions and 13 parameters, broke 20 store tests it
+never ran, added none of the five tests the brief asked for, and hedged the whole migration behind
+`if org_id is not None else` branches calling two different arities. **Do not delegate schema
+work.**
+
+### 11b · A decision names who may answer it
+
+**Files** `graph/nodes.py`, `graph/state.py`, `api/app.py`. Brief: `tasks/ITEM-11B.md`.
 
 **Done when** a run carries the roles permitted to answer each open decision; `/resume` checks
-the answering user against that rather than against thread ownership — it calls
-`thread_for_user` today, so a procurement account cannot answer an engineer's run at all. And
-waivers are scoped to candidate and revision instead of `(rule, slot)`.
+the answering user against that; and waivers are scoped to `(rule, subject, mpn, revision)`
+instead of `(rule, slot)`.
 
-**Test** a procurement user resumes an engineer's run at a procurement gate and is refused at
-an engineering gate; an approval granted for one candidate does not carry to the next.
+Organisation membership is necessary and not sufficient — on its own it lets anyone in the
+company answer anything, and "procurement signed off the junction temperature" is a worse
+failure than the 404 it replaced. The permission belongs to the **question**, because that is
+where the expertise is.
+
+**The authorisation check sits at the HTTP boundary, never inside a node.** LangGraph 1.2.11
+re-executes an interrupting node from the top on resume and matches resume values to
+`interrupt()` calls *by index*; a refusal inside the node would have already re-run its work and
+would consume or misalign the pending interrupt.
+
+**Test** a procurement user resumes an engineer's run at a procurement gate and is refused at an
+engineering gate; an approval granted for one candidate does not carry to the next.
 
 ## 12 · Fan-out and the matrix
 

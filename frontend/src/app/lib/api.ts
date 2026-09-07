@@ -6,6 +6,15 @@ export type PublicUser = {
   id: string
   email: string
   onboarded: boolean
+  org_id: string
+
+  /** The hats this person wears, from the server's `ROLES`.
+   *
+   *  Declared now because `/auth/me` returns it now, and a wire field the client type
+   *  does not mention is a field nothing can be built on. Item 13's gates are what make
+   *  it visible; nothing renders it yet, and no screen should pretend to gate on it
+   *  until something does. */
+  roles: string[]
 }
 
 export type Line = {

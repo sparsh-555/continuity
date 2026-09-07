@@ -65,18 +65,47 @@ class EmailTaken(Exception):
     """Registration hit the unique constraint on `users.email`."""
 
 
+ROLES = ("engineering", "procurement", "quality")
+"""Every role a person can hold. Checked wherever roles are set.
+
+A role nobody validates is a permission that silently never applies: a typo in
+`{"enginering"}` grants nothing and reports nothing, and the first sign of it is a person
+who cannot answer a question they are supposed to own.
+"""
+
+
+class UnknownRole(Exception):
+    """A role outside `ROLES` reached a write."""
+
+
+@dataclass(frozen=True)
+class Organisation:
+    id: str
+    name: str
+
+
 @dataclass(frozen=True)
 class User:
     id: str
     email: str
     password_hash: str
     onboarded_at: datetime | None
+    org_id: str
+    """The company this person works for, and the authorisation boundary for everything
+    they can see. Not nullable: the schema back-fills an organisation of one for every
+    account that predates the column, so there is no such thing as a user without one and
+    no code path should be written as though there were."""
+
+    roles: tuple[str, ...] = ("engineering",)
 
 
 @dataclass(frozen=True)
 class Line:
     id: str
     user_id: str
+    """Who created this line. No longer who may see it — that is `org_id`."""
+
+    org_id: str
     name: str
     created_at: datetime
     updated_at: datetime
@@ -96,6 +125,9 @@ class Thread:
     id: str
     line_id: str
     user_id: str
+    """Who started this run. No longer who may see it — that is `org_id`."""
+
+    org_id: str
     prompt: str
     status: str
     last_seq: int
@@ -143,17 +175,72 @@ class Store:
     # ── users ────────────────────────────────────────────────────────────────
 
     async def create_user(self, email: str, password_hash: str) -> User:
+        """A new account and the organisation it works for, in one transaction.
+
+        Signing up is joining a company of one. There is no account without an
+        organisation — the schema back-fills one for every account that predates the
+        column — so minting them apart would create a window in which a user exists and
+        can see nothing, including their own board.
+
+        Joining an *existing* organisation is `add_user_to_organisation`, which has no
+        screen yet: item 16 seeds the demo world and item 11b's tests build the situation
+        directly. An invite button that did nothing would be worse than no button.
+        """
         user_id = new_id()
+        org_id = _derived_id(user_id, "org")
         try:
             async with self.pool.connection() as conn:
-                await conn.execute(
-                    "INSERT INTO users (id, email, password_hash) VALUES (%s, %s, %s)",
-                    (user_id, _fold(email), password_hash),
-                )
+                async with conn.transaction():
+                    await conn.execute(
+                        "INSERT INTO organisations (id, name) VALUES (%s, %s)",
+                        (org_id, _fold(email)),
+                    )
+                    await conn.execute(
+                        "INSERT INTO users (id, email, password_hash, org_id) "
+                        "VALUES (%s, %s, %s, %s)",
+                        (user_id, _fold(email), password_hash, org_id),
+                    )
         except psycopg.errors.UniqueViolation as exc:
             raise EmailTaken(email) from exc
 
-        return User(id=user_id, email=_fold(email), password_hash=password_hash, onboarded_at=None)
+        return User(
+            id=user_id, email=_fold(email), password_hash=password_hash,
+            onboarded_at=None, org_id=org_id, roles=("engineering",),
+        )
+
+    async def create_organisation(self, name: str) -> Organisation:
+        org_id = new_id()
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                "INSERT INTO organisations (id, name) VALUES (%s, %s)", (org_id, name)
+            )
+        return Organisation(id=org_id, name=name)
+
+    async def add_user_to_organisation(
+        self, user_id: str, org_id: str, roles: Sequence[str]
+    ) -> None:
+        """Move a person into a company and set the hats they wear.
+
+        Everything they created stays theirs to have created and moves with them, because
+        `user_id` records authorship and `org_id` decides visibility — leaving their lines
+        behind in the old organisation would strand rows nobody can reach.
+        """
+        unknown = sorted(set(roles) - set(ROLES))
+        if unknown:
+            raise UnknownRole(f"unknown roles: {unknown}; known roles are {list(ROLES)}")
+        if not roles:
+            raise UnknownRole("a user with no roles can answer nothing")
+
+        async with self.pool.connection() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "UPDATE users SET org_id = %s, roles = %s WHERE id = %s",
+                    (org_id, list(roles), user_id),
+                )
+                for table in ("product_lines", "threads", "findings", "line_parts"):
+                    await conn.execute(
+                        f"UPDATE {table} SET org_id = %s WHERE user_id = %s", (org_id, user_id)
+                    )
 
     async def user_by_email(self, email: str) -> User | None:
         return await self._one_user("WHERE email = %s", (_fold(email),))
@@ -177,10 +264,12 @@ class Store:
     async def _one_user(self, where: str, params: tuple[Any, ...]) -> User | None:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
-                f"SELECT id, email, password_hash, onboarded_at FROM users {where}", params
+                f"SELECT id, email, password_hash, onboarded_at, org_id, roles FROM users {where}", params
             )
             row = await cursor.fetchone()
-        return None if row is None else User(**row)
+        if row is None:
+            return None
+        return User(**{**row, "roles": tuple(row["roles"] or ())})
 
     # ── sessions ─────────────────────────────────────────────────────────────
 
@@ -228,14 +317,16 @@ class Store:
                        AND created_at + %(absolute)s > now()
                  RETURNING user_id
                 )
-                SELECT u.id, u.email, u.password_hash, u.onboarded_at
+                SELECT u.id, u.email, u.password_hash, u.onboarded_at, u.org_id, u.roles
                   FROM slid
                   JOIN users u ON u.id = slid.user_id
                 """,
                 {"idle": idle, "absolute": absolute, "token_hash": _hash_token(token)},
             )
             row = await cursor.fetchone()
-        return None if row is None else User(**row)
+        if row is None:
+            return None
+        return User(**{**row, "roles": tuple(row["roles"] or ())})
 
     async def delete_session(self, token: str) -> None:
         async with self.pool.connection() as conn:
@@ -251,22 +342,23 @@ class Store:
     # ── lines ─────────────────────────────────────────────────────────────
 
     async def create_line(
-        self, user_id: str, name: str, *, is_walkthrough: bool = False
+        self, user_id: str, org_id: str, name: str, *, is_walkthrough: bool = False
     ) -> Line:
+        """Both ids: `user_id` is who made it, `org_id` is who may see it."""
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                INSERT INTO product_lines (id, user_id, name, is_walkthrough)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id, user_id, name, created_at, updated_at, revision, profile
+                INSERT INTO product_lines (id, user_id, org_id, name, is_walkthrough)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id, user_id, org_id, name, created_at, updated_at, revision, profile
                 """,
-                (new_id(), user_id, name, is_walkthrough),
+                (new_id(), user_id, org_id, name, is_walkthrough),
             )
             row = await cursor.fetchone()
         return Line(**row)
 
-    async def lines_for_user(self, user_id: str) -> list[Line]:
-        """The account's own lines. **The walkthrough is not one of them.**
+    async def lines_for_user(self, org_id: str) -> list[Line]:
+        """The organisation's lines. **The walkthrough is not one of them.**
 
         `is_walkthrough` marks scaffolding, not user data: `ensure_walkthrough` creates it,
         `/design/demo` replays into it, and the help button in the rail is how anyone
@@ -282,87 +374,96 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, user_id, name, created_at, updated_at, revision, profile,
+                SELECT id, user_id, org_id, name, created_at, updated_at, revision, profile,
                        (SELECT count(*) FROM line_parts lp
                         WHERE lp.line_id = product_lines.id AND lp.populated) AS part_count
-                  FROM product_lines WHERE user_id = %s AND NOT is_walkthrough
+                  FROM product_lines WHERE org_id = %s AND NOT is_walkthrough
                  ORDER BY updated_at DESC
                 """,
-                (user_id,),
+                (org_id,),
             )
             rows = await cursor.fetchall()
         return [Line(**row) for row in rows]
 
-    async def line_for_user(self, line_id: str, user_id: str) -> Line | None:
+    async def line_for_user(self, line_id: str, org_id: str) -> Line | None:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, user_id, name, created_at, updated_at, revision, profile,
+                SELECT id, user_id, org_id, name, created_at, updated_at, revision, profile,
                        (SELECT count(*) FROM line_parts lp
                         WHERE lp.line_id = product_lines.id AND lp.populated) AS part_count
-                  FROM product_lines WHERE id = %s AND user_id = %s
+                  FROM product_lines WHERE id = %s AND org_id = %s
                 """,
-                (line_id, user_id),
+                (line_id, org_id),
             )
             row = await cursor.fetchone()
         return None if row is None else Line(**row)
 
-    async def save_bom_rows(self, line_id: str, user_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
+    async def save_bom_rows(
+        self, line_id: str, user_id: str, org_id: str, rows: Sequence[Mapping[str, Any]]
+    ) -> None:
         async with self.pool.connection() as conn:
             async with conn.transaction():
                 await conn.execute(
-                    "DELETE FROM line_parts WHERE line_id = %s AND user_id = %s",
-                    (line_id, user_id),
+                    "DELETE FROM line_parts WHERE line_id = %s AND org_id = %s",
+                    (line_id, org_id),
                 )
                 cursor = conn.cursor()
                 await cursor.executemany(
                     """INSERT INTO line_parts
-                       (line_id, user_id, refdes, mpn, manufacturer, footprint, populated)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                       (line_id, user_id, org_id, refdes, mpn, manufacturer, footprint, populated)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                     [
                         (
-                            line_id, user_id, row["refdes"], row["mpn"], row.get("manufacturer"),
-                            row.get("footprint"), row.get("populated", True),
+                            line_id, user_id, org_id, row["refdes"], row["mpn"],
+                            row.get("manufacturer"), row.get("footprint"),
+                            row.get("populated", True),
                         )
                         for row in rows
                     ],
                 )
 
-    async def bom_for_line(self, line_id: str, user_id: str) -> list[dict[str, Any]]:
+    async def bom_for_line(self, line_id: str, org_id: str) -> list[dict[str, Any]]:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """SELECT refdes, mpn, manufacturer, footprint, populated
-                     FROM line_parts WHERE line_id = %s AND user_id = %s ORDER BY refdes""",
-                (line_id, user_id),
+                     FROM line_parts WHERE line_id = %s AND org_id = %s ORDER BY refdes""",
+                (line_id, org_id),
             )
             return await cursor.fetchall()
 
     async def save_profile(
-        self, line_id: str, user_id: str, profile: OperatingProfile, revision: str
+        self, line_id: str, org_id: str, profile: OperatingProfile, revision: str
     ) -> bool:
         async with self.pool.connection() as conn:
             cursor = await conn.execute(
                 """UPDATE product_lines SET profile = %s, revision = %s, updated_at = now()
-                   WHERE id = %s AND user_id = %s""",
-                (Json(profile.to_json()), revision, line_id, user_id),
+                   WHERE id = %s AND org_id = %s""",
+                (Json(profile.to_json()), revision, line_id, org_id),
             )
             return cursor.rowcount > 0
 
-    async def lines_exposed_to(self, user_id: str, mpn: str) -> list[dict[str, Any]]:
+    async def lines_exposed_to(self, org_id: str, mpn: str) -> list[dict[str, Any]]:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """SELECT p.id AS line_id, p.name, p.revision,
                           array_agg(lp.refdes ORDER BY lp.refdes) AS refdes
                      FROM line_parts lp
-                     JOIN product_lines p ON p.id = lp.line_id AND p.user_id = lp.user_id
-                    WHERE lp.user_id = %s AND lp.mpn = %s AND lp.populated
+                     JOIN product_lines p ON p.id = lp.line_id AND p.org_id = lp.org_id
+                    WHERE lp.org_id = %s AND lp.mpn = %s AND lp.populated
                  GROUP BY p.id, p.name, p.revision ORDER BY p.name""",
-                (user_id, mpn),
+                (org_id, mpn),
             )
             return await cursor.fetchall()
 
-    async def ensure_scratch_line(self, user_id: str) -> str:
+    async def ensure_scratch_line(self, user_id: str, org_id: str) -> str:
         """The account's visible, reusable home for runs started without a line.
+
+        Keyed by the *person*, not the company: a scratch pad is where you try something
+        before it is anyone else's business, and one shared scratch line per organisation
+        would put a colleague's half-finished experiment on your dashboard. It still
+        carries `org_id`, because a row an org-scoped read cannot see is a row that has
+        effectively vanished.
 
         The id is derived from the account, so React's development double requests use
         the same insert and `ON CONFLICT DO NOTHING` keeps them to one line.
@@ -372,15 +473,15 @@ class Store:
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                INSERT INTO product_lines (id, user_id, name)
-                VALUES (%s, %s, %s) ON CONFLICT (id) DO NOTHING
+                INSERT INTO product_lines (id, user_id, org_id, name)
+                VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
                 """,
-                (line_id, user_id, SCRATCH_LINE_NAME),
+                (line_id, user_id, org_id, SCRATCH_LINE_NAME),
             )
 
         return line_id
 
-    async def ensure_walkthrough(self, user_id: str, prompt: str) -> str:
+    async def ensure_walkthrough(self, user_id: str, org_id: str, prompt: str) -> str:
         """The account's one walkthrough thread, creating it if it is not there yet.
 
         Returns the thread id. **Safe to call concurrently**, which it has to be: React
@@ -397,23 +498,27 @@ class Store:
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                INSERT INTO product_lines (id, user_id, name, is_walkthrough)
-                VALUES (%s, %s, %s, true) ON CONFLICT (id) DO NOTHING
+                INSERT INTO product_lines (id, user_id, org_id, name, is_walkthrough)
+                VALUES (%s, %s, %s, %s, true) ON CONFLICT (id) DO NOTHING
                 """,
-                (line_id, user_id, WALKTHROUGH_LINE_NAME),
+                (line_id, user_id, org_id, WALKTHROUGH_LINE_NAME),
             )
             await conn.execute(
                 """
-                INSERT INTO threads (id, line_id, user_id, prompt)
-                VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
+                INSERT INTO threads (id, line_id, user_id, org_id, prompt)
+                VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
                 """,
-                (thread_id, line_id, user_id, prompt),
+                (thread_id, line_id, user_id, org_id, prompt),
             )
 
         return thread_id
 
     async def walkthrough_thread_for_user(self, user_id: str) -> Thread | None:
-        """The walkthrough this account has already been given, if any.
+        """The walkthrough this *person* has already been given, if any.
+
+        `user_id`, deliberately, where its neighbours moved to `org_id`: everyone is shown
+        the tour once, and finding a colleague's would hand a new starter a finished
+        walkthrough and skip the only run the product explains itself with.
 
         `/design/demo` is reached more than once — React re-runs effects in development,
         and a refresh mid-tour would do it too — so it looks here first and replays into
@@ -422,8 +527,8 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT t.id, t.line_id, t.user_id, t.prompt, t.status, t.last_seq,
-                       t.bom, t.summary
+                SELECT t.id, t.line_id, t.user_id, t.org_id, t.prompt, t.status,
+                       t.last_seq, t.bom, t.summary
                   FROM threads t
                   JOIN product_lines p ON p.id = t.line_id
                  WHERE t.user_id = %s AND p.is_walkthrough
@@ -435,51 +540,61 @@ class Store:
             row = await cursor.fetchone()
         return None if row is None else Thread(**row)
 
-    async def rename_line(self, line_id: str, user_id: str, name: str) -> bool:
+    async def rename_line(self, line_id: str, org_id: str, name: str) -> bool:
         async with self.pool.connection() as conn:
             cursor = await conn.execute(
-                "UPDATE product_lines SET name = %s, updated_at = now() WHERE id = %s AND user_id = %s",
-                (name, line_id, user_id),
+                "UPDATE product_lines SET name = %s, updated_at = now() "
+                "WHERE id = %s AND org_id = %s",
+                (name, line_id, org_id),
             )
             return cursor.rowcount > 0
 
-    async def delete_line(self, line_id: str, user_id: str) -> bool:
+    async def delete_line(self, line_id: str, org_id: str) -> bool:
         async with self.pool.connection() as conn:
             cursor = await conn.execute(
-                "DELETE FROM product_lines WHERE id = %s AND user_id = %s", (line_id, user_id)
+                "DELETE FROM product_lines WHERE id = %s AND org_id = %s", (line_id, org_id)
             )
             return cursor.rowcount > 0
 
     # ── threads ──────────────────────────────────────────────────────────────
 
     async def create_thread(
-        self, thread_id: str, line_id: str, user_id: str, prompt: str
+        self, thread_id: str, line_id: str, user_id: str, org_id: str, prompt: str
     ) -> None:
+        """Both ids: `user_id` is who started this run, `org_id` is who may see it."""
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                INSERT INTO threads (id, line_id, user_id, prompt)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO threads (id, line_id, user_id, org_id, prompt)
+                VALUES (%s, %s, %s, %s, %s)
                 """,
-                (thread_id, line_id, user_id, prompt),
+                (thread_id, line_id, user_id, org_id, prompt),
             )
             await conn.execute(
                 "UPDATE product_lines SET updated_at = now() WHERE id = %s", (line_id,)
             )
 
-    async def thread_for_user(self, thread_id: str, user_id: str) -> Thread | None:
+    async def thread_for_user(self, thread_id: str, org_id: str) -> Thread | None:
+        """The authorisation boundary for `/resume`, `/export` and `/board`.
+
+        Organisation, not person: an end-of-life review is three departments looking at
+        one run, and this returning `None` for the second of them was the whole reason
+        the concept had to move. **Membership is necessary and not sufficient** — item 11b
+        adds the check for whether this particular person may answer this particular
+        question, which membership alone cannot decide.
+        """
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, line_id, user_id, prompt, status, last_seq, bom, summary
-                  FROM threads WHERE id = %s AND user_id = %s
+                SELECT id, line_id, user_id, org_id, prompt, status, last_seq, bom, summary
+                  FROM threads WHERE id = %s AND org_id = %s
                 """,
-                (thread_id, user_id),
+                (thread_id, org_id),
             )
             row = await cursor.fetchone()
         return None if row is None else Thread(**row)
 
-    async def threads_for_line(self, line_id: str, user_id: str) -> list[Thread]:
+    async def threads_for_line(self, line_id: str, org_id: str) -> list[Thread]:
         """Most relevant run first — which is not always the newest one.
 
         React's development double-invoke starts two runs half a millisecond apart. The
@@ -496,11 +611,11 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, line_id, user_id, prompt, status, last_seq, bom, summary
-                  FROM threads WHERE line_id = %s AND user_id = %s
+                SELECT id, line_id, user_id, org_id, prompt, status, last_seq, bom, summary
+                  FROM threads WHERE line_id = %s AND org_id = %s
                  ORDER BY (status = 'running') DESC, (last_seq >= 0) DESC, created_at DESC
                 """,
-                (line_id, user_id),
+                (line_id, org_id),
             )
             rows = await cursor.fetchall()
         return [Thread(**row) for row in rows]
@@ -572,10 +687,11 @@ class Store:
                 await conn.execute(
                     """
                     INSERT INTO findings (
-                        id, thread_id, line_id, user_id, rule, slot, mpn, manufacturer,
+                        id, thread_id, line_id, user_id, org_id, rule, slot, mpn, manufacturer,
                         lifecycle, verdict, outcome, action, replacement_mpn, signature, worked
                     )
-                    SELECT %s, t.id, t.line_id, t.user_id, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    SELECT %s, t.id, t.line_id, t.user_id, t.org_id,
+                           %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                       FROM threads t
                      WHERE t.id = %s
                     """,
@@ -597,16 +713,22 @@ class Store:
                 )
 
     async def precedents_for_user(
-        self, user_id: str, signature: str, *, exclude_thread: str, limit: int = 3
+        self, org_id: str, signature: str, *, exclude_thread: str, limit: int = 3
     ) -> list[dict[str, Any]]:
-        """Successful repairs this user has already made to a structurally identical conflict."""
+        """Repairs this *company* has already made to a structurally identical conflict.
+
+        Widened from the person to the organisation with the ownership move, and that is
+        the point rather than a consequence: a precedent is worth more the more boards it
+        was drawn from, and "somebody here solved this exact conflict before" is the
+        question a company can answer and a desk cannot.
+        """
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
                 SELECT f.rule, f.action, f.signature, p.name AS line_name
                   FROM findings f
-                  JOIN product_lines p ON p.id = f.line_id AND p.user_id = f.user_id
-                 WHERE f.user_id = %s
+                  JOIN product_lines p ON p.id = f.line_id AND p.org_id = f.org_id
+                 WHERE f.org_id = %s
                    AND f.signature = %s
                    AND f.thread_id <> %s
                    AND f.worked IS TRUE
@@ -614,23 +736,23 @@ class Store:
               ORDER BY f.created_at DESC
                  LIMIT %s
                 """,
-                (user_id, signature, exclude_thread, limit),
+                (org_id, signature, exclude_thread, limit),
             )
             return await cursor.fetchall()
 
-    async def memory_for_user(self, user_id: str, *, part_limit: int) -> dict[str, Any]:
+    async def memory_for_user(self, org_id: str, *, part_limit: int) -> dict[str, Any]:
         """The bounded line/part graph, with every read constrained at the boundary."""
         async with self.pool.connection() as conn:
             lines_cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
                 SELECT p.id, p.name, COUNT(t.id)::integer AS boards
                   FROM product_lines p
-             LEFT JOIN threads t ON t.line_id = p.id AND t.user_id = p.user_id
-                 WHERE p.user_id = %s
+             LEFT JOIN threads t ON t.line_id = p.id AND t.org_id = p.org_id
+                 WHERE p.org_id = %s
               GROUP BY p.id, p.name
               ORDER BY p.updated_at DESC
                 """,
-                (user_id,),
+                (org_id,),
             )
             line_rows = await lines_cursor.fetchall()
             bom_cursor = await conn.cursor(row_factory=dict_row).execute(
@@ -639,11 +761,11 @@ class Store:
                        item->>'mpn' AS mpn, item->>'manufacturer' AS manufacturer,
                        item->>'lifecycle' AS lifecycle
                   FROM threads t
-                  JOIN product_lines p ON p.id = t.line_id AND p.user_id = t.user_id
+                  JOIN product_lines p ON p.id = t.line_id AND p.org_id = t.org_id
             CROSS JOIN LATERAL jsonb_array_elements(COALESCE(t.bom, '[]'::jsonb)) AS item
-                 WHERE t.user_id = %s AND NULLIF(item->>'mpn', '') IS NOT NULL
+                 WHERE t.org_id = %s AND NULLIF(item->>'mpn', '') IS NOT NULL
                 """,
-                (user_id,),
+                (org_id,),
             )
             bom_rows = await bom_cursor.fetchall()
             findings_cursor = await conn.cursor(row_factory=dict_row).execute(
@@ -652,11 +774,11 @@ class Store:
                        f.mpn, f.manufacturer, f.lifecycle, f.verdict, f.outcome, f.action,
                        f.replacement_mpn
                   FROM findings f
-                  JOIN threads t ON t.id = f.thread_id AND t.user_id = f.user_id
-                  JOIN product_lines p ON p.id = f.line_id AND p.user_id = f.user_id
-                 WHERE f.user_id = %s
+                  JOIN threads t ON t.id = f.thread_id AND t.org_id = f.org_id
+                  JOIN product_lines p ON p.id = f.line_id AND p.org_id = f.org_id
+                 WHERE f.org_id = %s
                 """,
-                (user_id,),
+                (org_id,),
             )
             finding_rows = await findings_cursor.fetchall()
             mpns = sorted(

@@ -104,21 +104,21 @@ def _thread_view(thread: Thread) -> ThreadView:
 async def list_lines(
     request: Request, user: User = Depends(current_user)
 ) -> list[LineView]:
-    return [_view(p) for p in await store_of(request).lines_for_user(user.id)]
+    return [_view(p) for p in await store_of(request).lines_for_user(user.org_id)]
 
 
 @router.post("", status_code=201)
 async def create_line(
     body: NewLine, request: Request, user: User = Depends(current_user)
 ) -> LineView:
-    return _view(await store_of(request).create_line(user.id, body.name))
+    return _view(await store_of(request).create_line(user.id, user.org_id, body.name))
 
 
 @router.get("/{line_id}")
 async def get_line(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> LineView:
-    line = await store_of(request).line_for_user(line_id, user.id)
+    line = await store_of(request).line_for_user(line_id, user.org_id)
     if line is None:
         raise HTTPException(404, "no such line")
     return _view(line)
@@ -129,16 +129,16 @@ async def list_threads(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> list[ThreadView]:
     store = store_of(request)
-    if await store.line_for_user(line_id, user.id) is None:
+    if await store.line_for_user(line_id, user.org_id) is None:
         raise HTTPException(404, "no such line")
-    return [_thread_view(t) for t in await store.threads_for_line(line_id, user.id)]
+    return [_thread_view(t) for t in await store.threads_for_line(line_id, user.org_id)]
 
 
 @router.get("/{line_id}/bom")
 async def get_bom(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> list[dict[str, Any]]:
-    return await _owned_bom(request, line_id, user.id)
+    return await _owned_bom(request, line_id, user.org_id)
 
 
 @router.put("/{line_id}/bom")
@@ -146,24 +146,24 @@ async def put_bom(
     line_id: str, body: BomPayload, request: Request, user: User = Depends(current_user)
 ) -> list[dict[str, Any]]:
     store = store_of(request)
-    if await store.line_for_user(line_id, user.id) is None:
+    if await store.line_for_user(line_id, user.org_id) is None:
         raise HTTPException(404, "no such line")
-    await store.save_bom_rows(line_id, user.id, [row.model_dump() for row in body.rows])
-    return await store.bom_for_line(line_id, user.id)
+    await store.save_bom_rows(line_id, user.id, user.org_id, [row.model_dump() for row in body.rows])
+    return await store.bom_for_line(line_id, user.org_id)
 
 
-async def _owned_bom(request: Request, line_id: str, user_id: str) -> list[dict[str, Any]]:
+async def _owned_bom(request: Request, line_id: str, org_id: str) -> list[dict[str, Any]]:
     store = store_of(request)
-    if await store.line_for_user(line_id, user_id) is None:
+    if await store.line_for_user(line_id, org_id) is None:
         raise HTTPException(404, "no such line")
-    return await store.bom_for_line(line_id, user_id)
+    return await store.bom_for_line(line_id, org_id)
 
 
 @router.get("/{line_id}/profile")
 async def get_profile(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> dict[str, Any]:
-    line = await store_of(request).line_for_user(line_id, user.id)
+    line = await store_of(request).line_for_user(line_id, user.org_id)
     if line is None:
         raise HTTPException(404, "no such line")
     return {"profile": line.profile, "revision": line.revision}
@@ -174,13 +174,13 @@ async def put_profile(
     line_id: str, body: ProfilePayload, request: Request, user: User = Depends(current_user)
 ) -> dict[str, Any]:
     store = store_of(request)
-    if await store.line_for_user(line_id, user.id) is None:
+    if await store.line_for_user(line_id, user.org_id) is None:
         raise HTTPException(404, "no such line")
     try:
         profile = OperatingProfile.from_json(body.profile)
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
-    await store.save_profile(line_id, user.id, profile, body.revision)
+    await store.save_profile(line_id, user.org_id, profile, body.revision)
     return {"profile": profile.to_json(), "revision": body.revision}
 
 
@@ -189,14 +189,14 @@ async def rename_line(
     line_id: str, body: NewLine, request: Request, user: User = Depends(current_user)
 ) -> LineView:
     store = store_of(request)
-    if not await store.rename_line(line_id, user.id, body.name):
+    if not await store.rename_line(line_id, user.org_id, body.name):
         raise HTTPException(404, "no such line")
-    return _view(await store.line_for_user(line_id, user.id))
+    return _view(await store.line_for_user(line_id, user.org_id))
 
 
 @router.delete("/{line_id}", status_code=204)
 async def delete_line(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> None:
-    if not await store_of(request).delete_line(line_id, user.id):
+    if not await store_of(request).delete_line(line_id, user.org_id):
         raise HTTPException(404, "no such line")
