@@ -86,3 +86,15 @@ def duration(hours: float) -> str:
 def microfarads(value: float) -> str:
     """Capacitance as a board reads it — 0.1 µF and 22 µF, not 1e-07 F."""
     return f"{value:g} µF"
+
+
+def celsius_fine(value: float) -> str:
+    """A temperature where a fraction of a degree is the information.
+
+    `celsius` rounds to whole degrees, which is right for a 298 °C rise and wrong for a
+    margin. The gateway running LD1117 holds by 1.46 °C and printed "1 °C"; a board
+    holding by 0.4 °C would print "0 °C", which reads as no headroom rather than as
+    almost none. Above ten degrees the fraction stops mattering and the shorter form
+    reads better, so the two agree everywhere it counts.
+    """
+    return celsius(value) if abs(value) >= 10 else f"{num(value, 1)} °C"

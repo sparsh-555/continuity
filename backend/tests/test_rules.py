@@ -1786,6 +1786,23 @@ def test_a_thermal_check_one_degree_under_its_limit_is_satisfied_with_a_margin()
     assert verdict.margin == "1 °C"
 
 
+def test_a_thermal_margin_of_less_than_a_degree_keeps_its_fraction():
+    """Rounding a narrow margin to whole degrees prints "0 °C", which reads as none at all."""
+    theta = (124.6 - 25) / ((5.0 - 3.3) * 0.420)
+    board = _declared(
+        usb_board(
+            regulator=parts.ap2112k(theta_ja=theta, theta_ja_source_line="test thermal figure"),
+            loads={"mcu": parts.esp32s3()},
+        ),
+        0.420,
+    )
+
+    verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
+
+    assert verdict.status == "satisfied"
+    assert verdict.margin == "0.4 °C"
+
+
 def test_a_regulator_without_a_known_theta_ja_reports_evidence_missing():
     """Thermal arithmetic cannot start when neither the part nor the package table supplies θJA."""
     board = usb_board(

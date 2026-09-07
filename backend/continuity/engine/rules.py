@@ -963,7 +963,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
                 rule="thermal_dissipation",
                 scope=rail.id,
                 status="satisfied",
-                margin=fmt.celsius(limit - junction_high),
+                margin=fmt.celsius_fine(limit - junction_high),
                 detail=(
                     f"{sum_line} = {fmt.watts(power_high)}{worst_case} — "
                     f"{fmt.celsius(rise_high)} rise from "
@@ -979,7 +979,7 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
             rule="thermal_dissipation",
             scope=rail.id,
             status="evidence_missing" if partial else "satisfied",
-            margin=None if partial else fmt.celsius(limit - junction_high),
+            margin=None if partial else fmt.celsius_fine(limit - junction_high),
             detail=(
                 f"{sum_line} ={floor} {fmt.watts(power_high)}{worst_case} — "
                 f"{fmt.celsius(rise_high)} rise from {fmt.celsius(requirements.ambient_c)} ambient "

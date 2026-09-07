@@ -135,3 +135,27 @@ def test_the_sourced_fixture_exposes_the_two_board_specific_candidate_failures()
     assert [verdict(make_board(line, NCP1117), "thermal_dissipation").status for line in LINES] == [
         "satisfied", "failed", "satisfied"
     ]
+
+
+def test_the_printer_counts_the_labels_the_engine_actually_returns():
+    """The report's vocabulary against the engine's, rather than against a memory of it.
+
+    `_print_line` counted `pass`, `warn` and `fail` for as long as those labels existed and
+    kept counting them afterwards, so every cell of the matrix read "0 pass, 0 FAIL,
+    0 warn" while `evaluate` was answering correctly underneath. Nothing failed, because
+    nothing compared the two lists.
+    """
+    from typing import get_args
+
+    from continuity.engine.models import CheckStatus
+    from tools.eol_differential import COVERAGE_LABELS
+
+    assert set(COVERAGE_LABELS) == set(get_args(CheckStatus))
+
+    observed = {
+        item.status
+        for line in LINES
+        for regulator in (AMS1117, TLV1117, LD1117, NCP1117)
+        for item in evaluate(make_board(line, regulator))
+    }
+    assert observed <= set(COVERAGE_LABELS)

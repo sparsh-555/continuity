@@ -9,6 +9,7 @@ Run from ``backend`` with ``PYTHONPATH=. python -m tools.eol_differential``.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 
 from continuity.engine.models import Board, PartSpec, Rail, Requirements, Slot
@@ -194,21 +195,36 @@ def make_board(line: ProductLine, regulator: PartSpec) -> Board:
     )
 
 
+COVERAGE_LABELS = ("satisfied", "failed", "not_applicable", "not_assessed", "evidence_missing")
+"""Every label `evaluate` can return, checked against the engine's own vocabulary in
+`tests/test_eol_differential.py`. Counting labels the engine had retired is how this
+printed "0 pass, 0 FAIL, 0 warn" against all twelve cells while the engine underneath was
+answering correctly."""
+
+
 def _print_line(line: ProductLine, regulator: PartSpec) -> None:
-    """Print non-pass verdicts so the matrix and its qualifications travel together."""
+    """Print the label counts, then every verdict that qualifies them.
+
+    A failure, a narrow margin and a check that had nothing to read all belong beside the
+    cell they came from: a matrix of bare ticks would hide the two things a reviewer of an
+    end-of-life substitution most needs to see.
+    """
     verdicts = evaluate(make_board(line, regulator))
-    bad = [item for item in verdicts if item.status in ("fail", "warn")]
+    counts = Counter(item.status for item in verdicts)
     power = (line.input_voltage - 3.3) * line.load
     print("\n  {} · {}   P={:.3f} W".format(line.id, line.label, power))
-    print(
-        "    {} pass, {} FAIL, {} warn".format(
-            sum(item.status == "pass" for item in verdicts),
-            sum(item.status == "fail" for item in verdicts),
-            sum(item.status == "warn" for item in verdicts),
-        )
-    )
-    for item in bad:
-        print("    [{:4}] {}: {}".format(item.status.upper(), item.rule, item.detail))
+    print("    " + ", ".join(
+        "{} {}".format(counts[status], status)
+        for status in COVERAGE_LABELS
+        if counts[status]
+    ))
+    for item in verdicts:
+        if item.status == "failed":
+            print("    [FAILED] {}: {}".format(item.rule, item.detail))
+        elif item.status == "satisfied" and item.margin:
+            print("    [margin] {}: {}".format(item.rule, item.margin))
+        elif item.status == "evidence_missing":
+            print("    [no evidence] {}: {}".format(item.rule, item.detail))
 
 
 def main() -> None:
