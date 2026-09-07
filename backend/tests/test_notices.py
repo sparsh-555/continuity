@@ -268,3 +268,92 @@ def test_the_endpoint_needs_an_account():
             return await http.post("/notices", json={"document": "eA=="})
 
     assert run(go()).status_code == 401
+
+
+# ── a notice arrives as a PDF, which is how they actually arrive ──────────────
+
+
+def a_pdf(lines: list[str]) -> bytes:
+    """A minimal one-page PDF with genuinely extractable text.
+
+    Built by hand rather than with a library because the project has no PDF *writer* and
+    should not gain a dependency to test a reader. Every test above feeds plain text, which
+    left the branch that actually matters — a PCN arrives as an attachment — unexercised.
+    """
+    content = "BT /F1 11 Tf 40 760 Td 14 TL\n"
+    for line in lines:
+        content += f"({line}) Tj T*\n"
+    content += "ET"
+    stream = content.encode("latin-1")
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj\n".encode() + body + b"\nendobj\n"
+
+    xref = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n".encode() + b"0000000000 65535 f \n"
+    for offset in offsets:
+        out += f"{offset:010d} 00000 n \n".encode()
+    out += (
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n".encode()
+        + b"%%EOF\n"
+    )
+    return bytes(out)
+
+
+PDF_LINES = [
+    "PRODUCT CHANGE NOTIFICATION",
+    "PCN 2026-114 - Advanced Monolithic Systems",
+    "Affected part: AMS1117-3.3 (SOT-223)",
+    "Last time buy: 2027-03-31",
+    "Recommended replacement: NCP1117ST33T3G.",
+]
+
+
+def test_text_is_extracted_from_a_real_pdf():
+    extracted = notices.text_of(a_pdf(PDF_LINES))
+
+    assert extracted is not None
+    for line in PDF_LINES:
+        assert line in extracted, f"{line!r} did not survive extraction"
+
+
+def test_a_pdf_notice_is_verified_against_its_own_extracted_text(model):
+    """The whole point of the quoted lines: they have to survive the PDF, not the fixture.
+
+    A test that only ever feeds plain text proves the verification logic and nothing about
+    whether a real attachment reaches it — which is exactly how a green suite ends up
+    sitting on top of an extractor that refuses every real document.
+    """
+    model(reply(mpn_line="Affected part: AMS1117-3.3 (SOT-223)"))
+
+    notice = notices.read(a_pdf(PDF_LINES))
+    notice = asyncio.run(notice) if asyncio.iscoroutine(notice) else notice
+
+    assert notice is not None, "a real PDF was refused"
+    assert notice.mpn == "AMS1117-3.3"
+    assert notice.effective_date == "2027-03-31"
+
+
+def test_a_pdf_whose_text_does_not_back_the_claim_is_still_refused(model):
+    """Extraction must not become a way round the verification."""
+    model(reply(mpn="LM317T", mpn_line="Affected part: LM317T (TO-220)"))
+
+    assert run(notices.read(a_pdf(PDF_LINES))) is None
+
+
+def test_a_pdf_with_no_extractable_text_is_refused(model):
+    model(reply())
+
+    assert run(notices.read(b"%PDF-1.4\nnot really a pdf\n")) is None

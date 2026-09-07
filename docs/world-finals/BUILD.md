@@ -489,6 +489,12 @@ the same PDF so the demo never depends on mail delivery.
 **Test** a PCN sent to the mailbox starts a run within one poll; a gate produces a delivered
 email; the POST path produces an identical run.
 
+**Verified live**, on a running server against the real model, with a hand-built PDF: every
+field read back with its quoted line, and exactly the three product lines carrying the part
+returned out of four. `tests/test_notices.py` builds that PDF without a library — the project
+has no PDF *writer* and should not gain a dependency to test a reader — because every other
+test in the file feeds plain text, which left the branch that actually matters unexercised.
+
 **Built:** `continuity/notices.py` reads a PCN — PDF or plain text — under the same
 claim-and-verify discipline as the datasheet extractor: every value comes back with the line
 it was read from, and a line the document does not contain is refused. That check has teeth.
@@ -503,7 +509,7 @@ not a citation — and answers the question a notice raises and never answers: w
 products we ship carry this part. That is `lines_exposed_to`, the b-tree probe item 10b made
 the BOM a table for.
 
-**Blocked, and it needs a decision:** IMAP polling in and SMTP out both need mailbox
+**Deferred by decision, 8 Sep** — see DEFERRED. IMAP polling in and SMTP out both need mailbox
 credentials this project does not have. Nothing about them is hard — the reader and the store
 are transport-agnostic and a poller is a loop around `notices.read` — but inventing a mail
 account is not mine to do. BUILD already wanted the POST path *"so the demo never depends on
