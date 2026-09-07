@@ -190,3 +190,66 @@ def test_a_request_serialises_whole():
     }
     assert body["not_assessed"], "the coverage boundaries survive serialisation"
     assert body["cost"]["one_time_basis"]
+
+
+# ── precedents: what was decided before ───────────────────────────────────────
+
+
+def test_a_candidate_this_board_ruled_out_is_never_proposed_again():
+    """BUILD item 15a's first test, and the half that was missing.
+
+    Without it a part ruled out on Monday is proposed again on Tuesday, and the person
+    reading the second request has to remember the first. That is the failure memory
+    exists to remove.
+    """
+    matrix = demo_matrix()
+
+    without = change.for_line(matrix, "A", notice_mpn=AMS1117.mpn, prefer=[NCP1117.mpn])
+    withheld = change.for_line(
+        matrix,
+        "A",
+        notice_mpn=AMS1117.mpn,
+        prefer=[NCP1117.mpn],
+        excluded={NCP1117.mpn: "Rejected here in March: cost the enclosure its thermal margin."},
+    )
+
+    assert without.proposal == NCP1117.mpn, "it would otherwise have been chosen"
+    assert withheld.proposal != NCP1117.mpn
+    assert withheld.viable, "ruling one out must not rule out the rest"
+
+
+def test_a_part_ruled_out_still_appears_with_the_reason_it_was_ruled_out():
+    """Dropping it silently would make the document look as though it was never considered."""
+    request = change.for_line(
+        demo_matrix(),
+        "A",
+        notice_mpn=AMS1117.mpn,
+        prefer=[NCP1117.mpn],
+        excluded={NCP1117.mpn: "Rejected here in March: cost the enclosure its thermal margin."},
+    )
+
+    listed = {a.mpn: a.rejected_because for a in request.alternatives}
+
+    assert NCP1117.mpn in listed
+    assert "Rejected here in March" in listed[NCP1117.mpn]
+
+
+def test_a_rejection_on_one_board_does_not_reach_another():
+    """A part that cooks the gateway says nothing about a line running 20 °C cooler.
+
+    `for_every_line` takes exclusions keyed by line for exactly this reason: a rejection
+    that spread across every board would remove candidates nobody had ever checked there.
+    """
+    produced = change.for_every_line(
+        demo_matrix(),
+        notice_mpn=AMS1117.mpn,
+        lines={},
+        prefer=[NCP1117.mpn],
+        excluded={"B": {NCP1117.mpn: "Cooked the gateway."}},
+    )
+
+    by_line = {r.line_id: r for r in produced}
+
+    assert by_line["A"].proposal == NCP1117.mpn, "the sensor node never rejected it"
+    assert by_line["C"].proposal == NCP1117.mpn
+    assert by_line["B"].proposal != NCP1117.mpn

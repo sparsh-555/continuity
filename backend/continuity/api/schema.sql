@@ -370,3 +370,26 @@ CREATE TABLE IF NOT EXISTS change_requests (
 
 CREATE INDEX IF NOT EXISTS change_requests_org_idx ON change_requests(org_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS change_requests_notice_idx ON change_requests(notice_id);
+
+-- Added 8 Sep 2026. What was decided before, so the next notice does not re-litigate it.
+--
+-- Both directions, and they are not symmetrical. A **rejection** is scoped to the board it
+-- happened on and blocks only that board: NCP1117 cooking the gateway says nothing about
+-- the sensor node, which runs 20 °C cooler on half the current. A **success** is evidence
+-- anywhere in the company — a part already qualified on one line is the cheap answer on
+-- the next, which is the entire gap between roughly $1,281 and $15,656 per resolution.
+--
+-- Keyed by conflict *signature* rather than by rule alone: the signature is engine-owned
+-- categorical tokens, so it matches the shape of a problem rather than its wording.
+CREATE TABLE IF NOT EXISTS precedents (
+    org_id      text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    line_id     text NOT NULL REFERENCES product_lines(id) ON DELETE CASCADE,
+    signature   text NOT NULL,
+    mpn         text NOT NULL,
+    outcome     text NOT NULL CHECK (outcome IN ('worked', 'rejected')),
+    detail      text,
+    recorded_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (org_id, line_id, signature, mpn)
+);
+
+CREATE INDEX IF NOT EXISTS precedents_lookup_idx ON precedents(org_id, signature, outcome);

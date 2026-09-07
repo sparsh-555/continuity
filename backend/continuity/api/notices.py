@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -31,10 +32,14 @@ from .auth import current_user, store_of
 from . import matrix as matrix_api
 from .store import User
 from .. import change, notices as reader
+from ..engine import situation
 from ..engine.models import PartSpec
+from ..parts import categories
 from ..matrix import evaluate_matrix
 from ..parts import normalize
 from ..profile import OperatingProfile, board_from
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notices", tags=["notices"])
 
@@ -227,7 +232,17 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
             "name one with `slot`",
         )
 
-    matrix = evaluate_matrix(boards, candidates, slots.pop())
+    slot_id = slots.pop()
+    matrix = evaluate_matrix(boards, candidates, slot_id)
+
+    # What this company already knows, before proposing anything. A rejection is scoped to
+    # the board it happened on: a part that cooked the gateway says nothing about the
+    # sensor node, and a rejection that spread everywhere would remove candidates nobody
+    # had ever checked there.
+    ruled_out = {
+        line_id: await store.rejected_on(user.org_id, line_id) for line_id in per_line
+    }
+    await _remember(store, user.org_id, matrix, slot_id, ruled_out)
     requests = change.for_every_line(
         matrix,
         notice_mpn=notice["mpn"],
@@ -238,6 +253,10 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
         # The manufacturer's own recommendation is tried first, so a request that departs
         # from it has visibly departed from it rather than never considered it.
         prefer=[notice["replacement_mpn"]] if notice["replacement_mpn"] else [],
+        # Never re-propose what this board already ruled out. The candidate still appears
+        # among the alternatives carrying the reason it was rejected, because a document
+        # that silently dropped it would look like it had never been considered.
+        excluded={line_id: dict(entries) for line_id, entries in ruled_out.items()},
     )
 
     ids = await store.save_change_requests(user.org_id, user.id, notice["id"], requests)
@@ -265,3 +284,62 @@ async def list_requests(
 
 async def _facts_for(store: Any, mpn: str) -> list[dict[str, Any]]:
     return (await store.part_facts([mpn])).get(mpn, [])
+
+
+def _signature_for(cell, slot_id: str) -> str | None:
+    """The shape of what went wrong in this cell, for a precedent to be keyed on."""
+    failures = cell.failures
+    if not failures:
+        return None
+    part = cell.candidate
+    return situation.signature(
+        failures[0],
+        _board_of(cell, slot_id),
+        category=categories.canonical(part.category),
+    )
+
+
+def _board_of(cell, slot_id: str):
+    """`situation.signature` reads the conflicting slot's part off a board."""
+    from ..engine.models import Board, Slot
+
+    return Board(
+        requirements=None,
+        slots={slot_id: Slot(slot_id, slot_id, "power", part=cell.candidate)},
+        rails={},
+    )
+
+
+async def _remember(store, org_id: str, matrix, slot_id: str, ruled_out) -> None:
+    """Record what this review learned, both ways.
+
+    Rejections matter as much as successes and are the half that was missing: without them
+    a candidate ruled out on Monday is proposed again on Tuesday, and the person reading
+    the second request has to remember the first.
+    """
+    for line_id in matrix.lines:
+        entries = []
+        for cell in matrix.cells:
+            if cell.line_id != line_id or cell.is_incumbent:
+                continue
+            signature = _signature_for(cell, slot_id)
+            if cell.ok:
+                # A success is keyed on the shape of the problem it solved, which a passing
+                # cell does not have — so it is recorded against the incumbent's conflict
+                # only when the review actually chose it. Nothing to key on, nothing stored.
+                continue
+            if signature is None:
+                continue
+            entries.append(
+                {
+                    "signature": signature,
+                    "mpn": cell.candidate.mpn,
+                    "outcome": "rejected",
+                    "detail": cell.failures[0].detail,
+                }
+            )
+        try:
+            await store.record_precedents(org_id, line_id, entries)
+        except Exception:
+            # Memory is a convenience. Losing it must never cost the review that produced it.
+            log.warning("could not record precedents for %s", line_id, exc_info=True)

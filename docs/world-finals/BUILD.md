@@ -555,7 +555,7 @@ has visibly departed rather than never considered it — and on the gateway it d
 
 # Phase 4 · Demo assets
 
-## 15a · Precedents
+## 15a · Precedents — **PARTLY DONE**
 
 Missing from every document until now, and it carries a business argument: per the DoD
 metrics, resolving an EOL with an **already approved** part costs about $1,281 against roughly
@@ -570,6 +570,27 @@ as much as resolutions — they stop a candidate already ruled out being propose
 
 **Test** a candidate rejected on line C for thermal is not re-proposed for line C on a second
 notice; a part approved on line A surfaces as precedent when line B hits the same signature.
+
+**Rejections are built**, and they were the missing half. A `precedents` table records both
+outcomes against the conflict *signature*, and the two are deliberately asymmetric: a
+**rejection is scoped to the board it happened on**, because a part that cooks the gateway
+says nothing about a line running 20 °C cooler on half the current, while a **success is
+evidence anywhere in the company** — already qualified on one product is the cheap answer on
+the next, which is the entire distance between $1,281 a resolution and $15,656.
+
+A ruled-out candidate is never proposed again and still appears among the alternatives
+carrying the reason. Dropping it in silence would make the document read as though it had
+never been considered, which is the first question its reader would ask. Verified end to end:
+two reviews of one notice, the second declining the recommendation the first learned cooks
+the gateway.
+
+**Not built: the success half does not reach the reviewer's precedent lookup yet.**
+`worked_anywhere` exists and `graph/nodes.py` still calls `precedents_for_user`, which reads
+`findings` rather than this table — so a part approved on line A does not yet surface when
+line B hits the same signature. The reads are one line apart; what is missing is *writing* a
+`worked` precedent, which needs the point where a substitution is actually accepted rather
+than merely proposed. That is the approval flow, and it belongs with item 16's seeded world
+where a full run can be driven end to end.
 
 ---
 

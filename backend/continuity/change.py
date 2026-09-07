@@ -196,6 +196,7 @@ def for_line(
     annual_volume: int | None = None,
     approved_mpns: Sequence[str] | None = None,
     prefer: Sequence[str] = (),
+    excluded: Mapping[str, str] | None = None,
 ) -> ChangeRequest:
     """One line's change request, out of the matrix that was already computed.
 
@@ -204,6 +205,11 @@ def for_line(
     twelve times its qualification cost, so preference is a real input rather than a tie
     break. A line where nothing survives yields a request with no proposal, which is the
     finding rather than an absence of one.
+
+    `excluded` is what this board already ruled out, mpn to the reason. Such a part is
+    never proposed again, and still appears among the alternatives carrying that reason —
+    dropping it silently would make the document look as though it had never been
+    considered, which is exactly the question its reader would ask next.
     """
     cells = [cell for cell in matrix.cells if cell.line_id == line_id]
     if not cells:
@@ -212,9 +218,10 @@ def for_line(
     baseline = next((cell for cell in cells if cell.is_incumbent), None)
     candidates = [cell for cell in cells if not cell.is_incumbent]
 
+    ruled_out = dict(excluded or {})
     order = {mpn: index for index, mpn in enumerate(prefer)}
     viable = sorted(
-        (cell for cell in candidates if cell.ok),
+        (cell for cell in candidates if cell.ok and cell.candidate.mpn not in ruled_out),
         key=lambda cell: (order.get(cell.candidate.mpn, len(order)), cell.candidate.mpn),
     )
     chosen = viable[0] if viable else None
@@ -222,7 +229,11 @@ def for_line(
     alternatives = tuple(
         Alternative(
             mpn=cell.candidate.mpn,
-            rejected_because=cell.failures[0].detail if cell.failures else None,
+            rejected_because=(
+                cell.failures[0].detail
+                if cell.failures
+                else ruled_out.get(cell.candidate.mpn)
+            ),
         )
         for cell in candidates
         if chosen is None or cell.candidate.mpn != chosen.candidate.mpn
@@ -275,7 +286,12 @@ def for_line(
 
 
 def for_every_line(
-    matrix: Matrix, *, notice_mpn: str, lines: Mapping[str, Mapping[str, Any]], **shared: Any
+    matrix: Matrix,
+    *,
+    notice_mpn: str,
+    lines: Mapping[str, Mapping[str, Any]],
+    excluded: Mapping[str, Mapping[str, str]] | None = None,
+    **shared: Any,
 ) -> tuple[ChangeRequest, ...]:
     """One request per affected line, in the matrix's own row order.
 
@@ -284,6 +300,12 @@ def for_every_line(
     reason any of this exists.
     """
     return tuple(
-        for_line(matrix, line_id, notice_mpn=notice_mpn, **{**shared, **dict(lines.get(line_id, {}))})
+        for_line(
+            matrix,
+            line_id,
+            notice_mpn=notice_mpn,
+            excluded=(excluded or {}).get(line_id),
+            **{**shared, **dict(lines.get(line_id, {}))},
+        )
         for line_id in matrix.lines
     )

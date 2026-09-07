@@ -1118,3 +1118,74 @@ def test_approvals_do_not_cross_organisations():
             return await store.approvals_for_thread("t-3", theirs.org_id)
 
     assert run(go()) == []
+
+
+# ── precedents ────────────────────────────────────────────────────────────────
+
+
+def test_a_rejection_is_scoped_to_its_board_and_a_success_is_not():
+    """BUILD item 15a's asymmetry, and it is physical rather than a convention.
+
+    A part that cooks the gateway says nothing about a line running 20 °C cooler on half
+    the current, so a rejection blocks only the board it happened on. A part that *worked*
+    is evidence anywhere in the company — already qualified on one product is the cheap
+    answer on the next, which is the whole distance between roughly $1,281 a resolution and
+    $15,656.
+    """
+    async def go():
+        async with fresh() as store:
+            user = await a_user(store)
+            gateway = await store.create_line(user.id, user.org_id, "Gateway")
+            sensor = await store.create_line(user.id, user.org_id, "Sensor node")
+
+            await store.record_precedents(user.org_id, gateway.id, [
+                {"signature": "thermal:ldo", "mpn": "NCP1117", "outcome": "rejected",
+                 "detail": "159 °C against a 150 °C limit."},
+                {"signature": "thermal:ldo", "mpn": "LD1117", "outcome": "worked"},
+            ])
+
+            return (
+                await store.rejected_on(user.org_id, gateway.id),
+                await store.rejected_on(user.org_id, sensor.id),
+                await store.worked_anywhere(user.org_id, "thermal:ldo"),
+            )
+
+    on_gateway, on_sensor, worked = run(go())
+
+    assert "NCP1117" in on_gateway and "159 °C" in on_gateway["NCP1117"]
+    assert on_sensor == {}, "a rejection must not reach a board it never happened on"
+
+    assert [row["mpn"] for row in worked] == ["LD1117"]
+    assert worked[0]["line_name"] == "Gateway", "and it says which board earned it"
+
+
+def test_a_precedent_is_one_current_fact_rather_than_a_history():
+    """Upserted: what the next notice needs is the answer, not a record of it changing."""
+    async def go():
+        async with fresh() as store:
+            user = await a_user(store)
+            line = await store.create_line(user.id, user.org_id, "Gateway")
+            for detail in ("first look", "second look, still no"):
+                await store.record_precedents(user.org_id, line.id, [
+                    {"signature": "thermal:ldo", "mpn": "NCP1117",
+                     "outcome": "rejected", "detail": detail},
+                ])
+            return await store.rejected_on(user.org_id, line.id)
+
+    rejected = run(go())
+
+    assert rejected == {"NCP1117": "second look, still no"}
+
+
+def test_precedents_do_not_cross_organisations():
+    async def go():
+        async with fresh() as store:
+            ours = await a_user(store, "ours@example.com")
+            theirs = await a_user(store, "theirs@example.com")
+            line = await store.create_line(ours.id, ours.org_id, "Gateway")
+            await store.record_precedents(ours.org_id, line.id, [
+                {"signature": "thermal:ldo", "mpn": "NCP1117", "outcome": "worked"},
+            ])
+            return await store.worked_anywhere(theirs.org_id, "thermal:ldo")
+
+    assert run(go()) == []

@@ -1103,6 +1103,75 @@ class Store:
             )
             return await cursor.fetchall()
 
+    # ── precedents ───────────────────────────────────────────────────────────
+
+    async def record_precedents(
+        self, org_id: str, line_id: str, entries: Sequence[Mapping[str, Any]]
+    ) -> None:
+        """What worked and what did not, against the conflict shape it applied to.
+
+        Upserted rather than appended: the current answer for a part on a board is one
+        fact, and a history of it changing its mind is not what the next notice needs.
+        """
+        if not entries:
+            return
+        async with self.pool.connection() as conn:
+            cursor = conn.cursor()
+            await cursor.executemany(
+                """
+                INSERT INTO precedents (org_id, line_id, signature, mpn, outcome, detail)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (org_id, line_id, signature, mpn) DO UPDATE
+                   SET outcome = EXCLUDED.outcome,
+                       detail = EXCLUDED.detail,
+                       recorded_at = now()
+                """,
+                [
+                    (
+                        org_id, line_id, entry["signature"], entry["mpn"],
+                        entry["outcome"], entry.get("detail"),
+                    )
+                    for entry in entries
+                ],
+            )
+
+    async def rejected_on(self, org_id: str, line_id: str) -> dict[str, str]:
+        """MPNs already ruled out **on this board**, and the sentence that ruled each out.
+
+        Scoped to the line on purpose. A part that cooks one product says nothing about a
+        cooler one, and a rejection that spread across every board would remove candidates
+        nobody had ever checked there.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT mpn, detail FROM precedents
+                 WHERE org_id = %s AND line_id = %s AND outcome = 'rejected'
+                """,
+                (org_id, line_id),
+            )
+            return {row["mpn"]: row["detail"] or "" for row in await cursor.fetchall()}
+
+    async def worked_anywhere(self, org_id: str, signature: str) -> list[dict[str, Any]]:
+        """Parts that resolved this conflict shape anywhere in the company.
+
+        Not scoped to a line, and that asymmetry is the point: a part already qualified on
+        one product is the cheap answer on the next, which is the whole distance between
+        resolving an end-of-life with an approved part and qualifying one from scratch.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT p.mpn, p.line_id, l.name AS line_name, p.detail, p.recorded_at
+                  FROM precedents p
+                  JOIN product_lines l ON l.id = p.line_id
+                 WHERE p.org_id = %s AND p.signature = %s AND p.outcome = 'worked'
+              ORDER BY p.recorded_at DESC
+                """,
+                (org_id, signature),
+            )
+            return await cursor.fetchall()
+
     async def save_part_facts(
         self, facts: Iterable[tuple[str, str, str, str | None]]
     ) -> None:

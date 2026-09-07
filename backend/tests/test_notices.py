@@ -564,3 +564,105 @@ def test_an_older_notice_can_still_be_reviewed(model):
 
     assert found is not None, "a notice older than one page became unreachable"
     assert found["mpn"] == "AMS1117-3.3"
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_a_second_notice_does_not_re_propose_what_the_first_ruled_out(model, monkeypatch):
+    """BUILD item 15a, end to end: the review remembers, so the reader does not have to.
+
+    Two reviews of the same notice. The first learns that the manufacturer's own
+    recommendation cooks the gateway; the second must not put it back in front of the same
+    person — while still listing it, with the reason, so the document does not look as
+    though it was never considered.
+    """
+    from continuity.api import matrix as matrix_api
+    from tools.eol_differential import (
+        AMS1117, LD1117, LINES, NCP1117, OUTPUT_CAPACITOR, TLV1117,
+    )
+
+    specs = {
+        part.mpn: part
+        for part in (AMS1117, TLV1117, LD1117, NCP1117, OUTPUT_CAPACITOR,
+                     *(line.load_part for line in LINES))
+    }
+
+    async def resolve(mpn: str):
+        return specs.get(mpn)
+
+    monkeypatch.setattr(matrix_api, "resolve", resolve)
+    model(reply())
+
+    gateway = next(line for line in LINES if line.id == "B")
+
+    async def go():
+        async with a_store() as store:
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=60.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "memory@example.com", "password": "a-good-password"},
+                )
+                me = (await http.get("/auth/me")).json()
+                created = (await http.post("/lines", json={"name": gateway.label})).json()
+                await http.put(
+                    f"/lines/{created['id']}/bom",
+                    json={
+                        "rows": [
+                            {"refdes": "u1", "mpn": AMS1117.mpn},
+                            {"refdes": "u2", "mpn": gateway.load_part.mpn},
+                            {"refdes": "c1", "mpn": OUTPUT_CAPACITOR.mpn},
+                        ]
+                    },
+                )
+                await http.put(
+                    f"/lines/{created['id']}/profile",
+                    json={
+                        "revision": "C",
+                        "profile": {
+                            "ambient_c": gateway.ambient_c,
+                            "ambient_source": gateway.ambient_basis,
+                            "mounting": "1000 mm² copper",
+                            "rails": {
+                                "vin": {
+                                    "voltage": gateway.input_voltage,
+                                    "i_limit": gateway.input_limit,
+                                    "basis": gateway.input_basis,
+                                    "members": ["u1"],
+                                },
+                                "3v3": {
+                                    "source": "u1", "members": ["u2", "c1"],
+                                    "i_load": gateway.load,
+                                    "i_load_basis": gateway.load_basis,
+                                },
+                            },
+                        },
+                    },
+                )
+
+                notice = (
+                    await http.post(
+                        "/notices",
+                        json={"document": base64.b64encode(PCN.encode()).decode()},
+                    )
+                ).json()
+
+                body = {"candidates": [NCP1117.mpn, LD1117.mpn]}
+                first = (await http.post(f"/notices/{notice['id']}/review", json=body)).json()
+                remembered = await store.rejected_on(me["org_id"], created["id"])
+                second = (await http.post(f"/notices/{notice['id']}/review", json=body)).json()
+                return first, remembered, second
+
+    first, remembered, second = run(go())
+
+    [first_request] = first["requests"]
+    [second_request] = second["requests"]
+
+    assert first_request["proposal"] != NCP1117.mpn, "it cooks the gateway on the first look"
+    assert NCP1117.mpn in remembered, "the rejection was never written down"
+    assert "159 °C" in remembered[NCP1117.mpn]
+
+    assert second_request["proposal"] != NCP1117.mpn
+    listed = {a["mpn"]: a["rejected_because"] for a in second_request["alternatives"]}
+    assert NCP1117.mpn in listed, "a part dropped in silence looks like one never considered"
+    assert listed[NCP1117.mpn]
