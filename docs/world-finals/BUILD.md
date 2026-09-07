@@ -270,15 +270,22 @@ because TI also names X5R and X7R explicitly. AMS1117's *"22 µF solid tantalum"
 same ceramic is a **dielectric the datasheet does not address**, so it reports evidence missing
 rather than either a pass or a fail — the datasheet recommends a type, it does not rule one out.
 
-## 9 · Repair vocabulary
+## 9 · Repair vocabulary — **done, and narrowed**
 
-**Files** `reviewer.py`
+`theta_ja_max` shipped. `p_dis_min` and `approved_only` did not, because neither has a
+consumer: item 6 was not built, and the AML/AVL policy layer arrives at item 13. A constraint
+key the model may emit and nothing reads is worse than no key — it is accepted, ignored, and
+looks like it worked, which is exactly how `vout` sat in the vocabulary being silently dropped.
 
-**Done when** `CONSTRAINT_FIELDS` can express what the new rules check: `theta_ja_max` so a
-thermal repair can demand a better-cooling package class rather than naming one exact package,
-`p_dis_min`, and `approved_only`.
+**Done when** a thermal repair asks for a ceiling rather than a package. `theta_ja_max` is in
+`CONSTRAINT_FIELDS`, accumulates across repairs because the board still has to shed the heat
+after a topology change, and is filtered locally in `sourcing._survives` against the package
+table — θJA is not a distributor parameter and never will be. A package the table does not
+know is kept, because "cannot tell" must not become "no".
 
-**Test** a repair demanding `theta_ja_max` reaches the search and narrows the shortlist.
+The prompt teaches the arithmetic, `(limit − ambient) / watts`, since the evidence already
+carries all three, and warns that a replacement must fit the land pattern it inherits now that
+item 7 refuses one that does not.
 
 ---
 

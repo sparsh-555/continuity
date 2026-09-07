@@ -81,3 +81,8 @@ def duration(hours: float) -> str:
 
     years = num(days / 365.25)
     return f"{years} year{'' if years == '1' else 's'}"
+
+
+def microfarads(value: float) -> str:
+    """Capacitance as a board reads it — 0.1 µF and 22 µF, not 1e-07 F."""
+    return f"{value:g} µF"

@@ -44,6 +44,7 @@ RULE_NAMES = (
     "availability",
     "footprint",
     "footprint_compatibility",
+    "capacitor_requirements",
     "temperature_rating",
     "energy_budget",
     "rail_coverage",
@@ -227,6 +228,35 @@ class PartSpec:
     efficiency: float | None = None
     temp_min: float | None = None
     temp_max: float | None = None
+
+    capacitance_uf: float | None = None
+    """What a capacitor is, in microfarads. `None` on everything that is not one."""
+
+    dielectric: str | None = None
+    """X5R, X7R, C0G, tantalum. The distributor states it as a temperature coefficient."""
+
+    cout_min_uf: float | None = None
+    """Minimum *effective* output capacitance a regulator states it needs to be stable.
+
+    Effective, not nominal: a 22 µF X5R part at its rated voltage can be a long way under
+    its marking, and TI says so outright — "effective output capacitance that takes bias,
+    temperature, and aging effects into consideration". We compare against the nominal
+    because that is what a BOM carries, and the gap is one more thing the verdict does not
+    claim to have checked.
+    """
+
+    cout_dielectrics: tuple[str, ...] = ()
+    """Dielectrics the datasheet *requires*. Empty means it named none, not that any will do.
+
+    The distinction decides a verdict. TI requires X5R or X7R for the TLV1117LV, so a
+    different dielectric is a stated conflict. AMS says 22 µF solid tantalum "will ensure
+    stability" — a recommendation, not a prohibition — so a ceramic there is a question the
+    datasheet does not answer rather than a violation, and the rule must not call it one.
+    """
+
+    cout_source_line: str | None = None
+    """The sentence the capacitor requirement was read from, for the evidence row."""
+
     t_j_max: float | None = None
     """Maximum junction temperature, where a part states one apart from its grade.
 

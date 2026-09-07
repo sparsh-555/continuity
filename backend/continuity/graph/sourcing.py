@@ -92,7 +92,7 @@ rather than a Topology value, and `switching` is a family, not a parameter value
 """
 
 
-LOCAL_ONLY = ("vin_min", "vout", "rated_to", "rated_from", "category")
+LOCAL_ONLY = ("vin_min", "vout", "rated_to", "rated_from", "category", "theta_ja_max")
 """Constraints the distributor's filters cannot express, applied by `viable()` instead.
 
 `vin_min`, `vout`, and `rated_to` compare against the *ends of a range* held in one
@@ -377,6 +377,16 @@ def _survives(candidate: Candidate, constraint: Mapping[str, Any]) -> bool:
     """
     if categories.satisfies(constraint.get("category"), candidate.category) is False:
         return False
+
+    # θJA is not a distributor parameter and never will be, so this one is answered from
+    # the package table rather than from the payload. A package we have no entry for is
+    # kept: "cannot tell" must not become "no", which is the rule the docstring above
+    # states and the reason a thermal repair widens the shortlist rather than emptying it.
+    ceiling = constraint.get("theta_ja_max")
+    if isinstance(ceiling, (int, float)):
+        theta = packages.theta_ja(candidate.package)
+        if theta is not None and theta > float(ceiling):
+            return False
 
     checks = (
         (constraint.get("vin_min"), payload.accepts_input),

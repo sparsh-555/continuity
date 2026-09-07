@@ -357,3 +357,21 @@ def test_an_adjustable_parts_range_is_visible_not_just_its_setpoint():
     described = reviewer._describe(board, conflict, resolution, {})
 
     assert "37" in described
+
+
+def test_a_thermal_repair_asks_for_a_ceiling_not_a_package():
+    """`theta_ja_max` is in the vocabulary and the prompt teaches the arithmetic for it.
+
+    Naming one package is what the model reached for before this existed, and it is a
+    worse instruction in both directions: it rules out every other package that would
+    also work, and it records no reason. The requirement is how cool the part has to run.
+    """
+    assert reviewer.CONSTRAINT_FIELDS["theta_ja_max"] is float
+    assert "theta_ja_max" in reviewer.SYSTEM
+    assert "(limit - ambient) / watts" in reviewer.SYSTEM
+
+
+def test_a_thermal_ceiling_survives_a_later_topology_change():
+    """It is a board requirement, not a part identity — the board still has to shed the heat."""
+    assert "theta_ja_max" in reviewer.ACCUMULATING_CONSTRAINT_FIELDS
+    assert "theta_ja_max" not in reviewer.REPLACED_CONSTRAINT_FIELDS

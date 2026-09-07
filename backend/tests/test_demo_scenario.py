@@ -241,7 +241,14 @@ def test_the_board_goes_green():
     verdicts = rules.evaluate(board)
 
     assert rules.failures(verdicts) == []
-    assert [v.status for v in verdicts if v.status == "evidence_missing"] == []
+
+    # Green means nothing failed, not that everything was checkable. These boards carry a
+    # regulator and its loads and no passives, so R11 has no output capacitor to inspect
+    # and the parts publish no requirement to inspect it against — which is a coverage gap
+    # rather than a defect, and naming it is the whole point of having five labels instead
+    # of three. Anything else arriving here is a real regression.
+    unchecked = sorted({v.rule for v in verdicts if v.status == "evidence_missing"})
+    assert unchecked == ["capacitor_requirements"]
 
 
 def test_one_loop_handles_a_sourcing_failure_and_an_electrical_one_identically():

@@ -1143,6 +1143,136 @@ def _check_availability(board: Board, slot_id: str, part: PartSpec) -> Verdict:
 # ── R7 · temperature_rating ──────────────────────────────────────────────────
 
 
+# ── R11 · capacitor_requirements ──────────────────────────────────────────────
+
+
+def capacitor_requirements(board: Board) -> list[Verdict]:
+    """Does the output capacitor on this rail conflict with what the regulator requires?
+
+    Named by the research as the first thing a hardware engineer attacks on an LDO
+    substitution, and the four datasheets behind the demo disagree with each other, which
+    is the point: TI requires ≥1.0 µF ceramic in X5R or X7R for the TLV1117LV and says the
+    part is stable with no ESR at all, AMS asks for 22 µF solid tantalum, and NCP1117 and
+    LD1117 characterise at 10 µF. A substitute that inherits the board's existing capacitor
+    inherits a decision made for a different part.
+
+    **This does not assess stability, and must never appear to.** Proving a regulator is
+    stable with a given capacitor needs simulation, and that boundary is declared in
+    `NOT_ASSESSED` where a reader can see it. What is checkable without simulation is an
+    explicit conflict with a *published* requirement, which is a narrower claim and a real
+    one — it turns the question from "not assessed" into an answer for the cases where a
+    datasheet actually stated something.
+
+    The asymmetry between "required" and "recommended" decides verdicts here, so the model
+    keeps them apart: `cout_dielectrics` holds what a datasheet *requires*, and a
+    recommendation that a different type "will ensure stability" leaves it empty. A ceramic
+    where AMS suggested tantalum is a question its datasheet does not answer. A ceramic
+    outside TI's stated X5R/X7R is a violation of one it does.
+    """
+    verdicts: list[Verdict] = []
+    for rail in board.rails.values():
+        if not rail.source or not board.placed(rail.source):
+            continue
+        verdicts.append(_check_output_capacitors(board, rail))
+    return verdicts or [
+        _not_applicable(
+            "capacitor_requirements",
+            board,
+            "No rail on this board is fed by a regulator, so there is no output capacitor to check.",
+        )
+    ]
+
+
+def _check_output_capacitors(board: Board, rail: Rail) -> Verdict:
+    subject = rail.source
+    regulator = board.part(subject)  # type: ignore[arg-type]
+    capacitors = [
+        (slot_id, part)
+        for slot_id in rail.members
+        if (part := board.part(slot_id)) is not None and part.capacitance_uf is not None
+    ]
+    involved = (subject, *(slot_id for slot_id, _ in capacitors))
+
+    def verdict(status: str, detail: str, extra: tuple[Evidence, ...] = ()) -> Verdict:
+        return Verdict(
+            rule="capacitor_requirements",
+            scope=rail.id,
+            status=status,
+            detail=detail,
+            subject=subject,  # type: ignore[arg-type]
+            involved=involved,
+            evidence=extra,
+        )
+
+    if regulator.cout_min_uf is None and not regulator.cout_dielectrics:
+        return verdict(
+            "evidence_missing",
+            f"{regulator.mpn} publishes no output-capacitor requirement, so whether "
+            f"{rail.id}'s capacitor suits it could not be checked.",
+        )
+
+    requirement = Evidence(
+        subject,  # type: ignore[arg-type]
+        "output capacitor required",
+        _requirement_text(regulator),
+        regulator.cout_source_line or regulator.datasheet,
+    )
+
+    if not capacitors:
+        return verdict(
+            "evidence_missing",
+            f"{regulator.mpn} requires {_requirement_text(regulator)} on {rail.id}, and no "
+            f"capacitor is modelled there — absent from the board and absent from our model "
+            f"look the same from here.",
+            (requirement,),
+        )
+
+    total = sum(part.capacitance_uf or 0.0 for _, part in capacitors)
+    fitted = tuple(
+        Evidence(slot_id, "capacitance", fmt.microfarads(part.capacitance_uf), part.product_url)
+        for slot_id, part in capacitors
+    )[:MAX_EVIDENCE_ROWS]
+
+    if regulator.cout_min_uf is not None and total < regulator.cout_min_uf:
+        return verdict(
+            "failed",
+            f"{rail.id} carries {fmt.microfarads(total)} where {regulator.mpn} requires at "
+            f"least {fmt.microfarads(regulator.cout_min_uf)}.",
+            (requirement, *fitted),
+        )
+
+    wrong = [
+        (slot_id, part)
+        for slot_id, part in capacitors
+        if regulator.cout_dielectrics
+        and part.dielectric
+        and part.dielectric.upper() not in {d.upper() for d in regulator.cout_dielectrics}
+    ]
+    if wrong:
+        names = fmt.listing([f"{part.mpn} is {part.dielectric}" for _, part in wrong])
+        return verdict(
+            "failed",
+            f"{regulator.mpn} requires {fmt.listing(list(regulator.cout_dielectrics))}; {names}.",
+            (requirement, *fitted),
+        )
+
+    return verdict(
+        "satisfied",
+        f"{rail.id} carries {fmt.microfarads(total)}, meeting {regulator.mpn}'s stated "
+        f"{_requirement_text(regulator)}. Stability itself is not assessed.",
+        (requirement, *fitted),
+    )
+
+
+def _requirement_text(part: PartSpec) -> str:
+    pieces: list[str] = []
+    if part.cout_min_uf is not None:
+        pieces.append(f"at least {fmt.microfarads(part.cout_min_uf)}")
+    if part.cout_dielectrics:
+        pieces.append(fmt.listing(list(part.cout_dielectrics)))
+    return fmt.listing(pieces) if pieces else "no stated requirement"
+
+
 # ── R7b · footprint_compatibility ─────────────────────────────────────────────
 
 
@@ -1508,6 +1638,7 @@ RULES = (
     availability,
     footprint,
     footprint_compatibility,
+    capacitor_requirements,
     temperature_rating,
     energy_budget,
     # Last: it reports on the *absence* of the checks above rather than on the board.

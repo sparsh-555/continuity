@@ -31,6 +31,10 @@ AMS1117 = PartSpec(
     theta_ja_mounting=(
         "Table 1, 1000 mm² top and back copper on a 1000 mm² board, 1/16in FR-4, 1 oz foil"
     ),
+    # "22 µF solid tantalum on the output will ensure stability" — a recommendation of a
+    # type, not a prohibition of others, so `cout_dielectrics` stays empty on purpose.
+    cout_min_uf=22.0,
+    cout_source_line="The value of 22 µF tantalum covers all cases of bypassing the adjustment terminal",
     topology="ldo", stock=1_493_359, unit_price=0.2176, distributor="JLCPCB",
     datasheet="http://www.advanced-monolithic.com/pdf/ds1117.pdf",
     product_url="https://jlcpcb.com/partdetail/C6186",
@@ -45,6 +49,13 @@ TLV1117 = PartSpec(
     theta_ja=62.9,
     theta_ja_source_line="RθJA Junction-to-ambient thermal resistance 62.9 °C/W",
     theta_ja_mounting="TI thermal information, DCY (SOT-223) 4 pins",
+    # TI states a requirement rather than a preference, so a different dielectric here is
+    # a stated conflict and not an open question.
+    cout_min_uf=0.5, cout_dielectrics=("X5R", "X7R"),
+    cout_source_line=(
+        "Effective output capacitance that takes bias, temperature, and aging effects into "
+        "consideration must be greater than 0.5 μF"
+    ),
     topology="ldo", stock=3_416, unit_price=0.3345, distributor="JLCPCB",
     datasheet="https://www.ti.com/lit/ds/symlink/tlv1117lv.pdf",
     product_url="https://jlcpcb.com/partdetail/C15578",
@@ -61,6 +72,8 @@ LD1117 = PartSpec(
     theta_ja=110.0,
     theta_ja_source_line="RthJA Thermal resistance junction-ambient — SOT-223 110 °C/W",
     theta_ja_mounting="ST LD1117 Table 2, thermal data, SOT-223 column",
+    cout_min_uf=10.0,
+    cout_source_line="CO = 10 µF, in the electrical characteristics test conditions",
     topology="ldo", stock=41_254, unit_price=0.2429, distributor="JLCPCB",
     datasheet="https://www.st.com/resource/en/datasheet/ld1117.pdf",
     product_url="https://jlcpcb.com/partdetail/C86781",
@@ -76,6 +89,8 @@ NCP1117 = PartSpec(
     theta_ja=160.0,
     theta_ja_source_line="Thermal Resistance, Junction-to-Ambient, Minimum Size Pad — 160 °C/W",
     theta_ja_mounting="minimum size pad, Case 318H (SOT-223)",
+    cout_min_uf=10.0,
+    cout_source_line="Cin = 10 µF, Cout = 10 µF, in the electrical characteristics conditions",
     topology="ldo", stock=78_632, unit_price=0.2354, distributor="JLCPCB",
     datasheet="https://www.onsemi.com/pdf/datasheet/ncp1117-d.pdf",
     product_url="https://jlcpcb.com/partdetail/C26537",
@@ -86,7 +101,8 @@ OUTPUT_CAPACITOR = PartSpec(
     mpn="CL31A226KAHNNNE", manufacturer="Samsung Electro-Mechanics",
     description="22 µF ±10% 25 V X5R ceramic capacitor",
     category="Multilayer Ceramic Capacitors MLCC - SMD/SMT", package="1206", vmax=25.0,
-    temp_min=-55.0, temp_max=85.0, stock=1_473_130, unit_price=0.1725,
+    temp_min=-55.0, temp_max=85.0, capacitance_uf=22.0, dielectric="X5R",
+    stock=1_473_130, unit_price=0.1725,
     distributor="JLCPCB", product_url="https://jlcpcb.com/partdetail/C12891",
     provenance={"temp_min": EIA_RS_198, "temp_max": EIA_RS_198},
 )

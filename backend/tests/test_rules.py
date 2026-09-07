@@ -1900,3 +1900,88 @@ def test_an_unstated_package_cannot_be_matched():
     verdict = only(rules.footprint_compatibility(board), "footprint_compatibility", "regulator")
 
     assert verdict.status == "evidence_missing"
+
+
+# ── R11 · capacitor_requirements ──────────────────────────────────────────────
+
+
+def _rail_with_capacitor(regulator: PartSpec, capacitor: PartSpec | None):
+    board = usb_board(regulator=regulator, loads={"mcu": parts.esp32s3()})
+    if capacitor is None:
+        return board
+    slots = dict(board.slots)
+    slots["cout"] = slot("cout", capacitor)
+    rails = dict(board.rails)
+    rails[RAIL] = replace(rails[RAIL], members=(*rails[RAIL].members, "cout"))
+    return replace(board, slots=slots, rails=rails)
+
+
+def _capacitor(uf: float, dielectric: str = "X5R") -> PartSpec:
+    return PartSpec(
+        mpn="CL31A226KAHNNNE", manufacturer="Samsung", description="MLCC",
+        category="Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+        capacitance_uf=uf, dielectric=dielectric, vmax=25.0,
+    )
+
+
+def test_too_little_capacitance_against_a_stated_minimum_fails():
+    """TI states 0.5 µF effective for the TLV1117LV. 0.1 µF is a stated conflict."""
+    board = _rail_with_capacitor(parts.ap2112k(cout_min_uf=0.5), _capacitor(0.1))
+
+    verdict = only(rules.capacitor_requirements(board), "capacitor_requirements", "regulator", RAIL)
+
+    assert verdict.status == "failed"
+    assert "0.1 µF" in verdict.detail and "0.5 µF" in verdict.detail
+
+
+def test_a_dielectric_the_datasheet_requires_against_is_a_conflict():
+    board = _rail_with_capacitor(
+        parts.ap2112k(cout_min_uf=1.0, cout_dielectrics=("X5R", "X7R")),
+        _capacitor(10.0, dielectric="Y5V"),
+    )
+
+    verdict = only(rules.capacitor_requirements(board), "capacitor_requirements", "regulator", RAIL)
+
+    assert verdict.status == "failed"
+    assert "Y5V" in verdict.detail
+
+
+def test_a_dielectric_the_datasheet_merely_recommends_is_not_a_conflict():
+    """AMS asks for tantalum and does not forbid ceramic — that is a question, not a fault.
+
+    Keeping "required" and "recommended" apart is what stops the rule inventing a
+    violation out of a manufacturer's preference. `cout_dielectrics` is empty here on
+    purpose, and the ceramic passes on capacitance alone.
+    """
+    board = _rail_with_capacitor(parts.ap2112k(cout_min_uf=22.0), _capacitor(22.0))
+
+    verdict = only(rules.capacitor_requirements(board), "capacitor_requirements", "regulator", RAIL)
+
+    assert verdict.status == "satisfied"
+
+
+def test_a_satisfied_capacitor_check_still_disclaims_stability():
+    board = _rail_with_capacitor(parts.ap2112k(cout_min_uf=1.0), _capacitor(22.0))
+
+    verdict = only(rules.capacitor_requirements(board), "capacitor_requirements", "regulator", RAIL)
+
+    assert verdict.status == "satisfied"
+    assert "Stability itself is not assessed" in verdict.detail
+
+
+def test_an_unpublished_requirement_is_not_a_pass():
+    board = _rail_with_capacitor(parts.ap2112k(), _capacitor(22.0))
+
+    verdict = only(rules.capacitor_requirements(board), "capacitor_requirements", "regulator", RAIL)
+
+    assert verdict.status == "evidence_missing"
+
+
+def test_no_modelled_capacitor_is_not_a_missing_capacitor():
+    """Absent from the board and absent from our model look the same from here."""
+    board = _rail_with_capacitor(parts.ap2112k(cout_min_uf=10.0), None)
+
+    verdict = only(rules.capacitor_requirements(board), "capacitor_requirements", "regulator", RAIL)
+
+    assert verdict.status == "evidence_missing"
+    assert "no capacitor is modelled" in verdict.detail

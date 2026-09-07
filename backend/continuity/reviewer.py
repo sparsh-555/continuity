@@ -55,6 +55,7 @@ CONSTRAINT_FIELDS: dict[str, type] = {
     "vin_min": float,
     "rated_to": float,
     "rated_from": float,
+    "theta_ja_max": float,
     "package": str,
     "efficiency_min": float,
     "rail": str,
@@ -62,12 +63,19 @@ CONSTRAINT_FIELDS: dict[str, type] = {
 }
 """What a repair may demand of the next search. Anything else is dropped.
 
+`theta_ja_max` exists so a thermal repair can ask for a *better-cooling package class*
+rather than naming one exact package. Naming a package is what the model reached for
+before it had this, and it is a worse instruction in both directions: it rules out every
+other package that would also work, and it says nothing about why that one was chosen.
+"How cool does it have to run" is the requirement; which package delivers it is the
+search's problem.
+
 Deliberately narrow: each key has an implemented consumer in `sourcing` or `graph.apply`;
 anything else is dropped here where the reason is visible.
 """
 
 ACCUMULATING_CONSTRAINT_FIELDS = frozenset(
-    {"vout", "i_out_min", "vin_min", "rated_to", "rated_from", "efficiency_min"}
+    {"vout", "i_out_min", "vin_min", "rated_to", "rated_from", "efficiency_min", "theta_ja_max"}
 )
 """Constraint fields imposed by the board and therefore true across repairs.
 
@@ -149,6 +157,14 @@ and a lower junction temperature, so a better-cooling package is a legitimate sw
 change_topology only when no package in the family sheds enough heat, or the voltage
 drop itself is the problem — burning 8 V wants a switcher, not a bigger tab. A part that
 is merely too small is a swap.
+
+Ask for a thermal swap with `theta_ja_max`, not by naming a package. The evidence gives
+you the dissipation, the ambient and the junction limit, so the ceiling you need is
+(limit - ambient) / watts. Naming one package rules out every other one that would also
+work and says nothing about why.
+
+If the slot is replacing a part, the replacement has to fit the land pattern it leaves —
+a different footprint is a board revision, not a substitution, and it will be refused.
 
 For a slot with `must_supply_rail`, the part there has to make `must_supply_rail.volts`
 out of `input_voltage`. Compare those two numbers before anything else:
