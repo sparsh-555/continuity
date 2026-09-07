@@ -102,6 +102,11 @@ export type MatrixResponse = {
   departments: string[]
   /** Candidates the distributor has never heard of, named rather than dropped. */
   unresolved: string[]
+
+  /** Candidates listed by more than one manufacturer, keyed to an explanation. Distinct
+   *  from `unresolved`: "never heard of it" and "heard of it twice" are different answers,
+   *  and only the second one has an action attached — say which manufacturer you meant. */
+  ambiguous: Record<string, string>
   cells: MatrixCell[]
 }
 

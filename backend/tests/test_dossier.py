@@ -32,6 +32,7 @@ def test_facts_from_part_keeps_only_known_nonempty_part_properties():
         {
             "package", "theta_ja", "topology", "synchronous", "efficiency",
             "temp_min", "temp_max", "t_j_max",
+            "vmin", "vmax", "vout_min", "vout_max", "i_max",
         }
     )
     assert facts_from_part(part) == [
@@ -84,3 +85,34 @@ def test_a_listings_not_stated_placeholder_never_becomes_a_durable_fact():
         package="SOP-8",
     )
     assert ("HS91L02W2C01", "package", "SOP-8", None) in facts_from_part(stated)
+
+
+def test_a_verified_reading_is_marked_and_an_ordinary_one_is_not():
+    """`verified` is a claim about where a number came from, so only a caller who knows makes it."""
+    from continuity.parts.dossier import VERIFIED_PREFIX, facts_from_part
+
+    part = PartSpec(
+        mpn="TLV1117LV33DCYR",
+        manufacturer="Texas Instruments",
+        description="3.3 V LDO",
+        category="LDO",
+        vmax=5.5,
+        provenance={"vmax": "Recommended Operating Conditions: VIN 2 V to 5.5 V"},
+    )
+
+    plain = dict((field, source) for _, field, _, source in facts_from_part(part))
+    marked = dict((field, source) for _, field, _, source in facts_from_part(part, verified=True))
+
+    assert plain["vmax"] == "Recommended Operating Conditions: VIN 2 V to 5.5 V"
+    assert marked["vmax"].startswith(VERIFIED_PREFIX)
+    assert "2 V to 5.5 V" in marked["vmax"], "the quoted line travels with the marker"
+
+
+def test_only_engineering_fields_are_marked_verifiable():
+    """Stock, price and lifecycle are the listing's to state; a datasheet cannot know them."""
+    from continuity.parts.dossier import DOSSIER_FIELDS, ENGINEERING_FIELDS
+
+    assert "vmax" in ENGINEERING_FIELDS and "theta_ja" in ENGINEERING_FIELDS
+    for commercial in ("stock", "unit_price", "lifecycle", "lead_time_days", "distributor"):
+        assert commercial not in ENGINEERING_FIELDS
+        assert commercial not in DOSSIER_FIELDS, "a listing fact must not become durable"

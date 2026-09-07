@@ -428,14 +428,24 @@ Two things the browser found that the suite could not:
   junction temperatures. Honest — the evidence row said *"package table (per-package
   approximation, board unknown)"* — and useless for choosing between them.
 
-**Open, and it needs a decision:** JLCPCB lists `TLV1117LV33DCYR` at *Voltage - Supply 12V*;
-TI's datasheet says 5.5 V, and PARTS.md records the datasheet figure. `normalize` states its
-policy outright — *"Facts only fill a blank from this run. A live listing is the buying truth"* —
-so the listing wins and the 12 V beat does not land on screen. `package` and `theta_ja` are
-already special-cased the other way, so there is precedent for a verified datasheet reading
-beating a listing on an *engineering* field while the listing stays authoritative for stock,
-price and lifecycle. That is a change to how every part on every board is trusted, so it is
-recorded here rather than made in passing.
+**Resolved 7 Sep, and the research corrected my first reading of it.** The 12 V did not come
+from JLCPCB mis-transcribing TI's datasheet — it came from a *second manufacturer's* listing
+under the same MPN, which PARTS.md had already flagged. So there were two causes and both are
+fixed:
+
+- **`api/matrix.resolve` refuses to choose between manufacturers.** One MPN, two listings,
+  raises `Ambiguous`, and the grid names it. Picking the first was checking a board against a
+  part nobody named.
+- **A verified datasheet reading outranks a listing on `dossier.ENGINEERING_FIELDS`.** TI
+  publishes 2 V–5.5 V recommended and 6 V absolute maximum; the listing said 12 V, double the
+  voltage the part survives. Commercial fields stay the other way round — stock, price, lead
+  time and lifecycle are the distributor's to state and no datasheet knows them, which is what
+  `normalize`'s "a live listing is the buying truth" was always about. It was simply being
+  applied to fields it was not written for.
+
+The override is gated on an explicit `VERIFIED_PREFIX` marker, so nothing already stored
+changes meaning: a fact recorded by an earlier run still only fills a blank and cannot quietly
+outrank the listing it was copied from.
 
 ## 13 · AML, AVL and the two gates
 

@@ -38,6 +38,9 @@ def run(coro):
     return asyncio.run(coro)
 
 
+from continuity.api.matrix import resolve as _REAL_RESOLVE  # noqa: E402
+
+
 @asynccontextmanager
 async def a_store():
     from psycopg_pool import AsyncConnectionPool
@@ -323,3 +326,71 @@ def test_the_endpoint_installs_the_stored_dossier_lookup():
     run(go())
 
     assert seen and seen[0] is not None, "no dossier lookup was in scope while building"
+
+
+def test_resolve_refuses_to_choose_between_two_manufacturers_of_one_mpn():
+    """JLCPCB carries `TLV1117LV33DCYR` twice, and the two listings disagree.
+
+    TI's own listing states a 5.5 V supply ceiling; a second manufacturer's states 12 V.
+    Those are not two descriptions of one part — they are two parts wearing one number,
+    and picking whichever came back first checks a board against a part nobody named.
+    Above 6 V TI's device is destroyed, so the wrong pick turns a substitution review into
+    the very thing it exists to prevent.
+    """
+    from continuity.api import matrix as matrix_api
+    from continuity.parts.search import Candidate
+
+    def listing(manufacturer: str) -> Candidate:
+        return Candidate(
+            lcsc="C1", mpn="TLV1117LV33DCYR", manufacturer=manufacturer,
+            description="LDO", package="SOT-223", category="ICs",
+            subcategory="LDO", stock=1000, unit_price=0.3, library_type="extended",
+        )
+
+    async def two_listings(mpn: str, **_kwargs):
+        return [listing("Texas Instruments"), listing("JSMSEMI")]
+
+    async def go():
+        real = matrix_api.part_search.search
+        matrix_api.part_search.search = two_listings
+        try:
+            return await _REAL_RESOLVE("TLV1117LV33DCYR")
+        finally:
+            matrix_api.part_search.search = real
+
+    with pytest.raises(matrix_api.Ambiguous) as raised:
+        run(go())
+
+    assert "Texas Instruments" in str(raised.value)
+    assert "JSMSEMI" in str(raised.value)
+
+
+def test_an_ambiguous_candidate_is_named_on_the_matrix_rather_than_checked():
+    """Saying which one you meant is a question only the person asking can answer."""
+    from continuity.api import matrix as matrix_api
+
+    async def go():
+        async with a_store():
+            async with signed_in() as http:
+                ids = await seed(http)
+                real = matrix_api.resolve
+
+                async def resolve(mpn: str):
+                    if mpn == TLV1117.mpn:
+                        raise matrix_api.Ambiguous(mpn, ["Texas Instruments", "JSMSEMI"])
+                    return SPECS.get(mpn)
+
+                matrix_api.resolve = resolve
+                try:
+                    return (
+                        await post_matrix(http, ids, candidates=[AMS1117.mpn, TLV1117.mpn])
+                    ).json()
+                finally:
+                    matrix_api.resolve = real
+
+    body = run(go())
+
+    assert TLV1117.mpn in body["ambiguous"]
+    assert "JSMSEMI" in body["ambiguous"][TLV1117.mpn]
+    assert body["candidates"] == [AMS1117.mpn], "an ambiguous part is not silently checked"
+    assert TLV1117.mpn not in body["unresolved"], "not found and not sure are different things"

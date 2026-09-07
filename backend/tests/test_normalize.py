@@ -733,3 +733,86 @@ def test_produces_still_refuses_a_voltage_above_a_known_maximum():
     )
 
     assert part.produces(30.0) is False
+
+
+# ── a verified datasheet reading outranks a wrong listing ─────────────────────
+
+
+def test_a_verified_datasheet_reading_overrides_the_listing_on_an_engineering_field(monkeypatch):
+    """The TLV1117LV case, which is the reason this rule exists.
+
+    JLCPCB lists `TLV1117LV33DCYR` at *Voltage - Supply 12 V*, with TI's own datasheet
+    linked from that very attribute. TI's document says 2 V to 5.5 V recommended and 6 V
+    absolute maximum — so the listing is double the voltage at which the part dies, almost
+    certainly copied from the ordinary 1117 family that the "LV" exists to distinguish
+    from. A board checked against 12 V passes a substitution that would destroy itself.
+
+    5.5 V rather than 6 V on purpose: above the *recommended operating* maximum the part
+    may survive and is no longer performing to specification, and "it probably will not
+    die" is not an engineering sign-off.
+    """
+    from continuity.parts import dossier
+
+    # The listing must actually *state* 12 V, or the stored fact is filling a blank rather
+    # than overriding anything and this test passes without exercising the rule at all.
+    async def listing_says_twelve_volts(*_args, **_kwargs):
+        return {"vmax": 12.0, "provenance": {"vmax": "Voltage - Supply"}}
+
+    monkeypatch.setattr(normalize.llm, "available", lambda: True)
+    monkeypatch.setattr(normalize.llm, "complete_json", listing_says_twelve_volts)
+    monkeypatch.setattr(normalize.search, "enrich", _plain)
+
+    listed = replace(CANDIDATE, specs={**dict(CANDIDATE.specs), "Voltage - Supply": "12V"})
+
+    async def lookup(_mpn):
+        return [
+            {
+                "field": "vmax",
+                "value": "5.5",
+                "source": dossier.verified_source(
+                    "Recommended Operating Conditions: VIN input voltage 2 V to 5.5 V"
+                ),
+            }
+        ]
+
+    unguarded = asyncio.run(normalize.normalize(listed, use_cache=False))
+    assert unguarded.vmax == 12.0, "the listing really does state 12 V, so the rule is exercised"
+
+    part = asyncio.run(normalize.normalize(listed, use_cache=False, dossier_lookup=lookup))
+
+    assert part.vmax == 5.5
+    assert "2 V to 5.5 V" in (part.provenance.get("vmax") or ""), "the reader sees the quote"
+
+
+def test_an_unverified_fact_still_only_fills_a_blank(monkeypatch):
+    """A fact recorded by an earlier run must not outrank the listing it was copied from."""
+    monkeypatch.setattr(normalize.llm, "available", lambda: False)
+    monkeypatch.setattr(normalize.search, "enrich", _plain)
+
+    async def lookup(_mpn):
+        return [{"field": "package", "value": "SOT-23-5", "source": "an earlier run"}]
+
+    part = asyncio.run(normalize.normalize(CANDIDATE, use_cache=False, dossier_lookup=lookup))
+
+    assert part.package == "DFN-4-EP(1.5x1.5)", "the live listing still wins"
+
+
+def test_a_verified_fact_never_overrides_a_commercial_field(monkeypatch):
+    """Stock is the distributor's to state, and a datasheet cannot know it.
+
+    Marking a commercial fact verified must not promote it, which is why the override is
+    gated on `ENGINEERING_FIELDS` as well as on the marker.
+    """
+    monkeypatch.setattr(normalize.llm, "available", lambda: False)
+    monkeypatch.setattr(normalize.search, "enrich", _plain)
+
+    from continuity.parts import dossier
+
+    async def lookup(_mpn):
+        return [
+            {"field": "stock", "value": "999999", "source": dossier.verified_source("nonsense")}
+        ]
+
+    part = asyncio.run(normalize.normalize(CANDIDATE, use_cache=False, dossier_lookup=lookup))
+
+    assert part.stock == CANDIDATE.stock

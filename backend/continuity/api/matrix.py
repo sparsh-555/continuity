@@ -20,7 +20,7 @@ cell in the grid.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -47,6 +47,18 @@ class MatrixRequest(BaseModel):
     row that says what the board does today."""
 
 
+class Ambiguous(Exception):
+    """One MPN, more than one manufacturer, and no way to tell which was meant."""
+
+    def __init__(self, mpn: str, manufacturers: Sequence[str]) -> None:
+        self.mpn = mpn
+        self.manufacturers = list(manufacturers)
+        super().__init__(
+            f"{mpn} is listed by {' and '.join(self.manufacturers)}, and their listings "
+            "disagree — say which manufacturer you mean"
+        )
+
+
 async def resolve(mpn: str) -> PartSpec | None:
     """One MPN, through the path a design run already trusts.
 
@@ -54,15 +66,27 @@ async def resolve(mpn: str) -> PartSpec | None:
     A matrix that refuses to render because one candidate could not be found tells the
     reader nothing about the other three, and "we could not find this part" is itself a
     result worth putting on screen.
+
+    **Raises `Ambiguous` when one MPN is listed by more than one manufacturer**, because
+    picking the first is picking a part nobody named. JLCPCB carries `TLV1117LV33DCYR`
+    twice: TI's own listing states a 5.5 V supply ceiling, and a second manufacturer's
+    states 12 V. Those are not two descriptions of one part — they are two parts wearing
+    the same number, and checking a 12 V substitution into a board whose regulator dies
+    above 6 V is precisely the mistake a substitution review exists to catch.
     """
     try:
         hits = await part_search.search(mpn, limit=10)
     except Exception:
         return None
-    exact = next((c for c in hits if c.mpn.upper() == mpn.upper()), None)
-    if exact is None:
+
+    exact = [c for c in hits if c.mpn.upper() == mpn.upper()]
+    if not exact:
         return None
-    return await sourcing.choose(exact)
+
+    makers = list(dict.fromkeys(c.manufacturer for c in exact if c.manufacturer))
+    if len(makers) > 1:
+        raise Ambiguous(mpn, makers)
+    return await sourcing.choose(exact[0])
 
 
 def _view(cell: Cell) -> dict[str, Any]:
@@ -95,7 +119,9 @@ def _view(cell: Cell) -> dict[str, Any]:
     }
 
 
-def _matrix_view(matrix: Matrix, unresolved: list[str]) -> dict[str, Any]:
+def _matrix_view(
+    matrix: Matrix, unresolved: list[str], ambiguous: Mapping[str, str] | None = None
+) -> dict[str, Any]:
     return {
         "slot": matrix.slot,
         "lines": list(matrix.lines),
@@ -106,6 +132,9 @@ def _matrix_view(matrix: Matrix, unresolved: list[str]) -> dict[str, Any]:
         # missing column, and a grid that quietly renders three of four is a grid that
         # lies about what was checked.
         "unresolved": unresolved,
+        # One MPN, two manufacturers, two different parts. Named rather than resolved by
+        # coin toss: which one you meant is a question only the person asking can answer.
+        "ambiguous": dict(ambiguous or {}),
         "cells": [_view(cell) for cell in matrix.cells],
     }
 
@@ -154,8 +183,20 @@ async def _build(body: MatrixRequest, store: Any, user: User) -> dict[str, Any]:
 
     wanted = {row["mpn"] for bom in boms.values() for row in bom if row.get("populated", True)}
     wanted |= set(body.candidates)
-    resolved = await asyncio.gather(*(resolve(mpn) for mpn in sorted(wanted)))
-    specs = {mpn: spec for mpn, spec in zip(sorted(wanted), resolved) if spec is not None}
+    ordered = sorted(wanted)
+    resolved = await asyncio.gather(
+        *(resolve(mpn) for mpn in ordered), return_exceptions=True
+    )
+
+    specs: dict[str, PartSpec] = {}
+    ambiguous: dict[str, str] = {}
+    for mpn, outcome in zip(ordered, resolved):
+        if isinstance(outcome, Ambiguous):
+            ambiguous[mpn] = str(outcome)
+        elif isinstance(outcome, BaseException):
+            raise outcome
+        elif outcome is not None:
+            specs[mpn] = outcome
 
     candidates = [specs[mpn] for mpn in body.candidates if mpn in specs]
     if not candidates:
@@ -176,4 +217,13 @@ async def _build(body: MatrixRequest, store: Any, user: User) -> dict[str, Any]:
         boards.append((line.id, line.name, board))
 
     matrix = evaluate_matrix(boards, candidates, body.slot)
-    return _matrix_view(matrix, sorted(mpn for mpn in body.candidates if mpn not in specs))
+    # "Never heard of it" and "heard of it twice" are different answers and belong in
+    # different lists. Reporting an ambiguous part as merely missing would hide the one
+    # thing the reader has to act on: saying which manufacturer they meant.
+    return _matrix_view(
+        matrix,
+        sorted(
+            mpn for mpn in body.candidates if mpn not in specs and mpn not in ambiguous
+        ),
+        ambiguous,
+    )

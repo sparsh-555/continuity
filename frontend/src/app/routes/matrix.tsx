@@ -299,6 +299,12 @@ export default function MatrixRoute() {
               </p>
             ) : null}
 
+            {Object.entries(matrix.ambiguous).map(([mpn, reason]) => (
+              <p key={mpn} className="font-data-tabular text-[11px] text-tertiary-container mb-md">
+                {reason}
+              </p>
+            ))}
+
             <table className="w-full border-separate border-spacing-1">
               <thead>
                 <tr>

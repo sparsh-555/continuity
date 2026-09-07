@@ -423,10 +423,26 @@ async def normalize(
 
     _discard_non_regulator_fields(fields, provenance, candidate.category)
 
-    # Facts only fill a blank from this run. A live listing is the buying truth, even
-    # when a durable fact is newer-looking or appears more complete.
+    # A live listing is the buying truth — stock, price, lead time, lifecycle, what is
+    # actually on the reel. A datasheet cannot know any of that, and a durable fact must
+    # never overwrite it however complete it looks.
+    #
+    # It is not the truth about the *part*. A distributor's parametric table is a
+    # hand-built index over the manufacturer's document, warranted by nobody, and wrong
+    # often enough to matter: JLCPCB lists TLV1117LV33DCYR at "Voltage - Supply 12 V" —
+    # with TI's own datasheet linked from that attribute — against 5.5 V recommended and
+    # 6 V absolute maximum. Double the voltage the part survives, copied from the ordinary
+    # 1117 family that the "LV" exists to distinguish from.
+    #
+    # So a fact stored as *verified* — read from the manufacturer's document rather than
+    # copied from a listing — wins on `ENGINEERING_FIELDS`. Everything else still only
+    # fills a blank, so a fact recorded by an earlier run cannot quietly outrank the
+    # listing it came from.
     for field, (value, source) in dossier_fields.items():
-        if field in {"package", "theta_ja"} or field in fields:
+        if field in {"package", "theta_ja"}:
+            continue
+        overrides = dossier.is_verified(source) and field in dossier.ENGINEERING_FIELDS
+        if field in fields and not overrides:
             continue
         fields[field] = value
         provenance[field] = dossier.provenance(source)

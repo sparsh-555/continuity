@@ -41,6 +41,22 @@ The current fixture carries JSMSEMI's row and TI's datasheet θJA — the exact
 cross-manufacturer error item 1 exists to remove. It also matters to the story: only TI's
 5.5 V ceiling fails a 12 V line.
 
+**7 Sep 2026 — this recurred through the matrix, and both causes are now fixed.** Sourcing
+a candidate by MPN alone picked whichever exact match came back first, which was JSMSEMI's
+12 V row, so the cabinet controller passed a substitution that would destroy the part.
+`api/matrix.resolve` now refuses to choose: one MPN listed by two manufacturers raises
+`Ambiguous` and the grid names it, because which one you meant is a question only the
+person asking can answer.
+
+Separately, a *verified* datasheet reading now outranks a distributor's parametric table
+on engineering fields — see `dossier.ENGINEERING_FIELDS`. TI publishes **2 V to 5.5 V
+recommended** and **6 V absolute maximum** (SBVS160C §6.1, §6.3), so 12 V is double the
+voltage the part survives. 5.5 V is the figure to hold: above the recommended maximum the
+device may survive and is no longer performing to specification, and "it probably will not
+die" is not an engineering sign-off. Commercial fields go the other way and always will —
+stock, price, lead time and lifecycle are the distributor's to state and no datasheet knows
+them.
+
 ### The output capacitor
 
 `C12891` · **CL31A226KAHNNNE** · Samsung Electro-Mechanics · 1206 · 22 µF ±10% · 25 V · X5R ·
