@@ -131,6 +131,21 @@ def test_a_slot_past_the_repair_limit_drops_out_of_the_fence():
     assert legal, "the other participants are still available"
 
 
+def test_a_slot_absorbs_exactly_three_repairs_then_is_exhausted():
+    """The cap counts completed repairs, so the fourth attempt cannot be offered."""
+    board = conflicted_board()
+    conflict = current_conflict(board)
+
+    for _ in range(policy.MAX_REPAIRS):
+        resolution = policy.plan_resolution(conflict, board, [])
+        assert "regulator" in resolution.legal
+        board = policy.register_repair(board, "regulator")
+
+    assert board.slots["regulator"].repair_count == policy.MAX_REPAIRS
+    assert policy.exhausted(board, "regulator")
+    assert "regulator" not in policy.legal_set(conflict, board, [])
+
+
 def test_the_fence_closes_once_every_participant_is_worn_out():
     assert policy.legal_set(current_conflict(exhausted_board()), exhausted_board(), []) == ()
 

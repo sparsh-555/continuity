@@ -125,7 +125,7 @@ def legal_set(conflict: Verdict, board: Board, passing: Sequence[Verdict]) -> tu
     candidates = [
         slot_id
         for slot_id in conflict.involved
-        if slot_id in board.slots and board.slots[slot_id].repair_count <= MAX_REPAIRS
+        if slot_id in board.slots and board.slots[slot_id].repair_count < MAX_REPAIRS
     ]
     return tuple(
         sorted(
@@ -158,12 +158,12 @@ def _escalation_reason(conflict: Verdict, board: Board) -> str:
     worn_out = [
         slot_id
         for slot_id in conflict.involved
-        if slot_id in board.slots and board.slots[slot_id].repair_count > MAX_REPAIRS
+        if slot_id in board.slots and board.slots[slot_id].repair_count >= MAX_REPAIRS
     ]
     if worn_out:
         labels = ", ".join(board.slots[slot_id].label for slot_id in worn_out)
         return (
-            f"{labels} has been replaced {MAX_REPAIRS + 1} times and still fails "
+            f"{labels} has been replaced {MAX_REPAIRS} times and still fails "
             f"{conflict.rule.replace('_', ' ')}. This needs a requirement relaxed, "
             f"not another part. {conflict.detail}"
         )
@@ -304,4 +304,4 @@ def register_repair(board: Board, slot_id: str) -> Board:
 
 def exhausted(board: Board, slot_id: str) -> bool:
     slot = board.slots.get(slot_id)
-    return slot is not None and slot.repair_count > MAX_REPAIRS
+    return slot is not None and slot.repair_count >= MAX_REPAIRS

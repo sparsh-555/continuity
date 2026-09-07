@@ -236,6 +236,12 @@ def test_a_named_replacement_is_a_valid_constraint():
 
 def test_the_prompt_tells_the_reviewer_to_look_at_the_candidates_first():
     assert "replacements_available" in reviewer.SYSTEM
+
+
+def test_the_prompt_allows_a_cooler_package_to_fix_thermal_failure():
+    assert "lower θJA" in reviewer.SYSTEM
+    assert "legitimate swap" in reviewer.SYSTEM
+    assert "voltage\ndrop itself is the problem" in reviewer.SYSTEM
     assert "constraint.mpn" in reviewer.SYSTEM
 
 

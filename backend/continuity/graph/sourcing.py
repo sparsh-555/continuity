@@ -35,6 +35,7 @@ from ..engine import packages
 from ..engine.models import Alternative, PartSpec
 from ..parts import categories, datasheet, normalize, payload
 from ..parts.search import Candidate, SpecFilter, search
+from ..reviewer import ACCUMULATING_CONSTRAINT_FIELDS, REPLACED_CONSTRAINT_FIELDS
 
 CANDIDATES_PER_SLOT = 6
 """Enough that a repair has somewhere to go without a fresh search."""
@@ -128,10 +129,36 @@ def merge_constraints(
     the slot's `topology: buck`. The re-search fell back to raw text, returned a screw
     terminal as its only survivor, and the run escalated saying nothing matched.
 
+    Board requirements accumulate, because a later repair must not forget the hot or
+    cold end the board still has to survive. Part-identity fields are carried forward
+    until a repair deliberately supplies another identity field, then the old identity
+    is replaced; otherwise a new topology would inherit an incompatible package. The
+    split lives beside the reviewer's legal constraint fields so the two consumers do
+    not drift apart.
+
     The repair wins on conflict, so `change_topology: boost` still overrides a slot
     planned as a buck.
     """
-    return {**(slot or {}), **(repair or {})}
+    existing = dict(slot or {})
+    update = dict(repair or {})
+    if set(update) & REPLACED_CONSTRAINT_FIELDS:
+        replaced = set(update) & REPLACED_CONSTRAINT_FIELDS
+        if "topology" in replaced:
+            # A topology change deliberately changes the part family, so the old
+            # package, category and named part cannot constrain the new search.
+            replaced.update({"mpn", "package", "category"})
+        existing = {
+            key: value
+            for key, value in existing.items()
+            if key in ACCUMULATING_CONSTRAINT_FIELDS or key not in replaced
+        }
+    else:
+        existing = {
+            key: value
+            for key, value in existing.items()
+            if key in ACCUMULATING_CONSTRAINT_FIELDS or key in REPLACED_CONSTRAINT_FIELDS
+        }
+    return {**existing, **update}
 
 
 def pool_size(constraint: Mapping[str, Any]) -> int:

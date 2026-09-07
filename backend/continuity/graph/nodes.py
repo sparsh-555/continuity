@@ -822,6 +822,8 @@ async def apply(state: DesignState, config) -> DesignState:
         # "must tolerate 5 V".
         index = candidates[slot_id].index(named)
         cursor[slot_id] = index
+        full = sourcing.merge_constraints(slots[slot_id].constraint, constraint)
+        slots[slot_id] = replace(slots[slot_id], constraint=full)
         _narrate_normalisation(ev, slot_id, named)
         replacement = await sourcing.choose(named)
         _emit(ev.candidate(slot_id, replacement))
@@ -874,6 +876,10 @@ async def apply(state: DesignState, config) -> DesignState:
         # The slot's own constraint says what kind of part this is; the repair says what
         # else it must now satisfy. Searching on the repair alone loses the first.
         full = sourcing.merge_constraints(slots[slot_id].constraint, constraint)
+        # Keep the accumulated board requirements and current part identity on the slot.
+        # A later repair must start here, rather than from the planner's original
+        # constraint, so a temperature-range repair cannot oscillate to a failed part.
+        slots[slot_id] = replace(slots[slot_id], constraint=full)
         query = state["plan"].queries.get(slot_id, label)
         found = await _find_with_narration(
             ev, slot_id, query, full, label, state.get("prompt")

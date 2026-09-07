@@ -603,6 +603,35 @@ def test_merging_tolerates_either_side_being_absent():
     assert sourcing.merge_constraints(None, None) == {}
 
 
+def test_repair_constraints_accumulate_across_three_searches():
+    from continuity.graph import sourcing
+
+    first = sourcing.merge_constraints(
+        {"topology": "buck"}, {"rated_to": 70.0, "package": "SOT-223"}
+    )
+    second = sourcing.merge_constraints(first, {"rated_from": -40.0})
+    third = sourcing.merge_constraints(second, {"i_out_min": 1.0})
+
+    assert second == {
+        "topology": "buck",
+        "rated_to": 70.0,
+        "package": "SOT-223",
+        "rated_from": -40.0,
+    }
+    assert third["rated_to"] == 70.0
+    assert third["rated_from"] == -40.0
+    assert third["i_out_min"] == 1.0
+
+
+def test_a_topology_repair_replaces_the_previous_part_identity():
+    from continuity.graph import sourcing
+
+    first = sourcing.merge_constraints({}, {"package": "SOT-223", "rated_to": 85.0})
+    second = sourcing.merge_constraints(first, {"topology": "boost"})
+
+    assert second == {"rated_to": 85.0, "topology": "boost"}
+
+
 # ── the output side of the same check ─────────────────────────────────────────
 
 

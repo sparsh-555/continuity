@@ -66,6 +66,25 @@ Deliberately narrow: each key has an implemented consumer in `sourcing` or `grap
 anything else is dropped here where the reason is visible.
 """
 
+ACCUMULATING_CONSTRAINT_FIELDS = frozenset(
+    {"vout", "i_out_min", "vin_min", "rated_to", "rated_from", "efficiency_min"}
+)
+"""Constraint fields imposed by the board and therefore true across repairs.
+
+These describe what the board needs, not the identity of the part that meets it. They
+must survive a later repair, even when that repair changes topology. The remaining
+constraint fields describe part identity and are replaced when a repair deliberately
+changes that identity; keeping them would ask a new buck converter to remain in an
+incompatible package.
+"""
+
+REPLACED_CONSTRAINT_FIELDS = frozenset(CONSTRAINT_FIELDS) - ACCUMULATING_CONSTRAINT_FIELDS
+"""Constraint fields that a later identity-changing repair replaces.
+
+This is derived from `CONSTRAINT_FIELDS` so the split cannot silently drift when a new
+legal field is added: every accepted field is either a board requirement or part identity.
+"""
+
 MAX_RATIONALE = 400
 """It goes on screen as prose. Longer than this is an essay, not a reason."""
 
@@ -125,9 +144,11 @@ Choosing the action — these five and nothing else:
                     rather than in any part — the user must decide
 
 Think about WHY the check failed, not just which part is nearest. A linear regulator
-that overheats dissipates (Vin - Vout) x I as heat, so a larger linear regulator
-dissipates exactly the same and fails identically — that is a change_topology, not a
-swap. A part that is merely too small is a swap.
+that overheats dissipates (Vin - Vout) x I as heat, but a larger package has lower θJA
+and a lower junction temperature, so a better-cooling package is a legitimate swap. Use
+change_topology only when no package in the family sheds enough heat, or the voltage
+drop itself is the problem — burning 8 V wants a switcher, not a bigger tab. A part that
+is merely too small is a swap.
 
 For a slot with `must_supply_rail`, the part there has to make `must_supply_rail.volts`
 out of `input_voltage`. Compare those two numbers before anything else:
