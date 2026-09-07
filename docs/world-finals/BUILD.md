@@ -594,7 +594,7 @@ where a full run can be driven end to end.
 
 ---
 
-## 16 · Seeded world
+## 16 · Seeded world — **DONE**
 
 **The demo does not exist without this**, and it is not presentation work.
 
@@ -605,6 +605,26 @@ AMS1117-3.3; AML and AVL records exist with LD1117S33 deliberately absent from t
 accounts exist — an engineer and an approver with a procurement or quality role.
 
 **Test** the seed runs from an empty database and the demo plays end to end afterwards.
+
+`tools/seed_world.py`, under test in `tests/test_seed.py`. Both halves hold: it builds from
+an empty database, refuses a second run rather than doubling the world, `--reset` replaces it
+and leaves one company, and the full flow plays — a notice reaches three of five products and
+each gets a change request whose proposal differs.
+
+**The AML is derived from what ships rather than picked.** A part in production has been
+qualified by definition. The first version listed only the four regulators, and every board
+then failed qualification for the modules and the capacitor — parts nobody was proposing to
+change. Deriving it also gives LD1117's absence an honest reason: nothing ships with it.
+
+**And the demo got better for it.** With both gates live the gateway declines the
+manufacturer's recommendation on physics — *159 °C against a 150 °C limit* — and declines
+LD1117 on qualification, then takes TLV1117: approved, and 35 °C of margin against LD1117's
+1.5 °C. The better answer on both counts, and it took two gates on two different desks to
+find it. That is a stronger beat than the one the scenario was written around.
+
+**This also unblocks the red item from the last audit.** The seed writes the PARTS.md
+readings as *verified* facts, which is the writer the verified-over-listing rule was built
+for and did not have.
 
 ## 17 · The notice
 

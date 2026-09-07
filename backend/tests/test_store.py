@@ -1189,3 +1189,88 @@ def test_precedents_do_not_cross_organisations():
             return await store.worked_anywhere(theirs.org_id, "thermal:ldo")
 
     assert run(go()) == []
+
+
+def test_joining_a_company_does_not_leave_an_empty_one_behind():
+    """Signing up creates a company of one, so joining a real one abandons it.
+
+    Found by the seed, which left three organisations behind for two people — one per join,
+    empty, owned by nobody, and visible to no query anyone would think to run.
+    """
+    async def go():
+        async with fresh() as store:
+            owner = await a_user(store, "owner@example.com")
+            joiner = await a_user(store, "joiner@example.com")
+            vacated = joiner.org_id
+
+            await store.add_user_to_organisation(joiner.id, owner.org_id, ["quality"])
+
+            async with store.pool.connection() as conn:
+                cursor = await conn.execute("SELECT count(*) FROM organisations")
+                (total,) = await cursor.fetchone()
+                cursor = await conn.execute(
+                    "SELECT count(*) FROM organisations WHERE id = %s", (vacated,)
+                )
+                (left_behind,) = await cursor.fetchone()
+            return total, left_behind
+
+    total, left_behind = run(go())
+
+    assert left_behind == 0, "the organisation they arrived with was abandoned"
+    assert total == 1, "one company, one row"
+
+
+def test_an_organisation_someone_still_belongs_to_is_never_dropped():
+    """The check is explicit because most references cascade: a wrong guess deletes work."""
+    async def go():
+        async with fresh() as store:
+            first = await a_user(store, "first@example.com")
+            second = await a_user(store, "second@example.com")
+            third = await a_user(store, "third@example.com")
+            shared = second.org_id
+
+            await store.add_user_to_organisation(third.id, shared, ["quality"])
+            # `second` still belongs to it, so moving `third` on must not take it away.
+            await store.add_user_to_organisation(third.id, first.org_id, ["engineering"])
+
+            async with store.pool.connection() as conn:
+                cursor = await conn.execute(
+                    "SELECT count(*) FROM organisations WHERE id = %s", (shared,)
+                )
+                (survives,) = await cursor.fetchone()
+            return survives, await store.user_by_id(second.id)
+
+    survives, still_there = run(go())
+
+    assert survives == 1
+    assert still_there.org_id is not None
+
+
+def test_an_organisation_holding_work_is_never_dropped_even_with_nobody_in_it():
+    """Defence in depth, and deliberately not reachable through the API today.
+
+    Moving somebody brings their lines with them, so the organisation they leave really is
+    empty and is correctly removed. This exercises the guard against the state it exists
+    for anyway: every reference is checked explicitly because most of them *cascade*, so a
+    delete that guessed wrong would take the lines, threads, decisions and notices with it
+    rather than being refused by a foreign key.
+    """
+    async def go():
+        async with fresh() as store:
+            owner = await a_user(store, "owner@example.com")
+            other = await a_user(store, "other@example.com")
+            holding = other.org_id
+            # A line that belongs to the organisation but not to the person leaving it.
+            await store.create_line(owner.id, holding, "Not theirs to take")
+
+            async with store.pool.connection() as conn:
+                await conn.execute("UPDATE users SET org_id = %s WHERE id = %s",
+                                   (owner.org_id, other.id))
+                await store._drop_if_vacated(conn, holding)
+                cursor = await conn.execute(
+                    "SELECT count(*) FROM organisations WHERE id = %s", (holding,)
+                )
+                (survives,) = await cursor.fetchone()
+            return survives
+
+    assert run(go()) == 1, "an organisation still holding a line was deleted"

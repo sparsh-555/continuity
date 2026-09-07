@@ -234,6 +234,12 @@ class Store:
 
         async with self.pool.connection() as conn:
             async with conn.transaction():
+                cursor = await conn.execute(
+                    "SELECT org_id FROM users WHERE id = %s", (user_id,)
+                )
+                row = await cursor.fetchone()
+                previous = row[0] if row else None
+
                 await conn.execute(
                     "UPDATE users SET org_id = %s, roles = %s WHERE id = %s",
                     (org_id, list(roles), user_id),
@@ -242,6 +248,39 @@ class Store:
                     await conn.execute(
                         f"UPDATE {table} SET org_id = %s WHERE user_id = %s", (org_id, user_id)
                     )
+                if previous is not None and previous != org_id:
+                    await self._drop_if_vacated(conn, previous)
+
+    async def _drop_if_vacated(self, conn: Any, org_id: str) -> None:
+        """Remove an organisation the last person just left, if nothing is left in it.
+
+        Signing up creates a company of one, so joining a real one abandons it — an empty
+        organisation with no members and no work, accumulating one per join and visible to
+        nobody. The seed found this by leaving three behind for two people.
+
+        Every check is explicit rather than left to the foreign keys, because most of them
+        cascade: a `DELETE` that guessed wrong would take the lines, threads, decisions and
+        notices with it rather than being refused.
+        """
+        cursor = await conn.execute(
+            """
+            SELECT (SELECT count(*) FROM users WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM product_lines WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM threads WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM findings WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM line_parts WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM approvals WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM notices WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM change_requests WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM precedents WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM approved_parts WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM approved_vendors WHERE org_id = %(org)s)
+            """,
+            {"org": org_id},
+        )
+        (remaining,) = await cursor.fetchone()
+        if remaining == 0:
+            await conn.execute("DELETE FROM organisations WHERE id = %s", (org_id,))
 
     async def user_by_email(self, email: str) -> User | None:
         return await self._one_user("WHERE email = %s", (_fold(email),))
