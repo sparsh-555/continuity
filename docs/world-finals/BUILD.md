@@ -24,6 +24,29 @@ anything but a label. Getting any of them wrong later is rework of everything ab
 planning ceremony and no documentation research. Do them directly, and keep the suite green
 after each.
 
+## Which Codex profile to hand a task to
+
+Set up 7 Sep after item 3a cost 221k tokens transcribing a mapping table that was already
+decided. Profiles live at `~/.codex/<name>.config.toml` and are selected with
+`codex exec -p <name>`.
+
+| Profile | Model | Price per 1M in/out | For |
+|---|---|---|---|
+| `luna` | gpt-5.6-luna | $1 / $6 | A decided spec transcribed into code — renames, migrations against a given table, test-expectation updates, fixture data |
+| `terra` | gpt-5.6-terra | $2.50 / $15 | A bounded change needing judgment inside the boundary — a diagnosed bug with no prescribed patch |
+| `sol` | gpt-5.6-sol | $5 / $30 | Architecture or a refactor whose shape is not settled. Nothing delegated so far has qualified |
+
+**Our split makes almost everything Luna work.** The design, the datasheet verification, the
+classification calls and the review are done before a brief is written, so what goes over is
+transcription with a do-not list. Item 4 ran on Luna at 157k tokens and found a merge site the
+brief had missed. If the brief already says what to do, Sol is the wrong answer at five times
+the price.
+
+`service_tier = "priority"` is still set in the base config and layers under every profile. It
+buys faster processing that a task launched into tmux and left alone does not consume.
+
+---
+
 **Items 11 to 13 rewrite how the graph carries state and who may answer a question.** Check
 LangGraph's documentation for the pinned version before planning them — `interrupt`, `resume`
 and state semantics move between releases, and the repo pins `langgraph 1.2.11`. This is also

@@ -897,6 +897,10 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         evidence += (
             Evidence(subject, "θJA measured on", regulator.theta_ja_mounting, regulator.datasheet),
         )
+    if regulator.theta_ja_revision:
+        evidence += (
+            Evidence(subject, "θJA document revision", regulator.theta_ja_revision, regulator.datasheet),
+        )
     if requirements.mounting:
         evidence += (Evidence(subject, "board mounting", requirements.mounting),)
     # Last of the thermal operands, and deliberately after θJA rather than before it:
@@ -943,6 +947,13 @@ def _check_rail_thermal(board: Board, rail: Rail) -> Verdict | None:
         else ""
     )
 
+    # A θJA from the package table does NOT downgrade the verdict, and that was tried.
+    # The evidence row already names the table rather than a datasheet — "the screen never
+    # implies a datasheet said something it did not" — and that disclosure is the honesty
+    # mechanism. Reporting `evidence_missing` on top of it removes information rather than
+    # adding it: "323 °C against a 125 °C limit, on our own package figure" is worth more
+    # to a reader than "could not check". It also silently retired the demo's central
+    # beat, whose overheating regulator is computed from exactly such a figure.
     if junction_high <= limit:
         worst_case = (
             f" at worst case ({fmt.percent(band[0])} efficiency)" if band is not None else ""

@@ -21,6 +21,7 @@ import httpx
 from pypdf import PdfReader
 
 from .. import env, llm
+from ..engine import packages
 
 log = logging.getLogger(__name__)
 
@@ -47,20 +48,33 @@ MAX_PROMPT_CHARS = 6000
 
 @dataclass(frozen=True)
 class ThermalFact:
-    """A θJA figure and the datasheet text that supports it."""
+    """A θJA figure and the checked claim that binds it to one table column.
+
+    `package_column` is deliberately the document's spelling rather than the package the
+    caller requested. The distinction is evidence: it records which printed column was
+    verified, including vendor wording such as ``DCY (SOT-223) 4 PINS``.
+    """
 
     theta_ja: float
     source_line: str
     package_column: str
+    mounting: str | None = None
+    revision: str | None = None
 
 
 SYSTEM = """You extract one thermal measurement from supplied datasheet text.
 
-Return ONE JSON object with ONLY these keys: theta_ja, source_line.
+Return ONE JSON object with ONLY these keys: theta_ja, source_line, columns, column_index,
+mounting, revision.
 
 Rules:
 - theta_ja is junction-to-ambient thermal resistance RθJA, in °C/W, as a number with
   no unit suffix. source_line is the exact full datasheet line from which it was read.
+- columns lists every value column in that table, left to right, verbatim as printed.
+  column_index is the zero-based index of the column containing theta_ja. For a
+  single-column table, return its one column and 0.
+- mounting is the measurement condition verbatim, or null if the document does not say.
+  revision is the printed document revision verbatim, or null if it is not printed.
 - The part MPN and package are supplied. A thermal table may have several package
   columns, sometimes with the same pin count. Select only the column that matches the
   supplied package. Return null for both fields if the matching column is unclear.
@@ -97,13 +111,44 @@ def _collapsed(value: str) -> str:
 
 
 _THETA_JA_NAMES = re.compile(
-    r"\bR?\s*(?:θ|Θ|THETA)\s*[-_]?\s*JA\b|junction[\s\-–]*to[\s\-–]*ambient", re.IGNORECASE
-)
-
-_OTHER_METRICS = re.compile(
-    r"junction[\s\-–]*to[\s\-–]*(?:case|board|top)|\bR?\s*(?:θ|Θ|THETA)\s*[-_]?\s*J[CB]\b|[ψΨ]\s*J[TB]\b",
+    r"\bR?\s*(?:θ|Θ|THETA)\s*[-_]?\s*JA\b"
+    r"|\bR\s*th\s*[-_]?\s*JA\b"
+    r"|junction[\s\-–—−]*(?:to[\s\-–—−]*)?ambient",
     re.IGNORECASE,
 )
+"""Both halves of this were extended after being measured against real documents.
+
+The dash class carries `−` U+2212 MINUS SIGN as well as hyphen and en-dash, because
+onsemi typesets `Junction−to−Ambient` with it. That matters most in the *negative*
+pattern: without it `Junction−to−Case` is not recognised as the row to avoid, and
+junction-to-case is a fraction of junction-to-ambient — 15 against 160 on the NCP1117.
+
+`RθJA` is Texas Instruments house style and was all this matched. **ST writes `RthJA`** —
+a Latin `th` rather than the symbol — **and prints the parameter as "junction-ambient"
+with no "to"**, so LD1117's thermal table failed both alternatives and the whole document
+was refused. That is the one datasheet this extractor was rebuilt to read correctly, and a
+test fixture that quietly inserted the missing "to" passed while the real file did not.
+
+The optional `to` and the `Rth` spelling are therefore load-bearing, not tidying.
+"""
+
+_OTHER_METRICS = re.compile(
+    r"junction[\s\-–—−]*(?:to[\s\-–—−]*)?(?:case|board|top)"
+    r"|\bR?\s*(?:θ|Θ|THETA)\s*[-_]?\s*J[CB]\b"
+    r"|\bR\s*th\s*[-_]?\s*J[CB]\b"
+    r"|[ψΨ]\s*J[TB]\b",
+    re.IGNORECASE,
+)
+"""Widened in step with the positive pattern, and it has to be.
+
+`RthJC` sits directly above `RthJA` in ST's table and junction-to-case is a fraction of
+junction-to-ambient — 15 against 110 on the LD1117. Loosening the positive match without
+loosening this one would let the row above be read as the row wanted, understating the
+temperature rise, which is the direction that passes a board that cooks.
+"""
+
+_NUMERIC_VALUE = re.compile(r"(?<![A-Za-z])[-+]?\d+(?:\.\d+)?")
+"""Decimal table entries, excluding digits embedded in package or metric names."""
 
 
 def thermal_window(text: str) -> str:
@@ -153,12 +198,72 @@ def _fact_from_reply(
         return None
     if _collapsed(source_line) not in _collapsed(text):
         return None
-    return ThermalFact(float(value), source_line.strip(), package)
+    columns = reply.get("columns")
+    column_index = reply.get("column_index")
+    mounting = reply.get("mounting")
+    revision = reply.get("revision")
+    if (
+        not isinstance(columns, list)
+        or not columns
+        or any(not isinstance(column, str) or not column.strip() for column in columns)
+        or isinstance(column_index, bool)
+        or not isinstance(column_index, int)
+        or not 0 <= column_index < len(columns)
+        or mounting is not None and (not isinstance(mounting, str) or not mounting.strip())
+        or revision is not None and (not isinstance(revision, str) or not revision.strip())
+    ):
+        return None
+
+    # A row's numbers are the only arithmetic we can safely check without pretending to
+    # understand each vendor's layout. Rev 26's one value beneath four printed columns
+    # fails here, rather than being silently assigned to the column a model prefers.
+    values = [float(match.group()) for match in _NUMERIC_VALUE.finditer(source_line)]
+    if len(values) != len(columns) or values[column_index] != float(value):
+        return None
+    # The package check only applies where a header actually names a package. ST prints
+    # `SOT-223 SO-8 DPAK TO-220` and we can and must verify the choice against it. TI's
+    # TPS54331 prints its package *suffixes*, `D` and `DDA`, which share no text with the
+    # distributor's `SOIC-8` — demanding an overlap there would reject a large part of one
+    # vendor's catalogue for being tersely typeset.
+    #
+    # So: if any column in the set is recognisably a package, the chosen one has to be the
+    # right package. If none of them are, the binding cannot be verified from the text and
+    # the column is recorded verbatim instead, where a reader can check it.
+    if any(_names_a_package(column) for column in columns):
+        if not _packages_overlap(columns[column_index], package):
+            return None
+    if any(_collapsed(column) not in _collapsed(text) for column in columns):
+        return None
+    return ThermalFact(
+        float(value),
+        source_line.strip(),
+        columns[column_index].strip(),
+        mounting.strip() if isinstance(mounting, str) else None,
+        revision.strip() if isinstance(revision, str) else None,
+    )
+
+
+def _names_a_package(column: str) -> bool:
+    """Whether a printed column heading contains something the package tables recognise."""
+    return any(packages.theta_ja(token) is not None or packages.body_mm(token) is not None
+               for token in re.findall(r"[A-Za-z0-9\-]+", column))
+
+
+def _packages_overlap(column: str, package: str) -> bool:
+    """Whether the printed column and distributor package share a folded package token.
+
+    This deliberately delegates spelling folding to ``engine.packages`` rather than
+    growing a second package normaliser here. A TI heading can contain ``DCY (SOT-223)
+    4 PINS`` while the catalogue says merely ``SOT-223``; their candidate-key sets meet
+    at ``SOT223``. An empty intersection declines, because selecting a nearby column is
+    exactly the unsafe substitution this extractor exists to prevent.
+    """
+    return bool(set(packages._candidate_keys(column)) & set(packages._candidate_keys(package)))
 
 
 async def theta_ja_from_text(text: str, *, mpn: str, package: str) -> ThermalFact | None:
     """Extract and evidence-check one θJA figure for an MPN/package pair."""
-    cached = _load(mpn)
+    cached = _load(text)
     if cached is not None:
         return cached
     if not llm.available():
@@ -171,7 +276,7 @@ async def theta_ja_from_text(text: str, *, mpn: str, package: str) -> ThermalFac
         return None
     fact = _fact_from_reply(reply, text, package)
     if fact is not None:
-        _save(mpn, fact)
+        _save(mpn, text, fact)
     return fact
 
 
@@ -224,17 +329,31 @@ async def fetch(url: str) -> bytes | None:
 # ── cache ─────────────────────────────────────────────────────────────────────
 
 
-def _cache_path(mpn: str) -> Path:
-    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in mpn)
-    return CACHE_DIR / f"{safe}.json"
+def _cache_path(text: str) -> Path:
+    """A cache location for one document's extracted text, not for one part number.
+
+    A manufacturer can correct a datasheet while retaining its MPN. Hashing the text is
+    therefore the identity available to this layer: callers with PDF bytes extract text
+    before calling us, and using that text keeps Rev 26 and Rev 38 separate without a
+    second PDF parser or a stale MPN-level answer.
+    """
+    return CACHE_DIR / f"{_document_hash(text)}.json"
+
+
+def _document_hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _prompt_version() -> str:
     return hashlib.sha256(SYSTEM.encode()).hexdigest()[:12]
 
 
-def _load(mpn: str) -> ThermalFact | None:
-    path = _cache_path(mpn)
+def _load(text: str) -> ThermalFact | None:
+    return _load_by_hash(_document_hash(text))
+
+
+def _load_by_hash(document_hash: str) -> ThermalFact | None:
+    path = CACHE_DIR / f"{document_hash}.json"
     if not path.exists():
         return None
     try:
@@ -246,20 +365,55 @@ def _load(mpn: str) -> ThermalFact | None:
     value = stored.get("theta_ja")
     source_line = stored.get("source_line")
     package_column = stored.get("package_column")
+    mounting = stored.get("mounting")
+    revision = stored.get("revision")
     if (
         isinstance(value, bool)
         or not isinstance(value, (int, float))
         or not 5 <= value <= 500
         or not isinstance(source_line, str)
         or not isinstance(package_column, str)
+        or mounting is not None and not isinstance(mounting, str)
+        or revision is not None and not isinstance(revision, str)
     ):
         return None
-    return ThermalFact(float(value), source_line, package_column)
+    return ThermalFact(float(value), source_line, package_column, mounting, revision)
 
 
-def _save(mpn: str, fact: ThermalFact) -> None:
+def _pointer_path(mpn: str) -> Path:
+    return CACHE_DIR / "by-mpn" / f"{re.sub(r'[^A-Za-z0-9._-]', '_', mpn)}.json"
+
+
+def latest_for_mpn(mpn: str) -> ThermalFact | None:
+    """The most recently extracted fact for a part, whatever document produced it.
+
+    Two questions are being asked of this cache and only one of them is about a document.
+    Keying by document identity answers *"is this fact from this datasheet"*, which is what
+    keeps Rev 26 and Rev 38 apart. It cannot answer *"do we already have a figure for this
+    part"*, which is what a caller holding only an MPN needs before deciding whether to
+    spend a PDF fetch — and rekeying without providing it silently detached every stored
+    θJA from the part it belonged to.
+
+    The pointer is overwritten on every save, so a corrected datasheet supersedes the one
+    before it rather than losing to a cached answer.
+    """
+    pointer = _pointer_path(mpn)
+    if not pointer.exists():
+        return None
+    try:
+        document = json.loads(pointer.read_text()).get("document")
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(document, str):
+        return None
+    return _load_by_hash(document)
+
+
+def _save(mpn: str, text: str, fact: ThermalFact) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    _cache_path(mpn).write_text(
+    _pointer_path(mpn).parent.mkdir(parents=True, exist_ok=True)
+    _pointer_path(mpn).write_text(json.dumps({"document": _document_hash(text)}, indent=1))
+    _cache_path(text).write_text(
         json.dumps(
             {
                 "mpn": mpn,
@@ -267,6 +421,8 @@ def _save(mpn: str, fact: ThermalFact) -> None:
                 "theta_ja": fact.theta_ja,
                 "source_line": fact.source_line,
                 "package_column": fact.package_column,
+                "mounting": fact.mounting,
+                "revision": fact.revision,
             },
             indent=1,
         )

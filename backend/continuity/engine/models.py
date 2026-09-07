@@ -214,6 +214,13 @@ class PartSpec:
     same package, and a copper-area table to pick from. Those are not comparable
     figures, and without the condition beside them nothing on screen says so.
     """
+    theta_ja_revision: str | None = None
+    """The printed revision of the document that supplied ``theta_ja``.
+
+    A thermal table can change without its part number changing. Keeping the revision
+    beside the value lets the verdict distinguish a corrected manufacturer document
+    from an older mirror rather than presenting both as interchangeable evidence.
+    """
     topology: str | None = None
     synchronous: bool | None = None
     efficiency: float | None = None

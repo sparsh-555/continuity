@@ -338,7 +338,7 @@ def test_an_empty_dossier_keeps_today_s_missing_field_behaviour(monkeypatch):
 
 def test_cached_datasheet_theta_ja_reaches_the_part_spec(monkeypatch):
     fact = datasheet.ThermalFact(116.3, "RθJA Junction-to-ambient 116.3", "SOIC-8")
-    datasheet._save(CANDIDATE.mpn, fact)
+    datasheet._save(CANDIDATE.mpn, "TPS54331 thermal information fixture", fact)
     monkeypatch.setattr(normalize.llm, "available", lambda: False)
     monkeypatch.setattr(normalize.search, "enrich", _plain)
 
@@ -361,7 +361,7 @@ def test_without_a_cached_datasheet_fact_theta_ja_stays_none(monkeypatch):
 
 def test_a_stored_datasheet_fact_survives_a_second_normalise_without_extracting(monkeypatch):
     fact = datasheet.ThermalFact(116.3, "RθJA Junction-to-ambient 116.3", "SOIC-8")
-    datasheet._save(CANDIDATE.mpn, fact)
+    datasheet._save(CANDIDATE.mpn, "TPS54331 thermal information fixture", fact)
     monkeypatch.setattr(normalize.llm, "available", lambda: False)
     monkeypatch.setattr(normalize.search, "enrich", _plain)
 
@@ -393,7 +393,7 @@ def test_missing_package_theta_ja_starts_one_best_effort_datasheet_fetch(monkeyp
         return b"%PDF-1.7\nfixture"
 
     async def extract(*_args, **kwargs):
-        datasheet._save(kwargs["mpn"], fact)
+        datasheet._save(kwargs["mpn"], kwargs.get("text", "fixture datasheet text"), fact)
         return fact
 
     monkeypatch.setattr(sourcing.packages, "theta_ja", lambda _package: None)

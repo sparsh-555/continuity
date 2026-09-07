@@ -389,8 +389,11 @@ async def normalize(
     # a board is several parts deep.
     enrichment = asyncio.create_task(search.enrich(candidate.mpn))
     live_stock = asyncio.create_task(search.live_stock(candidate.mpn))
-    thermal_fact = datasheet._load(candidate.mpn)
-    if fetch_missing_theta_ja and thermal_fact is None:
+    # A θJA cache is keyed by document text, which is not available until the fetch
+    # completes. Do not probe it with an MPN: two revisions for one part are precisely
+    # the stale-answer hazard the document identity removes.
+    thermal_fact = datasheet.latest_for_mpn(candidate.mpn)
+    if fetch_missing_theta_ja:
         _start_theta_ja_fetch(candidate, enrichment)
     # Let both tasks issue their I/O before an immediately-returning test or local LLM
     # can finish the parse without ever yielding to the event loop.
@@ -479,6 +482,8 @@ async def normalize(
                 if thermal_fact is not None
                 else dossier_fields.get("theta_ja", (None, None))[1]
             ),
+            "theta_ja_mounting": thermal_fact.mounting if thermal_fact is not None else None,
+            "theta_ja_revision": thermal_fact.revision if thermal_fact is not None else None,
             "provenance": provenance,
         }
     )

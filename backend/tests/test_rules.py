@@ -1649,6 +1649,24 @@ def test_a_thermal_verdict_names_both_mounting_conditions():
     assert fields["board mounting"] == "1000 mm² top and back copper, 1/16in FR-4, 1 oz"
 
 
+def test_a_thermal_verdict_cites_the_revision_of_its_checked_datasheet_column():
+    board = usb_board(
+        regulator=parts.ap2112k(
+            theta_ja=110.0,
+            theta_ja_source_line="RthJA Thermal resistance junction-to-ambient 110 55 100 50",
+            theta_ja_mounting="ST Table 2",
+            theta_ja_revision="DocID2572 Rev 38",
+        ),
+        loads={"mcu": parts.esp32s3()},
+    )
+
+    verdict = only(rules.thermal_dissipation(board), "thermal_dissipation", "regulator", RAIL)
+    fields = {row.field: row.value for row in verdict.evidence}
+
+    assert fields["θJA measured on"] == "ST Table 2"
+    assert fields["θJA document revision"] == "DocID2572 Rev 38"
+
+
 def _ambient_sensitive_board(ambient_c: int, ambient_source: str | None = None):
     """Put the same regulator on a thermal boundary where only ambient changes the answer.
 

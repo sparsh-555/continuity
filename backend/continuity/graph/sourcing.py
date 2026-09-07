@@ -457,9 +457,9 @@ async def choose(candidate: Candidate) -> PartSpec:
     The fetch is a background task that caches for later runs, so this costs nothing on
     the current one.
     """
-    return await normalize.normalize(
-        candidate, fetch_missing_theta_ja=datasheet._load(candidate.mpn) is None
-    )
+    # The datasheet cache is keyed by document identity, not MPN. `normalize` must fetch
+    # the document before it can know whether its text has a checked thermal fact.
+    return await normalize.normalize(candidate, fetch_missing_theta_ja=True)
 
 
 def alternatives(
