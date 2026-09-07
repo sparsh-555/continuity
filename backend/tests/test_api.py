@@ -171,22 +171,22 @@ def test_a_run_streams_a_complete_contract_shaped_conversation():
     assert frames[-1]["type"] == "done"
 
 
-def test_a_signed_in_run_without_a_project_uses_a_scratch_project(monkeypatch):
+def test_a_signed_in_run_without_a_line_uses_a_scratch_line(monkeypatch):
     calls: list[tuple] = []
 
     class Store:
-        async def ensure_scratch_project(self, user_id: str) -> str:
+        async def ensure_scratch_line(self, user_id: str) -> str:
             calls.append(("ensure", user_id))
-            return "scratch-project"
+            return "scratch-line"
 
-        async def project_for_user(self, project_id: str, user_id: str):
-            calls.append(("project", project_id, user_id))
+        async def line_for_user(self, line_id: str, user_id: str):
+            calls.append(("line", line_id, user_id))
             return object()
 
         async def create_thread(
-            self, thread_id: str, project_id: str, user_id: str, prompt: str
+            self, thread_id: str, line_id: str, user_id: str, prompt: str
         ) -> None:
-            calls.append(("thread", thread_id, project_id, user_id, prompt))
+            calls.append(("thread", thread_id, line_id, user_id, prompt))
 
     async def signed_in(request):
         return SimpleNamespace(id="user-1")
@@ -202,8 +202,8 @@ def test_a_signed_in_run_without_a_project_uses_a_scratch_project(monkeypatch):
 
     assert frames == [{"thread_id": "thread-1"}]
     assert calls[0] == ("ensure", "user-1")
-    assert calls[1] == ("project", "scratch-project", "user-1")
-    assert calls[2][2:] == ("scratch-project", "user-1", DEMO)
+    assert calls[1] == ("line", "scratch-line", "user-1")
+    assert calls[2][2:] == ("scratch-line", "user-1", DEMO)
 
 
 def test_seq_is_monotonic_from_zero():

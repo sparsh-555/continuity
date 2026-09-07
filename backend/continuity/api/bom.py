@@ -62,7 +62,7 @@ class BomRequest(BaseModel):
     a papercut for anyone reading the API. Internally it is a *brief*, which is what the
     requirement inference calls it."""
 
-    project_id: str | None = None
+    line_id: str | None = None
 
 
 @dataclass(frozen=True)

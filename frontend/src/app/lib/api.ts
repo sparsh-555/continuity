@@ -8,7 +8,7 @@ export type PublicUser = {
   onboarded: boolean
 }
 
-export type Project = {
+export type Line = {
   id: string
   name: string
   created_at: string
@@ -22,7 +22,7 @@ export type ThreadSummary = {
   elapsed_s: number
 }
 
-export type ProjectThread = {
+export type LineThread = {
   id: string
   prompt: string
   status: string
@@ -47,7 +47,7 @@ export type ThreadBoard = {
   resumable: boolean
 }
 
-export type MemoryProject = {
+export type MemoryLine = {
   id: string
   name: string
   boards: number
@@ -55,8 +55,8 @@ export type MemoryProject = {
 
 export type MemoryFinding = {
   thread_id: string
-  project_id: string
-  project_name: string
+  line_id: string
+  line_name: string
   rule: string
   slot: string
   verdict: string
@@ -69,12 +69,12 @@ export type MemoryPart = {
   mpn: string
   manufacturer: string | null
   lifecycle: 'active' | 'nrnd' | 'obsolete' | 'unknown' | null
-  used_in: Array<{ project_id: string; project_name: string }>
+  used_in: Array<{ line_id: string; line_name: string }>
   findings: MemoryFinding[]
 }
 
 export type MemoryResponse = {
-  projects: MemoryProject[]
+  lines: MemoryLine[]
   parts: MemoryPart[]
   parts_capped: boolean
   part_limit: number
@@ -140,8 +140,8 @@ export function me() {
   return request<PublicUser>('/auth/me')
 }
 
-export function listProjects() {
-  return request<Project[]>('/projects')
+export function listLines() {
+  return request<Line[]>('/lines')
 }
 
 export function getMemory() {
@@ -152,30 +152,30 @@ export function getThreadBoard(threadId: string) {
   return request<ThreadBoard>(`/threads/${encodeURIComponent(threadId)}/board`)
 }
 
-export function createProject(name: string) {
-  return request<Project>('/projects', {
+export function createLine(name: string) {
+  return request<Line>('/lines', {
     method: 'POST',
     body: { name },
   })
 }
 
-export function getProject(projectId: string) {
-  return request<Project>(`/projects/${encodeURIComponent(projectId)}`)
+export function getLine(lineId: string) {
+  return request<Line>(`/lines/${encodeURIComponent(lineId)}`)
 }
 
-export function listProjectThreads(projectId: string) {
-  return request<ProjectThread[]>(`/projects/${encodeURIComponent(projectId)}/threads`)
+export function listLineThreads(lineId: string) {
+  return request<LineThread[]>(`/lines/${encodeURIComponent(lineId)}/threads`)
 }
 
-export function updateProject(projectId: string, name: string) {
-  return request<Project>(`/projects/${encodeURIComponent(projectId)}`, {
+export function updateLine(lineId: string, name: string) {
+  return request<Line>(`/lines/${encodeURIComponent(lineId)}`, {
     method: 'PATCH',
     body: { name },
   })
 }
 
-export function deleteProject(projectId: string) {
-  return request<void>(`/projects/${encodeURIComponent(projectId)}`, {
+export function deleteLine(lineId: string) {
+  return request<void>(`/lines/${encodeURIComponent(lineId)}`, {
     method: 'DELETE',
   })
 }

@@ -15,7 +15,7 @@ const ICON_SIZE: Record<WordmarkSize, string> = {
 /**
  * The one Continuity wordmark. Every screen renders this and nothing renders its own.
  *
- * There were four before: `developer_board` in copper-container on the projects and design
+ * There were four before: `developer_board` in copper-container on the lines and design
  * headers, `memory` in copper on the landing and auth pages, and no glyph at all on the
  * brief entry — three glyphs and two tones for one product, which reads as three products
  * to anyone moving between the pages. The header pair was taken as canonical because it is

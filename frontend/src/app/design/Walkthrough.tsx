@@ -24,7 +24,7 @@ const steps: WalkthroughStep[] = [
   {
     selector: '[data-tour="brief-entry"]',
     heading: 'Start with the brief',
-    body: 'Describe the board in plain language. This is the same input you will use for every project.',
+    body: 'Describe the board in plain language. This is the same input you will use for every product line.',
   },
   {
     selector: '[data-tour="graph"]',

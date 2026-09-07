@@ -24,12 +24,12 @@ import type {
 
 export type EventSource = {
   speed: 1 | 2 | 4
-  start: (prompt: string, onEvent: (event: DesignEvent) => void, projectId?: string) => void
+  start: (prompt: string, onEvent: (event: DesignEvent) => void, lineId?: string) => void
   startBom: (
     bom: string,
     onEvent: (event: DesignEvent) => void,
     prompt?: string,
-    projectId?: string,
+    lineId?: string,
   ) => void
   startDemo: (onEvent: (event: DesignEvent) => void) => void
   answer: (text: string) => void
@@ -659,19 +659,19 @@ export function useDesignSession() {
   )
 
   const start = useCallback(
-    (prompt: string, projectId?: string) => {
+    (prompt: string, lineId?: string) => {
       resetSessionState()
       setStatus('running')
-      source.start(prompt, handleEvent, projectId)
+      source.start(prompt, handleEvent, lineId)
     },
     [handleEvent, resetSessionState],
   )
 
   const startBom = useCallback(
-    (bom: string, prompt?: string, projectId?: string) => {
+    (bom: string, prompt?: string, lineId?: string) => {
       resetSessionState()
       setStatus('running')
-      source.startBom(bom, handleEvent, prompt, projectId)
+      source.startBom(bom, handleEvent, prompt, lineId)
     },
     [handleEvent, resetSessionState],
   )

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react'
 import { Link } from 'react-router'
 
-import { updateProject } from '../lib/api'
+import { updateLine } from '../lib/api'
 import { PcbBackground } from '../shell/PcbBackground'
 import { Wordmark } from '../shell/Wordmark'
 
 type BriefEntryProps = {
-  projectId?: string
+  lineId?: string
   onStarted: (brief: string, bom?: string) => void
   walkthroughBrief?: string
 }
@@ -22,7 +22,7 @@ const SAMPLE_BRIEFS = [
   'BLE beacon on a coin cell, must last a year',
 ]
 
-function deriveProjectName(brief: string) {
+function deriveLineName(brief: string) {
   return brief
     .trim()
     .split(/\s+/)
@@ -32,7 +32,7 @@ function deriveProjectName(brief: string) {
     .slice(0, 64)
 }
 
-export function BriefEntry({ projectId, onStarted, walkthroughBrief }: BriefEntryProps) {
+export function BriefEntry({ lineId, onStarted, walkthroughBrief }: BriefEntryProps) {
   const [brief, setBrief] = useState('')
   const [attachment, setAttachment] = useState<BomAttachment | null>(null)
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
@@ -97,10 +97,10 @@ export function BriefEntry({ projectId, onStarted, walkthroughBrief }: BriefEntr
 
     setSubmitting(true)
 
-    const nextName = deriveProjectName(trimmedBrief)
-    if (projectId && nextName) {
+    const nextName = deriveLineName(trimmedBrief)
+    if (lineId && nextName) {
       try {
-        await updateProject(projectId, nextName)
+        await updateLine(lineId, nextName)
       } catch {
         // naming failure must not block the run start
       }
@@ -174,11 +174,11 @@ export function BriefEntry({ projectId, onStarted, walkthroughBrief }: BriefEntr
       <header className="w-full h-12 flex items-center justify-between px-md sticky top-0 z-50 bg-surface border-b border-outline-variant">
         <Link
           className="flex items-center gap-sm p-unit rounded hover:bg-surface-variant transition-colors active:opacity-80"
-          to="/projects"
+          to="/lines"
         >
           <span className="material-symbols-outlined text-primary">arrow_back</span>
           <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">
-            NEW PROJECT
+            NEW PRODUCT LINE
           </span>
         </Link>
 

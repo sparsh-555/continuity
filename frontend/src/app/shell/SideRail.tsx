@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
 import { useAuth } from '../hooks/useAuth'
-import { useNewProject } from '../hooks/useNewProject'
+import { useNewLine } from '../hooks/useNewLine'
 
 type RailButtonProps = {
   active?: boolean
@@ -43,7 +43,7 @@ export function SideRail() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
-  const { createNewProject, creating } = useNewProject()
+  const { createNewLine, creating } = useNewLine()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsRef = useRef<HTMLDivElement | null>(null)
 
@@ -74,8 +74,8 @@ export function SideRail() {
   return (
     <nav aria-label="Primary navigation" className="fixed left-0 top-0 bottom-0 w-16 flex flex-col items-center py-md z-40 bg-surface-container-lowest dark:bg-surface-container-lowest border-r border-outline-variant transition-all duration-150 ease-in-out">
       <div className="flex flex-col gap-sm w-full items-center">
-        <RailButton disabled={creating} icon="add" label="New project" onClick={() => { createNewProject().catch(() => undefined) }} />
-        <RailButton active={location.pathname === '/projects'} icon="folder_open" label="All projects" onClick={() => navigate('/projects')} />
+        <RailButton disabled={creating} icon="add" label="New product line" onClick={() => { createNewLine().catch(() => undefined) }} />
+        <RailButton active={location.pathname === '/lines'} icon="folder_open" label="All product lines" onClick={() => navigate('/lines')} />
         {/* `hub` — nodes and the links between them, which is literally what /memory shows.
             It was `memory`, a chip glyph, sitting one rail away from the wordmark's
             `developer_board` chip: two chips for two unrelated things. */}

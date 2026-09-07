@@ -23,14 +23,14 @@ export default function WalkthroughRoute() {
 
   useEffect(() => {
     if (session.status === 'error') {
-      navigate('/projects', { replace: true })
+      navigate('/lines', { replace: true })
     }
   }, [navigate, session.status])
 
   const finish = async () => {
     session.cancel()
     await refresh()
-    navigate('/projects', { replace: true })
+    navigate('/lines', { replace: true })
   }
 
   const start = () => {

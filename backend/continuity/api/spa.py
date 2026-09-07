@@ -7,7 +7,7 @@
 *sites*. The session cookie was therefore a third-party cookie. `SameSite=none` only makes
 such a cookie eligible to be **sent**; WebKit refuses to **store** third-party cookies at
 all, so Safari and every browser on iOS got a 401 on every authenticated request and a
-dashboard reading "Could not load your projects". Chrome still permits them, which is why
+dashboard reading "Could not load your lines". Chrome still permits them, which is why
 it looked fine for months.
 
 No cookie attribute fixes that, and the alternatives each cost something: a custom domain
@@ -46,7 +46,7 @@ class _Spa(StaticFiles):
 
     Two behaviours the default does not have:
 
-    * **Unknown paths serve `index.html`.** `/projects` and `/design/:id` are routes the
+    * **Unknown paths serve `index.html`.** `/lines` and `/design/:id` are routes the
       React router owns; there was never a file at either. Without this a reload on any
       of them is a 404.
     * **`index.html` is never cached.** Vite content-hashes the asset filenames, so those
@@ -72,12 +72,12 @@ def serve(api: FastAPI, dist: Path = DIST) -> FastAPI:
 
     ## Why the API needs a prefix
 
-    The router and the API both own `/projects`, `/memory` and `/design`. On two hosts that
+    The router and the API both own `/lines`, `/memory` and `/design`. On two hosts that
     was never a conflict — one served pages, the other served JSON, and nothing had to
     choose. On one origin something has to, and a path cannot mean two things.
 
-    Prefixing the API keeps the URLs a person sees unchanged: `/projects` is still the
-    page, and `/api/projects` is the JSON behind it. Prefixing the *UI* instead would have
+    Prefixing the API keeps the URLs a person sees unchanged: `/lines` is still the
+    page, and `/api/lines` is the JSON behind it. Prefixing the *UI* instead would have
     meant no backend change at all, but every visible URL would carry an `/app` that exists
     only to serve an implementation detail.
 

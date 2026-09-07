@@ -40,7 +40,7 @@ type SamplePart = {
 
 type SampleNode = {
   id: string
-  kind: 'part' | 'project'
+  kind: 'part' | 'line'
   label: string
   part?: SamplePart
   x?: number
@@ -59,8 +59,8 @@ function part(mpn: string, usedIn: number, findings = 0): SampleNode {
   return { id: `part:${mpn}`, kind: 'part', label: mpn, part: { mpn, usedIn, findings } }
 }
 
-function project(id: string, label: string): SampleNode {
-  return { id: `project:${id}`, kind: 'project', label }
+function line(id: string, label: string): SampleNode {
+  return { id: `line:${id}`, kind: 'line', label }
 }
 
 const graph: { nodes: SampleNode[]; links: SampleLink[] } = {
@@ -70,20 +70,20 @@ const graph: { nodes: SampleNode[]; links: SampleLink[] } = {
     part('SHT40-AD1B-R2', 1, 1),
     part('ER-OLED013-1', 1),
     part('AMS1117-3.3', 0, 1),
-    project('field-node', 'Sample field node'),
-    project('display-node', 'Sample display node'),
-    project('repair-study', 'Sample repair study'),
+    line('field-node', 'Sample field node'),
+    line('display-node', 'Sample display node'),
+    line('repair-study', 'Sample repair study'),
   ],
   links: [
-    { id: 'tps:field', source: 'part:TPS62825DMQR', target: 'project:field-node' },
-    { id: 'esp:field', source: 'part:ESP32-S3-WROOM-1-N8R2', target: 'project:field-node' },
-    { id: 'sht:field', source: 'part:SHT40-AD1B-R2', target: 'project:field-node' },
-    { id: 'tps:display', source: 'part:TPS62825DMQR', target: 'project:display-node' },
-    { id: 'esp:display', source: 'part:ESP32-S3-WROOM-1-N8R2', target: 'project:display-node' },
-    { id: 'oled:display', source: 'part:ER-OLED013-1', target: 'project:display-node' },
-    { id: 'sht:repair', source: 'part:SHT40-AD1B-R2', target: 'project:repair-study' },
+    { id: 'tps:field', source: 'part:TPS62825DMQR', target: 'line:field-node' },
+    { id: 'esp:field', source: 'part:ESP32-S3-WROOM-1-N8R2', target: 'line:field-node' },
+    { id: 'sht:field', source: 'part:SHT40-AD1B-R2', target: 'line:field-node' },
+    { id: 'tps:display', source: 'part:TPS62825DMQR', target: 'line:display-node' },
+    { id: 'esp:display', source: 'part:ESP32-S3-WROOM-1-N8R2', target: 'line:display-node' },
+    { id: 'oled:display', source: 'part:ER-OLED013-1', target: 'line:display-node' },
+    { id: 'sht:repair', source: 'part:SHT40-AD1B-R2', target: 'line:repair-study' },
     // Replaced during a repair, so it is drawn but not claimed as still in the BOM.
-    { id: 'ams:repair', source: 'part:AMS1117-3.3', target: 'project:repair-study', historical: true },
+    { id: 'ams:repair', source: 'part:AMS1117-3.3', target: 'line:repair-study', historical: true },
   ],
 }
 

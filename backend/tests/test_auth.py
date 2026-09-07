@@ -46,7 +46,7 @@ async def signed_out():
         store = Store(pool)
         await store.setup()
         async with pool.connection() as conn:
-            await conn.execute("TRUNCATE users, sessions, projects, threads CASCADE")
+            await conn.execute("TRUNCATE users, sessions, product_lines, threads CASCADE")
 
         previous = app.state.store
         app.state.store = store

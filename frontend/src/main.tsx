@@ -7,7 +7,7 @@ import { RequireAuth } from './app/routes/RequireAuth'
 import DesignRoute from './app/routes/design'
 import { SignInRoute, SignUpRoute } from './app/routes/auth'
 import LandingRoute from './app/routes/landing'
-import ProjectsRoute from './app/routes/projects'
+import LinesRoute from './app/routes/lines'
 import MemoryRoute from './app/routes/memory'
 import WalkthroughRoute from './app/routes/walkthrough'
 import { AppFrame } from './app/shell/AppFrame'
@@ -34,10 +34,10 @@ const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           {
-            path: '/projects',
+            path: '/lines',
             element: (
               <RequireAuth>
-                <ProjectsRoute />
+                <LinesRoute />
               </RequireAuth>
             ),
           },
@@ -62,11 +62,11 @@ const router = createBrowserRouter([
             element: <DesignRoute />,
           },
           {
-            // Guarded, unlike the bare /design above: a project belongs to somebody. Without
+            // Guarded, unlike the bare /design above: a line belongs to somebody. Without
             // this a signed-out visitor gets the whole workspace shell — the API refuses every
             // call behind it, so nothing leaks, but it renders a broken page where a redirect
             // belongs.
-            path: '/design/:projectId',
+            path: '/design/:lineId',
             element: (
               <RequireAuth>
                 <DesignRoute />

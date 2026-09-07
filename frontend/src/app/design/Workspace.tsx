@@ -21,7 +21,7 @@ type TourConflict = ConflictEvent & {
 }
 
 type WorkspaceViewProps = {
-  projectId?: string
+  lineId?: string
   initialPrompt?: string
   /** Render the panels but start nothing — whoever owns the session drives the run. */
   walkthrough?: boolean
@@ -54,7 +54,7 @@ export function Workspace(props: Omit<WorkspaceViewProps, 'session'>) {
  * one `useDesignSession` may be alive per screen, and this split is what guarantees it.
  */
 export function WorkspaceView({
-  projectId,
+  lineId,
   initialPrompt,
   walkthrough = false,
   walkthroughStep,
@@ -147,9 +147,9 @@ export function WorkspaceView({
     (prompt: string) => {
       setDidAutoOpenConflict(false)
       setIsConflictOpen(false)
-      start(prompt, projectId)
+      start(prompt, lineId)
     },
-    [projectId, start],
+    [lineId, start],
   )
 
   // Kept in a ref so the effect below can depend on `initialPrompt` alone. `handleStart`
@@ -179,10 +179,10 @@ export function WorkspaceView({
     <div className="h-full min-h-0 w-full overflow-hidden flex flex-col font-body-md antialiased selection:bg-primary-container selection:text-on-primary-container bg-background text-on-background">
       <header className="flex justify-between items-center w-full px-lg h-12 z-50 bg-surface-container-low dark:bg-surface-container-low border-b border-outline-variant flex-shrink-0 shadow-[0_1px_0_0_rgba(255,255,255,0.05)]">
         <div className="flex items-center gap-container-margin h-full">
-          {projectId ? (
+          {lineId ? (
             <Link
               className="h-8 w-8 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors"
-              to="/projects"
+              to="/lines"
             >
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
             </Link>

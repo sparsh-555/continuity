@@ -16,6 +16,35 @@
 -- it is enough while the schema only grows. The moment a column has to change type or
 -- back-fill, this stops being sufficient and a real migration belongs here.
 
+-- Added 7 Sep 2026. A project was the original name for the container an enterprise
+-- ships; product line is the name the product now uses everywhere. This runs before
+-- `CREATE TABLE IF NOT EXISTS product_lines`: doing it afterwards would create an empty
+-- new table on an old deployment and make the required table rename impossible. Each
+-- guard makes startup safe after the migration has already run.
+ALTER TABLE IF EXISTS projects RENAME TO product_lines;
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'threads' AND column_name = 'project_id') THEN
+        ALTER TABLE threads RENAME COLUMN project_id TO line_id;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'findings' AND column_name = 'project_id') THEN
+        ALTER TABLE findings RENAME COLUMN project_id TO line_id;
+    END IF;
+END $$;
+
+-- Renaming a table leaves its primary key index under the old name, so a migrated
+-- database and a fresh one would otherwise disagree about what that index is called.
+-- Cosmetic to Postgres, and exactly the drift this rename exists to remove.
+ALTER INDEX IF EXISTS projects_pkey RENAME TO product_lines_pkey;
+ALTER INDEX IF EXISTS projects_user_idx RENAME TO product_lines_user_idx;
+ALTER INDEX IF EXISTS threads_project_idx RENAME TO threads_line_idx;
+ALTER INDEX IF EXISTS findings_user_project_idx RENAME TO findings_user_line_idx;
+
 CREATE TABLE IF NOT EXISTS users (
     id            text PRIMARY KEY,
     email         text NOT NULL UNIQUE,   -- stored lowercased; the app folds before writing
@@ -36,7 +65,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions(expires_at);
 
-CREATE TABLE IF NOT EXISTS projects (
+CREATE TABLE IF NOT EXISTS product_lines (
     id         text PRIMARY KEY,
     user_id    text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name       text NOT NULL,
@@ -44,14 +73,14 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS projects_user_idx ON projects(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS product_lines_user_idx ON product_lines(user_id, updated_at DESC);
 
 -- `id` is the LangGraph thread_id, so this row and the checkpoint share a key without a
--- join table. `user_id` is denormalised off `projects` on purpose: `/resume` and
+-- join table. `user_id` is denormalised off `product_lines` on purpose: `/resume` and
 -- `/export` authorise on it, and an ownership check should not depend on a join.
 CREATE TABLE IF NOT EXISTS threads (
     id         text PRIMARY KEY,
-    project_id text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    line_id    text NOT NULL REFERENCES product_lines(id) ON DELETE CASCADE,
     user_id    text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     prompt     text NOT NULL,
     status     text NOT NULL DEFAULT 'running'
@@ -64,7 +93,7 @@ CREATE TABLE IF NOT EXISTS threads (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS threads_project_idx ON threads(project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS threads_line_idx ON threads(line_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS threads_user_idx ON threads(user_id);
 
 -- Added 10 Aug. `CREATE TABLE IF NOT EXISTS` above does nothing to a table that already
@@ -84,8 +113,8 @@ ALTER TABLE threads ADD CONSTRAINT threads_status_check
 -- Added 10 Aug. Lets `/design/demo` find the walkthrough it already created instead of
 -- making a second one. The endpoint is reached twice in development — React re-runs
 -- effects — and was not idempotent, so every new account got two "Welcome to Continuity"
--- projects, one of them abandoned mid-stream.
-ALTER TABLE projects ADD COLUMN IF NOT EXISTS is_walkthrough boolean NOT NULL DEFAULT false;
+-- product lines, one of them abandoned mid-stream.
+ALTER TABLE product_lines ADD COLUMN IF NOT EXISTS is_walkthrough boolean NOT NULL DEFAULT false;
 
 -- Findings are a user-facing record of what the engine reported. They are never input
 -- to a rule, planner, or reviewer: a part can correctly fail on one board and pass on
@@ -93,7 +122,7 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS is_walkthrough boolean NOT NULL DE
 CREATE TABLE IF NOT EXISTS findings (
     id              text PRIMARY KEY,
     thread_id       text NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-    project_id      text NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    line_id         text NOT NULL REFERENCES product_lines(id) ON DELETE CASCADE,
     user_id         text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     rule            text NOT NULL,
     slot            text NOT NULL,
@@ -108,7 +137,7 @@ CREATE TABLE IF NOT EXISTS findings (
 );
 
 CREATE INDEX IF NOT EXISTS findings_user_mpn_idx ON findings(user_id, mpn);
-CREATE INDEX IF NOT EXISTS findings_user_project_idx ON findings(user_id, project_id);
+CREATE INDEX IF NOT EXISTS findings_user_line_idx ON findings(user_id, line_id);
 
 -- Added 12 Aug. A successful repair can guide a matching future conflict without ever
 -- retaining a replacement part as a promptable precedent.

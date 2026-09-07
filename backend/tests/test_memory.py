@@ -1,4 +1,4 @@
-"""Continuity findings and the user-facing project/part memory."""
+"""Continuity findings and the user-facing line/part memory."""
 
 from __future__ import annotations
 
@@ -297,7 +297,7 @@ async def a_store():
         store = Store(pool)
         await store.setup()
         async with pool.connection() as conn:
-            await conn.execute("TRUNCATE users, sessions, projects, threads CASCADE")
+            await conn.execute("TRUNCATE users, sessions, product_lines, threads CASCADE")
         previous = app.state.store
         app.state.store = store
         try:
@@ -312,8 +312,8 @@ async def _signed_in(email: str) -> httpx.AsyncClient:
     return client
 
 
-async def _board(store: Store, user_id: str, project_id: str, thread_id: str, mpn: str) -> None:
-    await store.create_thread(thread_id, project_id, user_id, "brief")
+async def _board(store: Store, user_id: str, line_id: str, thread_id: str, mpn: str) -> None:
+    await store.create_thread(thread_id, line_id, user_id, "brief")
     await store.save_bom(
         thread_id,
         [{"slot": "sensor", "mpn": mpn, "manufacturer": "Sensirion", "lifecycle": "active"}],
@@ -327,9 +327,9 @@ def test_memory_joins_two_threads_under_one_part_and_keeps_other_users_out():
             mine = await _signed_in("mine@example.com")
             theirs = await _signed_in("theirs@example.com")
             me = (await mine.get("/auth/me")).json()
-            project = await store.create_project(me["id"], "Weather")
+            line = await store.create_line(me["id"], "Weather")
             for thread_id in ("thread-one", "thread-two"):
-                await _board(store, me["id"], project.id, thread_id, "SHT40")
+                await _board(store, me["id"], line.id, thread_id, "SHT40")
                 await store.save_findings(
                     thread_id,
                     [Finding("availability", "sensor", "SHT40", "No stock.", "unresolved")],
@@ -339,18 +339,18 @@ def test_memory_joins_two_threads_under_one_part_and_keeps_other_users_out():
     memory, other = asyncio.run(go())
     assert memory["parts"][0]["mpn"] == "SHT40"
     assert len(memory["parts"][0]["findings"]) == 2
-    assert other.json() == {"projects": [], "parts": [], "parts_capped": False, "part_limit": 100}
+    assert other.json() == {"lines": [], "parts": [], "parts_capped": False, "part_limit": 100}
 
 
 @database
-def test_memory_reports_a_part_used_in_three_projects():
+def test_memory_reports_a_part_used_in_three_lines():
     async def go():
         async with a_store() as store:
             mine = await _signed_in("mine@example.com")
             me = (await mine.get("/auth/me")).json()
             for number in range(3):
-                project = await store.create_project(me["id"], f"P{number}")
-                await _board(store, me["id"], project.id, f"thread-{number}", "COMMON")
+                line = await store.create_line(me["id"], f"P{number}")
+                await _board(store, me["id"], line.id, f"thread-{number}", "COMMON")
             return (await mine.get("/memory")).json()
 
     memory = asyncio.run(go())

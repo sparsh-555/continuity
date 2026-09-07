@@ -9,8 +9,8 @@ connection limits, timeouts and shutdown are decided.
 
 ## Why the user-scoped lookups take a `user_id` rather than filtering afterwards
 
-`project_for_user` and `thread_for_user` are the authorisation boundary for `/resume`,
-`/export` and everything under `/projects`. Fetching by id and comparing the owner in
+`line_for_user` and `thread_for_user` are the authorisation boundary for `/resume`,
+`/export` and everything under `/lines`. Fetching by id and comparing the owner in
 Python is the same logic with one more place to forget it, so ownership is a `WHERE`
 clause and there is no unscoped read to reach for by accident.
 
@@ -73,7 +73,7 @@ class User:
 
 
 @dataclass(frozen=True)
-class Project:
+class Line:
     id: str
     user_id: str
     name: str
@@ -84,7 +84,7 @@ class Project:
 @dataclass(frozen=True)
 class Thread:
     id: str
-    project_id: str
+    line_id: str
     user_id: str
     prompt: str
     status: str
@@ -103,8 +103,8 @@ def _fold(email: str) -> str:
     return email.strip().lower()
 
 
-WALKTHROUGH_PROJECT_NAME = "Welcome to Continuity"
-SCRATCH_PROJECT_NAME = "Scratch designs"
+WALKTHROUGH_LINE_NAME = "Welcome to Continuity"
+SCRATCH_LINE_NAME = "Scratch designs"
 
 
 def _derived_id(user_id: str, purpose: str) -> str:
@@ -238,25 +238,25 @@ class Store:
             cursor = await conn.execute("DELETE FROM sessions WHERE expires_at <= now()")
             return cursor.rowcount
 
-    # ── projects ─────────────────────────────────────────────────────────────
+    # ── lines ─────────────────────────────────────────────────────────────
 
-    async def create_project(
+    async def create_line(
         self, user_id: str, name: str, *, is_walkthrough: bool = False
-    ) -> Project:
+    ) -> Line:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                INSERT INTO projects (id, user_id, name, is_walkthrough)
+                INSERT INTO product_lines (id, user_id, name, is_walkthrough)
                 VALUES (%s, %s, %s, %s)
                 RETURNING id, user_id, name, created_at, updated_at
                 """,
                 (new_id(), user_id, name, is_walkthrough),
             )
             row = await cursor.fetchone()
-        return Project(**row)
+        return Line(**row)
 
-    async def projects_for_user(self, user_id: str) -> list[Project]:
-        """The account's own projects. **The walkthrough is not one of them.**
+    async def lines_for_user(self, user_id: str) -> list[Line]:
+        """The account's own lines. **The walkthrough is not one of them.**
 
         `is_walkthrough` marks scaffolding, not user data: `ensure_walkthrough` creates it,
         `/design/demo` replays into it, and the help button in the rail is how anyone
@@ -264,7 +264,7 @@ class Store:
         product depends on — and deleting it is exactly what was done while tidying the
         demo account before a live pitch.
 
-        Nothing breaks when it goes: `ensure_walkthrough` recreates the project and thread
+        Nothing breaks when it goes: `ensure_walkthrough` recreates the line and thread
         from ids derived off the user, so the tour still works after a delete. But a
         dashboard whose first row is a tour the user has already finished is also just
         noise, and hiding it is what makes a fresh account's dashboard honestly empty.
@@ -273,44 +273,44 @@ class Store:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
                 SELECT id, user_id, name, created_at, updated_at
-                  FROM projects WHERE user_id = %s AND NOT is_walkthrough
+                  FROM product_lines WHERE user_id = %s AND NOT is_walkthrough
                  ORDER BY updated_at DESC
                 """,
                 (user_id,),
             )
             rows = await cursor.fetchall()
-        return [Project(**row) for row in rows]
+        return [Line(**row) for row in rows]
 
-    async def project_for_user(self, project_id: str, user_id: str) -> Project | None:
+    async def line_for_user(self, line_id: str, user_id: str) -> Line | None:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
                 SELECT id, user_id, name, created_at, updated_at
-                  FROM projects WHERE id = %s AND user_id = %s
+                  FROM product_lines WHERE id = %s AND user_id = %s
                 """,
-                (project_id, user_id),
+                (line_id, user_id),
             )
             row = await cursor.fetchone()
-        return None if row is None else Project(**row)
+        return None if row is None else Line(**row)
 
-    async def ensure_scratch_project(self, user_id: str) -> str:
-        """The account's visible, reusable home for runs started without a project.
+    async def ensure_scratch_line(self, user_id: str) -> str:
+        """The account's visible, reusable home for runs started without a line.
 
         The id is derived from the account, so React's development double requests use
-        the same insert and `ON CONFLICT DO NOTHING` keeps them to one project.
+        the same insert and `ON CONFLICT DO NOTHING` keeps them to one line.
         """
-        project_id = _derived_id(user_id, "scratch-project")
+        line_id = _derived_id(user_id, "scratch-line")
 
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                INSERT INTO projects (id, user_id, name)
+                INSERT INTO product_lines (id, user_id, name)
                 VALUES (%s, %s, %s) ON CONFLICT (id) DO NOTHING
                 """,
-                (project_id, user_id, SCRATCH_PROJECT_NAME),
+                (line_id, user_id, SCRATCH_LINE_NAME),
             )
 
-        return project_id
+        return line_id
 
     async def ensure_walkthrough(self, user_id: str, prompt: str) -> str:
         """The account's one walkthrough thread, creating it if it is not there yet.
@@ -318,28 +318,28 @@ class Store:
         Returns the thread id. **Safe to call concurrently**, which it has to be: React
         re-runs effects in development, so two requests arrive within a millisecond of
         each other and a find-then-create loses the race with itself — every new account
-        ended up with two "Welcome to Continuity" projects, the first abandoned mid-stream.
+        ended up with two "Welcome to Continuity" lines, the first abandoned mid-stream.
 
         Both ids are derived from the user id rather than random, so the two callers
         compute the *same* rows and `ON CONFLICT DO NOTHING` settles it without a lock.
         """
-        project_id = _derived_id(user_id, "walkthrough-project")
+        line_id = _derived_id(user_id, "walkthrough-line")
         thread_id = _derived_id(user_id, "walkthrough-thread")
 
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                INSERT INTO projects (id, user_id, name, is_walkthrough)
+                INSERT INTO product_lines (id, user_id, name, is_walkthrough)
                 VALUES (%s, %s, %s, true) ON CONFLICT (id) DO NOTHING
                 """,
-                (project_id, user_id, WALKTHROUGH_PROJECT_NAME),
+                (line_id, user_id, WALKTHROUGH_LINE_NAME),
             )
             await conn.execute(
                 """
-                INSERT INTO threads (id, project_id, user_id, prompt)
+                INSERT INTO threads (id, line_id, user_id, prompt)
                 VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
                 """,
-                (thread_id, project_id, user_id, prompt),
+                (thread_id, line_id, user_id, prompt),
             )
 
         return thread_id
@@ -354,10 +354,10 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT t.id, t.project_id, t.user_id, t.prompt, t.status, t.last_seq,
+                SELECT t.id, t.line_id, t.user_id, t.prompt, t.status, t.last_seq,
                        t.bom, t.summary
                   FROM threads t
-                  JOIN projects p ON p.id = t.project_id
+                  JOIN product_lines p ON p.id = t.line_id
                  WHERE t.user_id = %s AND p.is_walkthrough
                  ORDER BY t.created_at
                  LIMIT 1
@@ -367,43 +367,43 @@ class Store:
             row = await cursor.fetchone()
         return None if row is None else Thread(**row)
 
-    async def rename_project(self, project_id: str, user_id: str, name: str) -> bool:
+    async def rename_line(self, line_id: str, user_id: str, name: str) -> bool:
         async with self.pool.connection() as conn:
             cursor = await conn.execute(
-                "UPDATE projects SET name = %s, updated_at = now() WHERE id = %s AND user_id = %s",
-                (name, project_id, user_id),
+                "UPDATE product_lines SET name = %s, updated_at = now() WHERE id = %s AND user_id = %s",
+                (name, line_id, user_id),
             )
             return cursor.rowcount > 0
 
-    async def delete_project(self, project_id: str, user_id: str) -> bool:
+    async def delete_line(self, line_id: str, user_id: str) -> bool:
         async with self.pool.connection() as conn:
             cursor = await conn.execute(
-                "DELETE FROM projects WHERE id = %s AND user_id = %s", (project_id, user_id)
+                "DELETE FROM product_lines WHERE id = %s AND user_id = %s", (line_id, user_id)
             )
             return cursor.rowcount > 0
 
     # ── threads ──────────────────────────────────────────────────────────────
 
     async def create_thread(
-        self, thread_id: str, project_id: str, user_id: str, prompt: str
+        self, thread_id: str, line_id: str, user_id: str, prompt: str
     ) -> None:
         async with self.pool.connection() as conn:
             await conn.execute(
                 """
-                INSERT INTO threads (id, project_id, user_id, prompt)
+                INSERT INTO threads (id, line_id, user_id, prompt)
                 VALUES (%s, %s, %s, %s)
                 """,
-                (thread_id, project_id, user_id, prompt),
+                (thread_id, line_id, user_id, prompt),
             )
             await conn.execute(
-                "UPDATE projects SET updated_at = now() WHERE id = %s", (project_id,)
+                "UPDATE product_lines SET updated_at = now() WHERE id = %s", (line_id,)
             )
 
     async def thread_for_user(self, thread_id: str, user_id: str) -> Thread | None:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, project_id, user_id, prompt, status, last_seq, bom, summary
+                SELECT id, line_id, user_id, prompt, status, last_seq, bom, summary
                   FROM threads WHERE id = %s AND user_id = %s
                 """,
                 (thread_id, user_id),
@@ -411,13 +411,13 @@ class Store:
             row = await cursor.fetchone()
         return None if row is None else Thread(**row)
 
-    async def threads_for_project(self, project_id: str, user_id: str) -> list[Thread]:
+    async def threads_for_line(self, line_id: str, user_id: str) -> list[Thread]:
         """Most relevant run first — which is not always the newest one.
 
         React's development double-invoke starts two runs half a millisecond apart. The
         second is cancelled immediately and ends `abandoned` at `last_seq = -1`, having
         emitted nothing, while the first goes on to do the actual work. Ordering by
-        `created_at` alone therefore hands the caller the empty twin: a project sitting on
+        `created_at` alone therefore hands the caller the empty twin: a line sitting on
         an unanswered question opened to *"this run has no board to restore"*, because the
         run being restored was the phantom rather than the one holding the board.
 
@@ -428,11 +428,11 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, project_id, user_id, prompt, status, last_seq, bom, summary
-                  FROM threads WHERE project_id = %s AND user_id = %s
+                SELECT id, line_id, user_id, prompt, status, last_seq, bom, summary
+                  FROM threads WHERE line_id = %s AND user_id = %s
                  ORDER BY (status = 'running') DESC, (last_seq >= 0) DESC, created_at DESC
                 """,
-                (project_id, user_id),
+                (line_id, user_id),
             )
             rows = await cursor.fetchall()
         return [Thread(**row) for row in rows]
@@ -504,10 +504,10 @@ class Store:
                 await conn.execute(
                     """
                     INSERT INTO findings (
-                        id, thread_id, project_id, user_id, rule, slot, mpn, manufacturer,
+                        id, thread_id, line_id, user_id, rule, slot, mpn, manufacturer,
                         lifecycle, verdict, outcome, action, replacement_mpn, signature, worked
                     )
-                    SELECT %s, t.id, t.project_id, t.user_id, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    SELECT %s, t.id, t.line_id, t.user_id, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                       FROM threads t
                      WHERE t.id = %s
                     """,
@@ -535,9 +535,9 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT f.rule, f.action, f.signature, p.name AS project_name
+                SELECT f.rule, f.action, f.signature, p.name AS line_name
                   FROM findings f
-                  JOIN projects p ON p.id = f.project_id AND p.user_id = f.user_id
+                  JOIN product_lines p ON p.id = f.line_id AND p.user_id = f.user_id
                  WHERE f.user_id = %s
                    AND f.signature = %s
                    AND f.thread_id <> %s
@@ -551,27 +551,27 @@ class Store:
             return await cursor.fetchall()
 
     async def memory_for_user(self, user_id: str, *, part_limit: int) -> dict[str, Any]:
-        """The bounded project/part graph, with every read constrained at the boundary."""
+        """The bounded line/part graph, with every read constrained at the boundary."""
         async with self.pool.connection() as conn:
-            projects_cursor = await conn.cursor(row_factory=dict_row).execute(
+            lines_cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
                 SELECT p.id, p.name, COUNT(t.id)::integer AS boards
-                  FROM projects p
-             LEFT JOIN threads t ON t.project_id = p.id AND t.user_id = p.user_id
+                  FROM product_lines p
+             LEFT JOIN threads t ON t.line_id = p.id AND t.user_id = p.user_id
                  WHERE p.user_id = %s
               GROUP BY p.id, p.name
               ORDER BY p.updated_at DESC
                 """,
                 (user_id,),
             )
-            project_rows = await projects_cursor.fetchall()
+            line_rows = await lines_cursor.fetchall()
             bom_cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT t.project_id, p.name AS project_name,
+                SELECT t.line_id, p.name AS line_name,
                        item->>'mpn' AS mpn, item->>'manufacturer' AS manufacturer,
                        item->>'lifecycle' AS lifecycle
                   FROM threads t
-                  JOIN projects p ON p.id = t.project_id AND p.user_id = t.user_id
+                  JOIN product_lines p ON p.id = t.line_id AND p.user_id = t.user_id
             CROSS JOIN LATERAL jsonb_array_elements(COALESCE(t.bom, '[]'::jsonb)) AS item
                  WHERE t.user_id = %s AND NULLIF(item->>'mpn', '') IS NOT NULL
                 """,
@@ -580,12 +580,12 @@ class Store:
             bom_rows = await bom_cursor.fetchall()
             findings_cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT f.thread_id, f.project_id, p.name AS project_name, f.rule, f.slot,
+                SELECT f.thread_id, f.line_id, p.name AS line_name, f.rule, f.slot,
                        f.mpn, f.manufacturer, f.lifecycle, f.verdict, f.outcome, f.action,
                        f.replacement_mpn
                   FROM findings f
                   JOIN threads t ON t.id = f.thread_id AND t.user_id = f.user_id
-                  JOIN projects p ON p.id = f.project_id AND p.user_id = f.user_id
+                  JOIN product_lines p ON p.id = f.line_id AND p.user_id = f.user_id
                  WHERE f.user_id = %s
                 """,
                 (user_id,),
@@ -633,9 +633,9 @@ class Store:
                 part["manufacturer"] = row["manufacturer"]
             if part["lifecycle"] is None:
                 part["lifecycle"] = row["lifecycle"]
-            part["used_in"][row["project_id"]] = {
-                "project_id": row["project_id"],
-                "project_name": row["project_name"],
+            part["used_in"][row["line_id"]] = {
+                "line_id": row["line_id"],
+                "line_name": row["line_name"],
             }
         for row in finding_rows:
             part = parts.setdefault(
@@ -656,8 +656,8 @@ class Store:
             part["findings"].append(
                 {
                     "thread_id": row["thread_id"],
-                    "project_id": row["project_id"],
-                    "project_name": row["project_name"],
+                    "line_id": row["line_id"],
+                    "line_name": row["line_name"],
                     "rule": row["rule"],
                     "slot": row["slot"],
                     "verdict": row["verdict"],
@@ -673,11 +673,11 @@ class Store:
         )
         capped = len(ordered) > part_limit
         return {
-            "projects": project_rows,
+            "lines": line_rows,
             "parts": [
                 {
                     **part,
-                    "used_in": sorted(part["used_in"].values(), key=lambda edge: edge["project_name"]),
+                    "used_in": sorted(part["used_in"].values(), key=lambda edge: edge["line_name"]),
                 }
                 for part in ordered[:part_limit]
             ],

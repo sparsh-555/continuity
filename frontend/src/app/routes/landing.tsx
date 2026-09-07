@@ -249,7 +249,7 @@ export default function LandingRoute() {
           <Wordmark />
           <div className="flex items-center gap-md">
             {/* Every CTA on this page goes to /signup, which sends an already-signed-in
-                visitor straight through to their projects. That is right for a visitor and
+                visitor straight through to their lines. That is right for a visitor and
                 baffling while you are testing the signed-out page, because nothing on
                 screen said you were signed in. Now it does, and one click undoes it. */}
             {user ? (

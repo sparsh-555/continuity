@@ -253,15 +253,15 @@ export const sseClient = {
   /** Present so the real and mock sources share one type. Deliberately inert — see above. */
   speed: 1 as 1 | 2 | 4,
 
-  start(prompt: string, onEvent: EventListener, projectId?: string) {
+  start(prompt: string, onEvent: EventListener, lineId?: string) {
     reset()
     threadId = null
     listener = onEvent
     controller = new AbortController()
     const { signal } = controller
 
-    const payload = projectId
-      ? { prompt, project_id: projectId }
+    const payload = lineId
+      ? { prompt, line_id: lineId }
       : { prompt }
 
     post('/design', payload, signal).catch((error: unknown) => {
@@ -272,7 +272,7 @@ export const sseClient = {
     })
   },
 
-  startBom(bom: string, onEvent: EventListener, prompt?: string, projectId?: string) {
+  startBom(bom: string, onEvent: EventListener, prompt?: string, lineId?: string) {
     reset()
     threadId = null
     listener = onEvent
@@ -282,7 +282,7 @@ export const sseClient = {
     const payload = {
       bom,
       ...(prompt ? { prompt } : {}),
-      ...(projectId ? { project_id: projectId } : {}),
+      ...(lineId ? { line_id: lineId } : {}),
     }
 
     post('/bom/validate', payload, signal).catch((error: unknown) => {

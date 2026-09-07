@@ -4,33 +4,33 @@ import { useNavigate, useParams } from 'react-router'
 import { BriefEntry } from '../design/BriefEntry'
 import { Workspace, WorkspaceView } from '../design/Workspace'
 import { useDesignSession } from '../hooks/useDesignSession'
-import { ApiError, getThreadBoard, listProjectThreads, type ProjectThread } from '../lib/api'
+import { ApiError, getThreadBoard, listLineThreads, type LineThread } from '../lib/api'
 
-type ProjectMode = 'loading' | 'brief' | 'workspace'
+type LineMode = 'loading' | 'brief' | 'workspace'
 
 type StartedRequest = {
   brief: string
   bom?: string
 }
 
-function StartedWorkspace({ projectId, request }: { projectId: string; request: StartedRequest }) {
+function StartedWorkspace({ lineId, request }: { lineId: string; request: StartedRequest }) {
   const session = useDesignSession()
 
   useEffect(() => {
     if (request.bom !== undefined) {
-      session.startBom(request.bom, request.brief || undefined, projectId)
+      session.startBom(request.bom, request.brief || undefined, lineId)
       return
     }
 
-    session.start(request.brief, projectId)
-  }, [projectId, request, session.start, session.startBom])
+    session.start(request.brief, lineId)
+  }, [lineId, request, session.start, session.startBom])
 
-  return <WorkspaceView projectId={projectId} session={session} />
+  return <WorkspaceView lineId={lineId} session={session} />
 }
 
 type RestoreState = 'loading' | 'ready' | 'live' | 'empty' | 'error'
 
-function RestoredWorkspace({ projectId, thread }: { projectId: string; thread: ProjectThread }) {
+function RestoredWorkspace({ lineId, thread }: { lineId: string; thread: LineThread }) {
   const navigate = useNavigate()
   const session = useDesignSession()
   const [restoreState, setRestoreState] = useState<RestoreState>('loading')
@@ -68,7 +68,7 @@ function RestoredWorkspace({ projectId, thread }: { projectId: string; thread: P
         }
 
         if (error instanceof ApiError && error.status === 404) {
-          navigate('/projects', { replace: true })
+          navigate('/lines', { replace: true })
           return
         }
 
@@ -88,7 +88,7 @@ function RestoredWorkspace({ projectId, thread }: { projectId: string; thread: P
   }
 
   if (restoreState === 'live') {
-    return <Workspace projectId={projectId} />
+    return <Workspace lineId={lineId} />
   }
 
   if (restoreState === 'empty' || restoreState === 'error') {
@@ -108,15 +108,15 @@ function RestoredWorkspace({ projectId, thread }: { projectId: string; thread: P
     )
   }
 
-  return <WorkspaceView projectId={projectId} session={session} />
+  return <WorkspaceView lineId={lineId} session={session} />
 }
 
 /**
  * One route, two states.
  *
- * A project with no runs yet shows the brief screen; once a run exists it shows the
+ * A line with no runs yet shows the brief screen; once a run exists it shows the
  * workspace. They are the same URL because they are the same thing at two moments — a
- * project begins by being described.
+ * line begins by being described.
  *
  * The started brief is held *here* rather than inside `BriefEntry` on purpose. Starting
  * the run in the child and then swapping components would unmount `Workspace` a moment
@@ -126,15 +126,15 @@ function RestoredWorkspace({ projectId, thread }: { projectId: string; thread: P
  */
 export default function DesignRoute() {
   const navigate = useNavigate()
-  const { projectId } = useParams<{ projectId: string }>()
+  const { lineId } = useParams<{ lineId: string }>()
 
-  const [mode, setMode] = useState<ProjectMode>(projectId ? 'loading' : 'workspace')
+  const [mode, setMode] = useState<LineMode>(lineId ? 'loading' : 'workspace')
   const [startedRequest, setStartedRequest] = useState<StartedRequest | null>(null)
-  const [latestThread, setLatestThread] = useState<ProjectThread | null>(null)
+  const [latestThread, setLatestThread] = useState<LineThread | null>(null)
 
   useEffect(() => {
-    if (!projectId) {
-      // Single-user local mode: no accounts, no projects, nothing to look up.
+    if (!lineId) {
+      // Single-user local mode: no accounts, no lines, nothing to look up.
       setMode('workspace')
       setStartedRequest(null)
       setLatestThread(null)
@@ -142,7 +142,7 @@ export default function DesignRoute() {
     }
 
     // Captured so the async closure below has a `string` rather than `string | undefined`.
-    const id = projectId
+    const id = lineId
     let active = true
 
     setMode('loading')
@@ -151,21 +151,21 @@ export default function DesignRoute() {
 
     async function decide() {
       try {
-        // One request, not two: the threads endpoint already 404s for a project that
+        // One request, not two: the threads endpoint already 404s for a line that
         // does not exist *or* belongs to somebody else, so a separate existence check
         // would only be a second round trip to learn the same thing.
-        const threads = await listProjectThreads(id)
+        const threads = await listLineThreads(id)
         if (active) {
           setLatestThread(threads[0] ?? null)
           setMode(threads.length === 0 ? 'brief' : 'workspace')
         }
       } catch {
-        // 404 means it is not this user's project. Anything else means we cannot tell
+        // 404 means it is not this user's line. Anything else means we cannot tell
         // which screen is correct, and guessing would either hide an existing run behind
         // the brief screen or open an empty workspace. The dashboard is the honest place
         // to land, and it has its own error state.
         if (active) {
-          navigate('/projects', { replace: true })
+          navigate('/lines', { replace: true })
         }
       }
     }
@@ -175,9 +175,9 @@ export default function DesignRoute() {
     return () => {
       active = false
     }
-  }, [navigate, projectId])
+  }, [navigate, lineId])
 
-  if (!projectId) {
+  if (!lineId) {
     return <Workspace />
   }
 
@@ -194,16 +194,16 @@ export default function DesignRoute() {
           setStartedRequest({ brief, bom })
           setMode('workspace')
         }}
-        projectId={projectId}
+        lineId={lineId}
       />
     )
   }
 
   return startedRequest ? (
-    <StartedWorkspace projectId={projectId} request={startedRequest} />
+    <StartedWorkspace lineId={lineId} request={startedRequest} />
   ) : latestThread && latestThread.status !== 'running' ? (
-    <RestoredWorkspace projectId={projectId} thread={latestThread} />
+    <RestoredWorkspace lineId={lineId} thread={latestThread} />
   ) : (
-    <Workspace projectId={projectId} />
+    <Workspace lineId={lineId} />
   )
 }

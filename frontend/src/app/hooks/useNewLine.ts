@@ -1,25 +1,25 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import { createProject } from '../lib/api'
+import { createLine } from '../lib/api'
 
-export function useNewProject() {
+export function useNewLine() {
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
 
-  const createNewProject = useCallback(async () => {
+  const createNewLine = useCallback(async () => {
     if (creating) {
       return
     }
 
     setCreating(true)
     try {
-      const created = await createProject('Untitled board')
+      const created = await createLine('Untitled board')
       navigate(`/design/${created.id}`)
     } finally {
       setCreating(false)
     }
   }, [creating, navigate])
 
-  return { createNewProject, creating }
+  return { createNewLine, creating }
 }

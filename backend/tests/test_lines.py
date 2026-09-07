@@ -1,4 +1,4 @@
-"""Ownership: whose projects, whose threads, whose board.
+"""Ownership: whose lines, whose threads, whose board.
 
 Skipped unless `CONTINUITY_TEST_DB` is set.
 
@@ -55,7 +55,7 @@ async def a_store():
         store = Store(pool)
         await store.setup()
         async with pool.connection() as conn:
-            await conn.execute("TRUNCATE users, sessions, projects, threads CASCADE")
+            await conn.execute("TRUNCATE users, sessions, product_lines, threads CASCADE")
 
         previous = app.state.store
         app.state.store = store
@@ -94,11 +94,11 @@ async def frames_of(http: httpx.AsyncClient, path: str, payload: dict) -> list[d
 # ── the routes need an account ────────────────────────────────────────────────
 
 
-def test_projects_need_an_account():
+def test_lines_need_an_account():
     async def go():
         async with a_store():
             async with a_client() as http:
-                return await http.get("/projects")
+                return await http.get("/lines")
 
     assert run(go()).status_code == 401
 
@@ -107,72 +107,72 @@ def test_designing_needs_an_account():
     async def go():
         async with a_store():
             async with a_client() as http:
-                return await http.post("/design", json={"prompt": DEMO, "project_id": "x"})
+                return await http.post("/design", json={"prompt": DEMO, "line_id": "x"})
 
     assert run(go()).status_code == 401
 
 
-# ── projects ──────────────────────────────────────────────────────────────────
+# ── lines ──────────────────────────────────────────────────────────────────
 
 
-def test_a_created_project_is_listed():
+def test_a_created_line_is_listed():
     async def go():
         async with a_store():
             async with signed_in() as http:
-                created = await http.post("/projects", json={"name": "Weather station"})
-                return created, await http.get("/projects")
+                created = await http.post("/lines", json={"name": "Weather station"})
+                return created, await http.get("/lines")
 
     created, listed = run(go())
     assert created.status_code == 201
     assert [p["name"] for p in listed.json()] == ["Weather station"]
 
 
-def test_projects_list_for_their_owner_only():
+def test_lines_list_for_their_owner_only():
     async def go():
         async with a_store():
             async with signed_in("mine@example.com") as mine:
-                await mine.post("/projects", json={"name": "Mine"})
+                await mine.post("/lines", json={"name": "Mine"})
             async with signed_in("theirs@example.com") as theirs:
-                await theirs.post("/projects", json={"name": "Theirs"})
-                return await theirs.get("/projects")
+                await theirs.post("/lines", json={"name": "Theirs"})
+                return await theirs.get("/lines")
 
     assert [p["name"] for p in run(go()).json()] == ["Theirs"]
 
 
-def test_another_users_project_is_a_404():
+def test_another_users_line_is_a_404():
     async def go():
         async with a_store():
             async with signed_in("mine@example.com") as mine:
-                project = (await mine.post("/projects", json={"name": "Mine"})).json()
+                line = (await mine.post("/lines", json={"name": "Mine"})).json()
             async with signed_in("theirs@example.com") as theirs:
-                return await theirs.get(f"/projects/{project['id']}")
+                return await theirs.get(f"/lines/{line['id']}")
 
     assert run(go()).status_code == 404
 
 
-def test_a_project_cannot_be_deleted_by_someone_else():
+def test_a_line_cannot_be_deleted_by_someone_else():
     async def go():
         async with a_store():
             async with signed_in("mine@example.com") as mine:
-                project = (await mine.post("/projects", json={"name": "Mine"})).json()
+                line = (await mine.post("/lines", json={"name": "Mine"})).json()
                 async with signed_in("theirs@example.com") as theirs:
-                    stolen = await theirs.delete(f"/projects/{project['id']}")
-                return stolen, await mine.get("/projects")
+                    stolen = await theirs.delete(f"/lines/{line['id']}")
+                return stolen, await mine.get("/lines")
 
     stolen, still_mine = run(go())
     assert stolen.status_code == 404
     assert len(still_mine.json()) == 1
 
 
-# ── a run belongs to a project, and to a person ───────────────────────────────
+# ── a run belongs to a line, and to a person ───────────────────────────────
 
 
-def test_a_run_records_a_thread_against_its_project():
+def test_a_run_records_a_thread_against_its_line():
     async def go():
         async with a_store() as store:
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
-                frames = await frames_of(http, "/design", {"prompt": DEMO, "project_id": project["id"]})
+                line = (await http.post("/lines", json={"name": "P"})).json()
+                frames = await frames_of(http, "/design", {"prompt": DEMO, "line_id": line["id"]})
                 me = (await http.get("/auth/me")).json()
                 return await store.thread_for_user(frames[0]["thread_id"], me["id"])
 
@@ -183,33 +183,33 @@ def test_a_run_records_a_thread_against_its_project():
     assert thread.bom, "the finished board should have been recorded"
 
 
-def test_designing_without_a_project_uses_one_owned_scratch_project():
+def test_designing_without_a_line_uses_one_owned_scratch_line():
     async def go():
         async with a_store() as store:
             async with signed_in() as http:
                 me = (await http.get("/auth/me")).json()
                 first = await frames_of(http, "/design", {"prompt": DEMO})
                 second = await frames_of(http, "/design", {"prompt": DEMO})
-                projects = (await http.get("/projects")).json()
-                scratch = [project for project in projects if project["name"] == "Scratch designs"]
-                threads = await store.threads_for_project(scratch[0]["id"], me["id"])
+                lines = (await http.get("/lines")).json()
+                scratch = [line for line in lines if line["name"] == "Scratch designs"]
+                threads = await store.threads_for_line(scratch[0]["id"], me["id"])
                 return first, second, scratch, threads, me
 
     first, second, scratch, threads, me = run(go())
-    assert len(scratch) == 1, "a second call must not create a second scratch project"
+    assert len(scratch) == 1, "a second call must not create a second scratch line"
     assert {thread.id for thread in threads} == {first[0]["thread_id"], second[0]["thread_id"]}
     assert all(thread.user_id == me["id"] for thread in threads)
-    assert all(thread.project_id == scratch[0]["id"] for thread in threads)
+    assert all(thread.line_id == scratch[0]["id"] for thread in threads)
 
 
-def test_designing_into_another_users_project_is_a_404():
+def test_designing_into_another_users_line_is_a_404():
     async def go():
         async with a_store():
             async with signed_in("mine@example.com") as mine:
-                project = (await mine.post("/projects", json={"name": "Mine"})).json()
+                line = (await mine.post("/lines", json={"name": "Mine"})).json()
             async with signed_in("theirs@example.com") as theirs:
                 return await theirs.post(
-                    "/design", json={"prompt": DEMO, "project_id": project["id"]}
+                    "/design", json={"prompt": DEMO, "line_id": line["id"]}
                 )
 
     assert run(go()).status_code == 404
@@ -219,9 +219,9 @@ def test_another_users_thread_cannot_be_resumed():
     async def go():
         async with a_store():
             async with signed_in("mine@example.com") as mine:
-                project = (await mine.post("/projects", json={"name": "Mine"})).json()
+                line = (await mine.post("/lines", json={"name": "Mine"})).json()
                 frames = await frames_of(
-                    mine, "/design", {"prompt": UNRESOLVED, "project_id": project["id"]}
+                    mine, "/design", {"prompt": UNRESOLVED, "line_id": line["id"]}
                 )
                 thread_id = frames[0]["thread_id"]
             async with signed_in("theirs@example.com") as theirs:
@@ -236,9 +236,9 @@ def test_another_users_board_cannot_be_exported():
     async def go():
         async with a_store():
             async with signed_in("mine@example.com") as mine:
-                project = (await mine.post("/projects", json={"name": "Mine"})).json()
+                line = (await mine.post("/lines", json={"name": "Mine"})).json()
                 frames = await frames_of(
-                    mine, "/design", {"prompt": DEMO, "project_id": project["id"]}
+                    mine, "/design", {"prompt": DEMO, "line_id": line["id"]}
                 )
                 thread_id = frames[0]["thread_id"]
                 mine_export = await mine.get(f"/export/{thread_id}.csv")
@@ -259,9 +259,9 @@ def test_resume_survives_a_restart():
     async def go():
         async with a_store():
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
+                line = (await http.post("/lines", json={"name": "P"})).json()
                 first = await frames_of(
-                    http, "/design", {"prompt": UNRESOLVED, "project_id": project["id"]}
+                    http, "/design", {"prompt": UNRESOLVED, "line_id": line["id"]}
                 )
                 thread_id = first[0]["thread_id"]
 
@@ -283,9 +283,9 @@ def test_a_paused_run_is_recorded_as_awaiting():
     async def go():
         async with a_store() as store:
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
+                line = (await http.post("/lines", json={"name": "P"})).json()
                 frames = await frames_of(
-                    http, "/design", {"prompt": UNRESOLVED, "project_id": project["id"]}
+                    http, "/design", {"prompt": UNRESOLVED, "line_id": line["id"]}
                 )
                 me = (await http.get("/auth/me")).json()
                 return await store.thread_for_user(frames[0]["thread_id"], me["id"])
@@ -320,22 +320,22 @@ def test_the_walkthrough_runs_once_and_marks_the_account():
     assert len({f["thread_id"] for f in frames}) == 1
 
 
-async def walkthrough_project_count(store, user_id: str) -> int:
-    """Walkthrough projects are hidden from `/projects`, so count them directly.
+async def walkthrough_line_count(store, user_id: str) -> int:
+    """Walkthrough lines are hidden from `/lines`, so count them directly.
 
-    These tests are about idempotency — one project, never two — which is a different
+    These tests are about idempotency — one line, never two — which is a different
     question from whether the dashboard lists it.
     """
     async with store.pool.connection() as conn:
         cursor = await conn.execute(
-            "SELECT count(*) FROM projects WHERE user_id = %s AND is_walkthrough",
+            "SELECT count(*) FROM product_lines WHERE user_id = %s AND is_walkthrough",
             (user_id,),
         )
         row = await cursor.fetchone()
     return row[0]
 
 
-def test_the_walkthrough_project_is_created_but_hidden_from_the_dashboard():
+def test_the_walkthrough_line_is_created_but_hidden_from_the_dashboard():
     """It exists so `/design/demo` has somewhere to replay into, and the help button owns it.
 
     Listing it beside real work offered a delete affordance on scaffolding the product
@@ -347,8 +347,8 @@ def test_the_walkthrough_project_is_created_but_hidden_from_the_dashboard():
             async with signed_in() as http:
                 await frames_of(http, "/design/demo", {})
                 me = (await http.get("/auth/me")).json()
-                listed = (await http.get("/projects")).json()
-                return listed, await walkthrough_project_count(store, me["id"])
+                listed = (await http.get("/lines")).json()
+                return listed, await walkthrough_line_count(store, me["id"])
 
     listed, hidden = run(go())
     assert listed == [], "the walkthrough must not appear on the dashboard"
@@ -356,11 +356,11 @@ def test_the_walkthrough_project_is_created_but_hidden_from_the_dashboard():
 
 
 def test_the_walkthrough_is_idempotent():
-    """Called twice, it replays into the same thread rather than making a second project.
+    """Called twice, it replays into the same thread rather than making a second line.
 
     Not a nicety. React re-runs effects in development, so the route calls this twice on
     every mount, and the create-or-409 version handed each new account two "Welcome to
-    Continuity" projects — the first abandoned mid-stream and stuck on RUNNING for ever.
+    Continuity" lines — the first abandoned mid-stream and stuck on RUNNING for ever.
     """
 
     async def go():
@@ -369,10 +369,10 @@ def test_the_walkthrough_is_idempotent():
                 first = await frames_of(http, "/design/demo", {})
                 second = await frames_of(http, "/design/demo", {})
                 me = (await http.get("/auth/me")).json()
-                return first, second, await walkthrough_project_count(store, me["id"])
+                return first, second, await walkthrough_line_count(store, me["id"])
 
-    first, second, projects = run(go())
-    assert projects == 1, "a second call must not create a second project"
+    first, second, lines = run(go())
+    assert lines == 1, "a second call must not create a second line"
     assert first[0]["thread_id"] == second[0]["thread_id"]
     assert [f["seq"] for f in second] == list(range(len(second))), "a replay renumbers from 0"
     assert second[-1]["type"] == "done"
@@ -385,9 +385,9 @@ def test_a_finished_run_records_the_engines_own_summary():
     async def go():
         async with a_store() as store:
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
+                line = (await http.post("/lines", json={"name": "P"})).json()
                 frames = await frames_of(
-                    http, "/design", {"prompt": DEMO, "project_id": project["id"]}
+                    http, "/design", {"prompt": DEMO, "line_id": line["id"]}
                 )
                 me = (await http.get("/auth/me")).json()
                 thread = await store.thread_for_user(frames[0]["thread_id"], me["id"])
@@ -420,9 +420,9 @@ def test_the_threads_endpoint_exposes_the_summary():
     async def go():
         async with a_store():
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
-                await frames_of(http, "/design", {"prompt": DEMO, "project_id": project["id"]})
-                return await http.get(f"/projects/{project['id']}/threads")
+                line = (await http.post("/lines", json={"name": "P"})).json()
+                await frames_of(http, "/design", {"prompt": DEMO, "line_id": line["id"]})
+                return await http.get(f"/lines/{line['id']}/threads")
 
     threads = run(go()).json()
     assert len(threads) == 1
@@ -436,11 +436,11 @@ def test_a_paused_run_has_no_summary_to_report():
     async def go():
         async with a_store():
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
+                line = (await http.post("/lines", json={"name": "P"})).json()
                 await frames_of(
-                    http, "/design", {"prompt": UNRESOLVED, "project_id": project["id"]}
+                    http, "/design", {"prompt": UNRESOLVED, "line_id": line["id"]}
                 )
-                return await http.get(f"/projects/{project['id']}/threads")
+                return await http.get(f"/lines/{line['id']}/threads")
 
     threads = run(go()).json()
     assert threads[0]["status"] == "awaiting"
@@ -454,9 +454,9 @@ def test_a_finished_thread_hydrates_its_checkpointed_board():
     async def go():
         async with a_store():
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
+                line = (await http.post("/lines", json={"name": "P"})).json()
                 frames = await frames_of(
-                    http, "/design", {"prompt": DEMO, "project_id": project["id"]}
+                    http, "/design", {"prompt": DEMO, "line_id": line["id"]}
                 )
                 board = await http.get(f"/threads/{frames[0]['thread_id']}/board")
                 return board, frames
@@ -473,7 +473,7 @@ def test_a_finished_thread_hydrates_its_checkpointed_board():
     assert all(edge["status"] in {"pass", "conflict", "unchecked"} for edge in body["edges"])
     # Restored with the board, not only announced during the run: without it the client has
     # no node for a supply edge to start from and drops every one of them, so a reopened
-    # project would show its regulator floating again.
+    # line would show its regulator floating again.
     assert body["supply"]["id"] == "__supply"
     assert body["supply"]["voltage"] > 0
     assert {edge["from"] for edge in body["edges"]} & {"__supply"}
@@ -485,8 +485,8 @@ def test_a_finished_thread_hydrates_its_trace_in_order_without_bom_frames():
     async def go():
         async with a_store():
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
-                frames = await frames_of(http, "/design", {"prompt": DEMO, "project_id": project["id"]})
+                line = (await http.post("/lines", json={"name": "P"})).json()
+                frames = await frames_of(http, "/design", {"prompt": DEMO, "line_id": line["id"]})
                 board = await http.get(f"/threads/{frames[0]['thread_id']}/board")
                 return board, frames
 
@@ -502,9 +502,9 @@ def test_an_awaiting_thread_hydrates_its_board_trace_and_real_pending_question()
     async def go():
         async with a_store():
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
+                line = (await http.post("/lines", json={"name": "P"})).json()
                 frames = await frames_of(
-                    http, "/design", {"prompt": UNRESOLVED, "project_id": project["id"]}
+                    http, "/design", {"prompt": UNRESOLVED, "line_id": line["id"]}
                 )
                 board = await http.get(f"/threads/{frames[0]['thread_id']}/board")
                 return board, frames
@@ -528,8 +528,8 @@ def test_an_abandoned_thread_hydrates_its_board_trace_and_is_resumable():
     async def go():
         async with a_store() as store:
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
-                frames = await frames_of(http, "/design", {"prompt": DEMO, "project_id": project["id"]})
+                line = (await http.post("/lines", json={"name": "P"})).json()
+                frames = await frames_of(http, "/design", {"prompt": DEMO, "line_id": line["id"]})
                 me = (await http.get("/auth/me")).json()
                 thread = await store.thread_for_user(frames[0]["thread_id"], me["id"])
                 await store.save_progress(thread.id, thread.last_seq, "abandoned")
@@ -546,9 +546,9 @@ def test_hydrated_parts_use_the_event_part_serialiser():
     async def go():
         async with a_store():
             async with signed_in() as http:
-                project = (await http.post("/projects", json={"name": "P"})).json()
+                line = (await http.post("/lines", json={"name": "P"})).json()
                 frames = await frames_of(
-                    http, "/design", {"prompt": DEMO, "project_id": project["id"]}
+                    http, "/design", {"prompt": DEMO, "line_id": line["id"]}
                 )
                 board = await http.get(f"/threads/{frames[0]['thread_id']}/board")
                 checkpoint = await app.state.graph.aget_state(
@@ -571,9 +571,9 @@ def test_another_users_thread_board_is_a_404():
     async def go():
         async with a_store():
             async with signed_in("mine@example.com") as mine:
-                project = (await mine.post("/projects", json={"name": "Mine"})).json()
+                line = (await mine.post("/lines", json={"name": "Mine"})).json()
                 frames = await frames_of(
-                    mine, "/design", {"prompt": DEMO, "project_id": project["id"]}
+                    mine, "/design", {"prompt": DEMO, "line_id": line["id"]}
                 )
             async with signed_in("theirs@example.com") as theirs:
                 return await theirs.get(f"/threads/{frames[0]['thread_id']}/board")
@@ -595,8 +595,8 @@ def test_a_running_thread_is_not_hydrated():
         async with a_store() as store:
             async with signed_in() as http:
                 me = (await http.get("/auth/me")).json()
-                project = await store.create_project(me["id"], "P")
-                await store.create_thread("still-running", project.id, me["id"], "A board")
+                line = await store.create_line(me["id"], "P")
+                await store.create_thread("still-running", line.id, me["id"], "A board")
                 return await http.get("/threads/still-running/board")
 
     response = run(go())
@@ -619,8 +619,8 @@ def test_another_users_thread_cannot_be_continued():
     async def go():
         async with a_store() as store:
             async with signed_in("mine@example.com") as mine:
-                project = (await mine.post("/projects", json={"name": "Mine"})).json()
-                frames = await frames_of(mine, "/design", {"prompt": DEMO, "project_id": project["id"]})
+                line = (await mine.post("/lines", json={"name": "Mine"})).json()
+                frames = await frames_of(mine, "/design", {"prompt": DEMO, "line_id": line["id"]})
                 me = (await mine.get("/auth/me")).json()
                 thread = await store.thread_for_user(frames[0]["thread_id"], me["id"])
                 await store.save_progress(thread.id, thread.last_seq, "abandoned")
@@ -636,8 +636,8 @@ def test_continue_refuses_non_continuable_statuses(status):
         async with a_store() as store:
             async with signed_in() as http:
                 me = (await http.get("/auth/me")).json()
-                project = await store.create_project(me["id"], "P")
-                await store.create_thread("cannot-continue", project.id, me["id"], "A board")
+                line = await store.create_line(me["id"], "P")
+                await store.create_thread("cannot-continue", line.id, me["id"], "A board")
                 await store.save_progress("cannot-continue", 4, status)
                 return await http.post("/threads/cannot-continue/continue")
 
@@ -657,8 +657,8 @@ def test_continue_reenters_with_none_and_keeps_the_persisted_sequence():
         async with a_store() as store:
             async with signed_in() as http:
                 me = (await http.get("/auth/me")).json()
-                project = await store.create_project(me["id"], "P")
-                await store.create_thread("continue-me", project.id, me["id"], "A board")
+                line = await store.create_line(me["id"], "P")
+                await store.create_thread("continue-me", line.id, me["id"], "A board")
                 await store.save_progress("continue-me", 41, "abandoned")
                 graph = ContinuationGraph()
                 previous = app.state.graph
@@ -674,11 +674,11 @@ def test_continue_reenters_with_none_and_keeps_the_persisted_sequence():
     assert frames[0]["seq"] == 42
 
 
-def test_two_concurrent_walkthrough_requests_make_one_project():
+def test_two_concurrent_walkthrough_requests_make_one_line():
     """React re-runs effects in development, so both requests land within a millisecond.
 
     A find-then-create loses that race with itself: every new account got two "Welcome to
-    Continuity" projects, the first abandoned mid-stream and stuck showing RUNNING.
+    Continuity" lines, the first abandoned mid-stream and stuck showing RUNNING.
     """
 
     async def go():
@@ -689,6 +689,6 @@ def test_two_concurrent_walkthrough_requests_make_one_project():
                     frames_of(http, "/design/demo", {}),
                 )
                 me = (await http.get("/auth/me")).json()
-                return await walkthrough_project_count(store, me["id"])
+                return await walkthrough_line_count(store, me["id"])
 
     assert run(go()) == 1

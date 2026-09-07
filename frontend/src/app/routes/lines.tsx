@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { Modal } from '../design/Modal'
-import { useNewProject } from '../hooks/useNewProject'
+import { useNewLine } from '../hooks/useNewLine'
 import {
-  deleteProject,
-  listProjectThreads,
-  listProjects,
-  updateProject,
-  type Project,
-  type ProjectThread,
+  deleteLine,
+  listLineThreads,
+  listLines,
+  updateLine,
+  type Line,
+  type LineThread,
 } from '../lib/api'
 import { Wordmark } from '../shell/Wordmark'
 
@@ -53,7 +53,7 @@ function shortPartsLabel(missingCount: number) {
   return `short ${missingCount} part${missingCount === 1 ? '' : 's'}`
 }
 
-function statusBadgeFromLatestThread(latestThread: ProjectThread | null): StatusBadge {
+function statusBadgeFromLatestThread(latestThread: LineThread | null): StatusBadge {
   if (!latestThread) {
     return {
       label: 'Never run',
@@ -122,7 +122,7 @@ function statusBadgeFromLatestThread(latestThread: ProjectThread | null): Status
   }
 }
 
-function shortageLabelFromLatestThread(latestThread: ProjectThread | null): string | null {
+function shortageLabelFromLatestThread(latestThread: LineThread | null): string | null {
   if (!latestThread?.summary) {
     return null
   }
@@ -135,25 +135,25 @@ function shortageLabelFromLatestThread(latestThread: ProjectThread | null): stri
   return shortPartsLabel(missingCount)
 }
 
-export default function ProjectsRoute() {
+export default function LinesRoute() {
   const navigate = useNavigate()
-  const { createNewProject, creating } = useNewProject()
+  const { createNewLine, creating } = useNewLine()
 
-  const [projects, setProjects] = useState<Project[]>([])
-  const [threadsByProject, setThreadsByProject] = useState<Record<string, ProjectThread[]>>({})
+  const [lines, setLines] = useState<Line[]>([])
+  const [threadsByLine, setThreadsByLine] = useState<Record<string, LineThread[]>>({})
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [openMenuProjectId, setOpenMenuProjectId] = useState<string | null>(null)
+  const [openMenuLineId, setOpenMenuLineId] = useState<string | null>(null)
   const [reloadCount, setReloadCount] = useState(0)
 
-  const [renameProject, setRenameProject] = useState<Project | null>(null)
+  const [renameLine, setRenameLine] = useState<Line | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement | null>(null)
 
-  const [deleteProjectTarget, setDeleteProjectTarget] = useState<Project | null>(null)
+  const [deleteLineTarget, setDeleteLineTarget] = useState<Line | null>(null)
 
   useEffect(() => {
-    if (!renameProject) {
+    if (!renameLine) {
       return
     }
 
@@ -164,7 +164,7 @@ export default function ProjectsRoute() {
     return () => {
       cancelAnimationFrame(frame)
     }
-  }, [renameProject])
+  }, [renameLine])
 
   useEffect(() => {
     let active = true
@@ -173,21 +173,21 @@ export default function ProjectsRoute() {
       setLoading(true)
 
       try {
-        const nextProjects = await listProjects()
+        const nextLines = await listLines()
         if (!active) {
           return
         }
 
         setLoadError(false)
-        setProjects(nextProjects)
+        setLines(nextLines)
 
         const threadEntries = await Promise.all(
-          nextProjects.map(async (project) => {
+          nextLines.map(async (line) => {
             try {
-              const threads = await listProjectThreads(project.id)
-              return [project.id, threads] as const
+              const threads = await listLineThreads(line.id)
+              return [line.id, threads] as const
             } catch {
-              return [project.id, []] as const
+              return [line.id, []] as const
             }
           }),
         )
@@ -196,7 +196,7 @@ export default function ProjectsRoute() {
           return
         }
 
-        setThreadsByProject(Object.fromEntries(threadEntries))
+        setThreadsByLine(Object.fromEntries(threadEntries))
       } catch {
         if (active) {
           setLoadError(true)
@@ -220,80 +220,80 @@ export default function ProjectsRoute() {
     }
   }, [reloadCount])
 
-  const openRenameModal = useCallback((project: Project) => {
-    setRenameProject(project)
-    setRenameValue(project.name)
-    setOpenMenuProjectId(null)
+  const openRenameModal = useCallback((line: Line) => {
+    setRenameLine(line)
+    setRenameValue(line.name)
+    setOpenMenuLineId(null)
   }, [])
 
   const closeRenameModal = useCallback(() => {
-    setRenameProject(null)
-    setOpenMenuProjectId(null)
+    setRenameLine(null)
+    setOpenMenuLineId(null)
   }, [])
 
   const confirmRename = useCallback(async () => {
-    if (!renameProject) {
+    if (!renameLine) {
       return
     }
 
     const nextName = renameValue.trim()
-    if (!nextName || nextName === renameProject.name) {
+    if (!nextName || nextName === renameLine.name) {
       closeRenameModal()
       return
     }
 
-    const updated = await updateProject(renameProject.id, nextName)
-    setProjects((previous) =>
+    const updated = await updateLine(renameLine.id, nextName)
+    setLines((previous) =>
       previous.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
     )
     closeRenameModal()
-  }, [closeRenameModal, renameProject, renameValue])
+  }, [closeRenameModal, renameLine, renameValue])
 
-  const openDeleteModal = useCallback((project: Project) => {
-    setDeleteProjectTarget(project)
-    setOpenMenuProjectId(null)
+  const openDeleteModal = useCallback((line: Line) => {
+    setDeleteLineTarget(line)
+    setOpenMenuLineId(null)
   }, [])
 
   const closeDeleteModal = useCallback(() => {
-    setDeleteProjectTarget(null)
-    setOpenMenuProjectId(null)
+    setDeleteLineTarget(null)
+    setOpenMenuLineId(null)
   }, [])
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteProjectTarget) {
+    if (!deleteLineTarget) {
       return
     }
 
-    await deleteProject(deleteProjectTarget.id)
+    await deleteLine(deleteLineTarget.id)
 
-    setProjects((previous) => previous.filter((item) => item.id !== deleteProjectTarget.id))
-    setThreadsByProject((previous) => {
+    setLines((previous) => previous.filter((item) => item.id !== deleteLineTarget.id))
+    setThreadsByLine((previous) => {
       const next = { ...previous }
-      delete next[deleteProjectTarget.id]
+      delete next[deleteLineTarget.id]
       return next
     })
 
     closeDeleteModal()
-  }, [closeDeleteModal, deleteProjectTarget])
+  }, [closeDeleteModal, deleteLineTarget])
 
   const showLoadError = !loading && loadError
-  const showEmptyState = !loading && !loadError && projects.length === 0
+  const showEmptyState = !loading && !loadError && lines.length === 0
   const showRows = !loading && !loadError
 
   const rows = useMemo(
     () =>
-      projects.map((project) => {
-        const threads = threadsByProject[project.id] ?? []
+      lines.map((line) => {
+        const threads = threadsByLine[line.id] ?? []
         const latestThread = threads[0] ?? null
 
         return {
-          project,
+          line,
           subtitle: latestThread?.prompt ?? 'No runs yet',
           status: statusBadgeFromLatestThread(latestThread),
           shortageLabel: shortageLabelFromLatestThread(latestThread),
         }
       }),
-    [projects, threadsByProject],
+    [lines, threadsByLine],
   )
 
   return (
@@ -306,34 +306,34 @@ export default function ProjectsRoute() {
         <main className="min-h-[calc(100vh-48px)] max-w-[1200px] mx-auto px-lg py-xl flex flex-col gap-lg">
           <div className="flex items-center justify-between border-b border-outline-variant pb-sm">
             <h1 className="font-label-caps text-label-caps tracking-[0.1em] uppercase text-on-surface">
-              PROJECTS
+              PRODUCT LINES
             </h1>
             <button
               className="bg-primary-container text-on-primary-fixed px-md py-xs rounded-DEFAULT font-label-caps text-label-caps flex items-center gap-xs hover:bg-primary-fixed transition-colors disabled:opacity-70"
               disabled={creating}
               onClick={() => {
-                createNewProject().catch(() => undefined)
+                createNewLine().catch(() => undefined)
               }}
               type="button"
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
-              NEW_PROJECT
+              NEW PRODUCT LINE
             </button>
           </div>
 
           <div className="flex flex-col gap-sm">
             {showRows
-              ? rows.map(({ project, subtitle, status, shortageLabel }) => (
+              ? rows.map(({ line, subtitle, status, shortageLabel }) => (
                   <div
                     // Separated by surface and space rather than a hairline. A 1px border
                     // around every card is the other reliable generated-UI tell, and the
                     // list reads calmer without twelve of them stacked down the page.
                     className="bg-surface-container h-[72px] rounded-DEFAULT flex items-center justify-between px-md hover:bg-surface-container-high transition-colors cursor-pointer"
-                    key={project.id}
-                    onClick={() => navigate(`/design/${project.id}`)}
+                    key={line.id}
+                    onClick={() => navigate(`/design/${line.id}`)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
-                        navigate(`/design/${project.id}`)
+                        navigate(`/design/${line.id}`)
                       }
                     }}
                     role="button"
@@ -341,7 +341,7 @@ export default function ProjectsRoute() {
                   >
                     <div className="flex flex-col justify-center min-w-0 flex-1">
                       <span className="font-headline-sm text-headline-sm text-on-surface truncate">
-                        {project.name}
+                        {line.name}
                       </span>
                       <span className="font-data-tabular text-body-sm text-on-surface-variant truncate">
                         {subtitle}
@@ -369,17 +369,17 @@ export default function ProjectsRoute() {
                       </div>
 
                       <span className="font-data-tabular text-data-tabular text-outline min-w-[64px] text-right">
-                        {formatRelativeTime(project.updated_at)}
+                        {formatRelativeTime(line.updated_at)}
                       </span>
 
                       <div className="relative">
                         <button
-                          aria-label="Project actions"
+                          aria-label="Product line actions"
                           className="p-1 text-on-surface-variant hover:text-on-surface rounded-DEFAULT hover:bg-surface-container-high transition-colors"
                           onClick={(event) => {
                             event.stopPropagation()
-                            setOpenMenuProjectId((current) =>
-                              current === project.id ? null : project.id,
+                            setOpenMenuLineId((current) =>
+                              current === line.id ? null : line.id,
                             )
                           }}
                           type="button"
@@ -387,7 +387,7 @@ export default function ProjectsRoute() {
                           <span className="material-symbols-outlined text-[20px]">more_vert</span>
                         </button>
 
-                        {openMenuProjectId === project.id ? (
+                        {openMenuLineId === line.id ? (
                           <div
                             className="absolute right-0 top-[calc(100%+4px)] z-10 w-[140px] bg-surface-container-high border border-outline-variant rounded-DEFAULT overflow-hidden shadow-lg"
                             onClick={(event) => event.stopPropagation()}
@@ -395,7 +395,7 @@ export default function ProjectsRoute() {
                             <button
                               className="w-full text-left px-sm py-xs font-body-sm text-body-sm text-on-surface hover:bg-surface-container-highest"
                               onClick={() => {
-                                openRenameModal(project)
+                                openRenameModal(line)
                               }}
                               type="button"
                             >
@@ -404,7 +404,7 @@ export default function ProjectsRoute() {
                             <button
                               className="w-full text-left px-sm py-xs font-body-sm text-body-sm text-error hover:bg-surface-container-highest"
                               onClick={() => {
-                                openDeleteModal(project)
+                                openDeleteModal(line)
                               }}
                               type="button"
                             >
@@ -422,7 +422,7 @@ export default function ProjectsRoute() {
               <div className="border border-error rounded-DEFAULT bg-error-container/20 p-md flex flex-col gap-sm">
                 <div className="flex items-center gap-sm">
                   <span className="material-symbols-outlined text-error text-[16px]">warning</span>
-                  <span className="font-body-md text-body-md text-error">Could not load your projects</span>
+                  <span className="font-body-md text-body-md text-error">Could not load your product lines</span>
                 </div>
                 <p className="font-body-sm text-body-sm text-on-surface-variant">
                   The server did not respond.
@@ -446,7 +446,7 @@ export default function ProjectsRoute() {
                 <div className="w-20 h-20 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center mb-lg">
                   <span className="material-symbols-outlined text-[40px] text-on-surface-variant">memory</span>
                 </div>
-                <h2 className="font-headline-sm text-headline-sm text-on-surface mb-sm">No projects yet</h2>
+                <h2 className="font-headline-sm text-headline-sm text-on-surface mb-sm">No product lines yet</h2>
                 <p className="font-body-md text-body-md text-on-surface-variant max-w-md mb-xl">
                   Describe a board and Continuity will source and validate it
                 </p>
@@ -454,12 +454,12 @@ export default function ProjectsRoute() {
                   className="bg-primary-container text-on-primary-fixed px-xl py-sm rounded-DEFAULT font-label-caps text-label-caps hover:bg-primary-fixed transition-colors flex items-center gap-sm"
                   disabled={creating}
                   onClick={() => {
-                      createNewProject().catch(() => undefined)
+                      createNewLine().catch(() => undefined)
                   }}
                   type="button"
                 >
                   <span className="material-symbols-outlined text-[16px]">add</span>
-                  NEW_PROJECT
+                  NEW PRODUCT LINE
                 </button>
               </div>
             ) : null}
@@ -473,8 +473,8 @@ export default function ProjectsRoute() {
         onConfirm={() => {
           confirmRename().catch(() => undefined)
         }}
-        open={Boolean(renameProject)}
-        title="RENAME PROJECT"
+        open={Boolean(renameLine)}
+        title="RENAME PRODUCT LINE"
       >
         <input
           className="w-full bg-surface-container-lowest border border-outline-variant rounded-DEFAULT px-sm py-sm font-data-tabular text-data-tabular text-on-surface focus:outline-none focus:ring-0 glow-focus"
@@ -497,11 +497,11 @@ export default function ProjectsRoute() {
         onConfirm={() => {
           confirmDelete().catch(() => undefined)
         }}
-        open={Boolean(deleteProjectTarget)}
-        title="DELETE PROJECT"
+        open={Boolean(deleteLineTarget)}
+        title="DELETE PRODUCT LINE"
       >
         <p className="font-body-md text-body-md text-on-surface-variant">
-          Delete "{deleteProjectTarget?.name}"? This removes every run in this project and cannot be
+          Delete "{deleteLineTarget?.name}"? This removes every run in this product line and cannot be
           undone.
         </p>
       </Modal>

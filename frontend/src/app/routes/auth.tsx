@@ -13,7 +13,7 @@ type AuthCardProps = {
 
 /** One rule for where a signed-in user goes, used by both the guard and the submit. */
 function landingRouteFor(user: PublicUser) {
-  return user.onboarded ? '/projects' : '/walkthrough'
+  return user.onboarded ? '/lines' : '/walkthrough'
 }
 
 function getErrorMessage(error: unknown) {
@@ -55,7 +55,7 @@ function AuthCard({ mode }: AuthCardProps) {
   // Where a signed-in visitor to /login or /signup belongs. This has to agree with the
   // redirect after a successful submit, because it *races* it: signing in populates the
   // auth context, this component re-renders, and this guard navigates before the explicit
-  // one below gets to. Hard-coding /projects here silently swallowed every new account's
+  // one below gets to. Hard-coding /lines here silently swallowed every new account's
   // walkthrough.
   if (user) {
     return <Navigate replace to={landingRouteFor(user)} />

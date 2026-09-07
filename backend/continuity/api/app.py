@@ -40,7 +40,7 @@ from ..graph import nodes
 from ..graph.build import build
 from ..planner import topology
 from ..parts import datasheet, dossier, normalize
-from . import auth, bom, events, memory, projects, spa
+from . import auth, bom, events, memory, lines, spa
 from .memory import FindingRecorder
 from .store import Store
 
@@ -147,7 +147,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(memory.router)
-app.include_router(projects.router)
+app.include_router(lines.router)
 
 STREAMS: dict[str, events.EventStream] = {}
 """thread_id → the live counter for a run in flight.
@@ -179,10 +179,10 @@ SSE_HEADERS = {
 
 class DesignRequest(BaseModel):
     prompt: str
-    project_id: str | None = None
-    """Optional project for the run; signed-in users otherwise use their scratch project.
+    line_id: str | None = None
+    """Optional line for the run; signed-in users otherwise use their scratch line.
 
-    Ignored in single-user local mode, where there are no projects to belong to.
+    Ignored in single-user local mode, where there are no lines to belong to.
     """
 
 
@@ -213,14 +213,14 @@ async def validate_pasted_bom(body: bom.BomRequest, request: Request) -> Streami
     user = await _signed_in(request)
     thread_id = uuid.uuid4().hex[:12]
     if store is not None:
-        project_id = body.project_id
-        if project_id is None:
-            project_id = await store.ensure_scratch_project(user.id)
-        elif not project_id:
-            raise HTTPException(422, "project_id is required")
-        if await store.project_for_user(project_id, user.id) is None:
-            raise HTTPException(404, "no such project")
-        await store.create_thread(thread_id, project_id, user.id, "BOM validation")
+        line_id = body.line_id
+        if line_id is None:
+            line_id = await store.ensure_scratch_line(user.id)
+        elif not line_id:
+            raise HTTPException(422, "line_id is required")
+        if await store.line_for_user(line_id, user.id) is None:
+            raise HTTPException(404, "no such line")
+        await store.create_thread(thread_id, line_id, user.id, "BOM validation")
 
     stream = STREAMS[thread_id] = events.EventStream(thread_id)
     return StreamingResponse(
@@ -323,14 +323,14 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
     thread_id = uuid.uuid4().hex[:12]
 
     if store is not None:
-        project_id = body.project_id
-        if project_id is None:
-            project_id = await store.ensure_scratch_project(user.id)
-        elif not project_id:
-            raise HTTPException(422, "project_id is required")
-        if await store.project_for_user(project_id, user.id) is None:
-            raise HTTPException(404, "no such project")
-        await store.create_thread(thread_id, project_id, user.id, body.prompt)
+        line_id = body.line_id
+        if line_id is None:
+            line_id = await store.ensure_scratch_line(user.id)
+        elif not line_id:
+            raise HTTPException(422, "line_id is required")
+        if await store.line_for_user(line_id, user.id) is None:
+            raise HTTPException(404, "no such line")
+        await store.create_thread(thread_id, line_id, user.id, body.prompt)
 
     STREAMS[thread_id] = events.EventStream(thread_id)
     return StreamingResponse(
@@ -450,7 +450,7 @@ async def thread_board(thread_id: str, request: Request) -> dict[str, Any]:
         edges = topology.resolved_edges(board, values.get("verdicts") or [])
         # The board input travels with the restored board for the same reason it travels
         # on `plan`: without it the client has no node for a power edge to start from, and
-        # drops every edge out of the supply. A reopened project would then show the
+        # drops every edge out of the supply. A reopened line would then show the
         # regulator floating again — the bug fixed, but only until you closed the tab.
         supply = topology.supply_node(topology.power_source(requirements))
     except Exception:
@@ -554,7 +554,7 @@ async def walkthrough(request: Request) -> StreamingResponse:
     **Idempotent per account**, and it has to be. React re-runs effects in development, a
     refresh mid-tour would call it again, and two requests arriving together both read
     `onboarded_at IS NULL` before either commits. When that was a 409-or-create, a new
-    account reliably got *two* "Welcome to Continuity" projects, the first abandoned
+    account reliably got *two* "Welcome to Continuity" lines, the first abandoned
     mid-stream and left showing RUNNING for ever.
 
     So it looks for the walkthrough this account already has and replays into that thread.
@@ -606,7 +606,7 @@ async def export(thread_id: str, request: Request) -> PlainTextResponse:
 
 WALKTHROUGH = Path(__file__).with_name("walkthrough.jsonl")
 WALKTHROUGH_NAME = "Welcome to Continuity"
-"""The project the walkthrough leaves behind, and the name it appears under."""
+"""The line the walkthrough leaves behind, and the name it appears under."""
 
 
 def walkthrough_frames() -> list[dict[str, Any]]:

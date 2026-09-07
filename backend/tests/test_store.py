@@ -22,7 +22,7 @@ from contextlib import asynccontextmanager
 
 import pytest
 
-from continuity.api.store import SESSION_IDLE_SECONDS, SESSION_TTL_SECONDS, EmailTaken, Store
+from continuity.api.store import SCHEMA, SESSION_IDLE_SECONDS, SESSION_TTL_SECONDS, EmailTaken, Store
 from continuity.api.findings import Finding
 
 DB_URL = os.environ.get("CONTINUITY_TEST_DB")
@@ -36,6 +36,85 @@ def run(coro):
     return asyncio.run(coro)
 
 
+def test_the_project_to_product_line_migration_preserves_rows_and_is_idempotent():
+    """A restart after migration must be as safe as the first boot that performs it.
+
+    This deliberately creates the pre-7-Sep shape in an isolated schema rather than
+    deriving it from the current DDL. The migration is needed precisely because the
+    current schema cannot prove that a live `projects` table and its `threads.project_id`
+    values survive the rename. Rolling the transaction back removes only this test's
+    temporary schema; it never drops a table from the shared test database.
+    """
+
+    async def go():
+        from psycopg_pool import AsyncConnectionPool
+
+        schema_name = f"migration_{os.urandom(8).hex()}"
+        async with AsyncConnectionPool(DB_URL, min_size=1, max_size=1, open=False) as pool:
+            await pool.open()
+            async with pool.connection() as conn:
+                await conn.execute("BEGIN")
+                try:
+                    await conn.execute(f'CREATE SCHEMA "{schema_name}"')
+                    await conn.execute(f'SET LOCAL search_path TO "{schema_name}"')
+                    await conn.execute(
+                        "CREATE TABLE users (id text PRIMARY KEY, email text NOT NULL UNIQUE, "
+                        "password_hash text NOT NULL, onboarded_at timestamptz, "
+                        "created_at timestamptz NOT NULL DEFAULT now())"
+                    )
+                    await conn.execute(
+                        "CREATE TABLE projects (id text PRIMARY KEY, user_id text NOT NULL "
+                        "REFERENCES users(id) ON DELETE CASCADE, name text NOT NULL, "
+                        "created_at timestamptz NOT NULL DEFAULT now(), "
+                        "updated_at timestamptz NOT NULL DEFAULT now())"
+                    )
+                    await conn.execute(
+                        "CREATE INDEX projects_user_idx ON projects(user_id, updated_at DESC)"
+                    )
+                    await conn.execute(
+                        "CREATE TABLE threads (id text PRIMARY KEY, project_id text NOT NULL "
+                        "REFERENCES projects(id) ON DELETE CASCADE, user_id text NOT NULL "
+                        "REFERENCES users(id) ON DELETE CASCADE, prompt text NOT NULL, "
+                        "status text NOT NULL DEFAULT 'running', last_seq integer NOT NULL DEFAULT -1, "
+                        "bom jsonb, created_at timestamptz NOT NULL DEFAULT now(), "
+                        "updated_at timestamptz NOT NULL DEFAULT now())"
+                    )
+                    await conn.execute(
+                        "CREATE INDEX threads_project_idx ON threads(project_id, created_at DESC)"
+                    )
+                    await conn.execute(
+                        "INSERT INTO users (id, email, password_hash) VALUES ('u', 'u@example.com', 'h')"
+                    )
+                    await conn.execute(
+                        "INSERT INTO projects (id, user_id, name) VALUES ('line', 'u', 'Power supplies')"
+                    )
+                    await conn.execute(
+                        "INSERT INTO threads (id, project_id, user_id, prompt) "
+                        "VALUES ('thread', 'line', 'u', 'Review the regulator')"
+                    )
+
+                    await conn.execute(SCHEMA.read_text())
+                    first = await conn.execute(
+                        "SELECT p.name, t.line_id FROM product_lines p "
+                        "JOIN threads t ON t.line_id = p.id WHERE p.id = 'line'"
+                    )
+                    survived = await first.fetchone()
+
+                    # Schema setup runs at every boot. The second execution is the
+                    # production failure mode this regression protects against.
+                    await conn.execute(SCHEMA.read_text())
+                    second = await conn.execute(
+                        "SELECT p.name, t.line_id FROM product_lines p "
+                        "JOIN threads t ON t.line_id = p.id WHERE p.id = 'line'"
+                    )
+                    survived_after_restart = await second.fetchone()
+                finally:
+                    await conn.rollback()
+        return survived, survived_after_restart
+
+    assert run(go()) == (("Power supplies", "line"), ("Power supplies", "line"))
+
+
 @asynccontextmanager
 async def fresh():
     """A store on an empty schema. Truncates rather than dropping, so `setup` runs once."""
@@ -46,7 +125,7 @@ async def fresh():
         store = Store(pool)
         await store.setup()
         async with pool.connection() as conn:
-            await conn.execute("TRUNCATE users, sessions, projects, threads, part_facts CASCADE")
+            await conn.execute("TRUNCATE users, sessions, product_lines, threads, part_facts CASCADE")
         yield store
 
 
@@ -245,19 +324,19 @@ def test_an_unknown_token_resolves_to_nobody():
     assert run(go()) is None
 
 
-# ── projects and threads: ownership ───────────────────────────────────────────
+# ── lines and threads: ownership ───────────────────────────────────────────
 
 
-def test_projects_list_for_their_owner_only():
+def test_lines_list_for_their_owner_only():
     async def go():
         async with fresh() as store:
             mine = await a_user(store, "mine@example.com")
             theirs = await a_user(store, "theirs@example.com")
-            await store.create_project(mine.id, "My board")
-            await store.create_project(theirs.id, "Their board")
+            await store.create_line(mine.id, "My board")
+            await store.create_line(theirs.id, "Their board")
             return (
-                await store.projects_for_user(mine.id),
-                await store.projects_for_user(theirs.id),
+                await store.lines_for_user(mine.id),
+                await store.lines_for_user(theirs.id),
             )
 
     ours, others = run(go())
@@ -265,8 +344,8 @@ def test_projects_list_for_their_owner_only():
     assert [p.name for p in others] == ["Their board"]
 
 
-def test_the_walkthrough_project_is_not_listed_on_the_dashboard():
-    """It is scaffolding the help button owns, not a project the user made.
+def test_the_walkthrough_line_is_not_listed_on_the_dashboard():
+    """It is scaffolding the help button owns, not a line the user made.
 
     Listing it put a delete affordance on a row `/design/demo` replays into.
     """
@@ -274,9 +353,9 @@ def test_the_walkthrough_project_is_not_listed_on_the_dashboard():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            await store.create_project(user.id, "My board")
+            await store.create_line(user.id, "My board")
             await store.ensure_walkthrough(user.id, "a recorded prompt")
-            return await store.projects_for_user(user.id)
+            return await store.lines_for_user(user.id)
 
     assert [p.name for p in run(go())] == ["My board"]
 
@@ -295,15 +374,15 @@ def test_the_walkthrough_thread_survives_being_hidden():
     assert thread.prompt == "a recorded prompt"
 
 
-def test_a_project_is_invisible_to_another_user():
+def test_a_line_is_invisible_to_another_user():
     async def go():
         async with fresh() as store:
             mine = await a_user(store, "mine@example.com")
             theirs = await a_user(store, "theirs@example.com")
-            project = await store.create_project(mine.id, "My board")
+            line = await store.create_line(mine.id, "My board")
             return (
-                await store.project_for_user(project.id, mine.id),
-                await store.project_for_user(project.id, theirs.id),
+                await store.line_for_user(line.id, mine.id),
+                await store.line_for_user(line.id, theirs.id),
             )
 
     owned, stolen = run(go())
@@ -318,8 +397,8 @@ def test_a_thread_is_invisible_to_another_user():
         async with fresh() as store:
             mine = await a_user(store, "mine@example.com")
             theirs = await a_user(store, "theirs@example.com")
-            project = await store.create_project(mine.id, "My board")
-            await store.create_thread("thread-1", project.id, mine.id, "a brief")
+            line = await store.create_line(mine.id, "My board")
+            await store.create_thread("thread-1", line.id, mine.id, "a brief")
             return (
                 await store.thread_for_user("thread-1", mine.id),
                 await store.thread_for_user("thread-1", theirs.id),
@@ -338,8 +417,8 @@ def test_a_new_thread_starts_at_minus_one():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("thread-1", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("thread-1", line.id, user.id, "a brief")
             return await store.thread_for_user("thread-1", user.id)
 
     thread = run(go())
@@ -351,8 +430,8 @@ def test_progress_round_trips():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("thread-1", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("thread-1", line.id, user.id, "a brief")
             await store.save_progress("thread-1", last_seq=41, status="awaiting")
             return await store.thread_for_user("thread-1", user.id)
 
@@ -365,8 +444,8 @@ def test_abandoned_is_an_accepted_terminal_status():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("thread-1", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("thread-1", line.id, user.id, "a brief")
             await store.save_progress("thread-1", last_seq=0, status="abandoned")
             return await store.thread_for_user("thread-1", user.id)
 
@@ -377,8 +456,8 @@ def test_the_bom_round_trips():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("thread-1", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("thread-1", line.id, user.id, "a brief")
             rows = [{"slot": "reg", "mpn": "AMS1117-3.3", "qty": 1, "unit_price": 0.12}]
             await store.save_bom("thread-1", rows)
             return await store.thread_for_user("thread-1", user.id)
@@ -391,8 +470,8 @@ def test_run_events_round_trip_in_sequence_without_duplicates():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("thread-1", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("thread-1", line.id, user.id, "a brief")
             await store.save_run_events(
                 "thread-1",
                 [
@@ -435,8 +514,8 @@ def test_memory_includes_stable_facts_and_empty_lists_for_unknown_parts():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("thread-1", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("thread-1", line.id, user.id, "a brief")
             await store.save_bom(
                 "thread-1",
                 [
@@ -460,8 +539,8 @@ def test_an_unknown_status_is_refused_by_the_database():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("thread-1", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("thread-1", line.id, user.id, "a brief")
             try:
                 await store.save_progress("thread-1", last_seq=0, status="banana")
             except Exception as exc:
@@ -478,8 +557,8 @@ def test_a_thread_that_has_not_finished_has_no_summary():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("thread-1", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("thread-1", line.id, user.id, "a brief")
             return await store.thread_for_user("thread-1", user.id)
 
     assert run(go()).summary is None
@@ -491,8 +570,8 @@ def test_the_summary_round_trips_verbatim():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("thread-1", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("thread-1", line.id, user.id, "a brief")
             await store.save_summary(
                 "thread-1",
                 {"slots": 4, "placed": 4, "conflicts_resolved": 3, "elapsed_s": 12.4},
@@ -513,15 +592,15 @@ def test_precedents_are_scoped_to_successful_other_user_threads():
         async with fresh() as store:
             mine = await a_user(store, "mine@example.com")
             theirs = await a_user(store, "theirs@example.com")
-            first = await store.create_project(mine.id, "First")
-            second = await store.create_project(mine.id, "Second")
+            first = await store.create_line(mine.id, "First")
+            second = await store.create_line(mine.id, "Second")
             signature = "thermal_dissipation|regulator|linear|pkg:SOT|drop:>=8V|load:100-500mA"
-            for thread_id, project, worked in (
+            for thread_id, line, worked in (
                 ("thread-one", first, True),
                 ("thread-two", second, True),
                 ("thread-false", first, False),
             ):
-                await store.create_thread(thread_id, project.id, mine.id, "brief")
+                await store.create_thread(thread_id, line.id, mine.id, "brief")
                 await store.save_findings(
                     thread_id,
                     [
@@ -549,7 +628,7 @@ def test_precedents_are_scoped_to_successful_other_user_threads():
             "rule": "thermal_dissipation",
             "action": "change_topology",
             "signature": "thermal_dissipation|regulator|linear|pkg:SOT|drop:>=8V|load:100-500mA",
-            "project_name": "First",
+            "line_name": "First",
         }
     ]
     assert from_second == [
@@ -557,7 +636,7 @@ def test_precedents_are_scoped_to_successful_other_user_threads():
             "rule": "thermal_dissipation",
             "action": "change_topology",
             "signature": "thermal_dissipation|regulator|linear|pkg:SOT|drop:>=8V|load:100-500mA",
-            "project_name": "Second",
+            "line_name": "Second",
         }
     ]
     assert other_user == []
@@ -566,7 +645,7 @@ def test_precedents_are_scoped_to_successful_other_user_threads():
 def test_a_phantom_thread_never_masks_the_run_that_did_the_work():
     """React's double-invoke starts two runs; only one of them ever emits anything.
 
-    Found live: a project waiting on a question opened to "this run has no board to
+    Found live: a line waiting on a question opened to "this run has no board to
     restore", because the caller took the newest thread and the newest was the cancelled
     twin — `abandoned`, `last_seq = -1`, no checkpoint, no frames.
     """
@@ -574,12 +653,12 @@ def test_a_phantom_thread_never_masks_the_run_that_did_the_work():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("real", project.id, user.id, "a brief")
-            await store.create_thread("phantom", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("real", line.id, user.id, "a brief")
+            await store.create_thread("phantom", line.id, user.id, "a brief")
             await store.save_progress("real", 75, "awaiting")
             await store.save_progress("phantom", -1, "abandoned")
-            return await store.threads_for_project(project.id, user.id)
+            return await store.threads_for_line(line.id, user.id)
 
     assert [thread.id for thread in run(go())][0] == "real"
 
@@ -588,11 +667,11 @@ def test_a_live_run_outranks_a_finished_one():
     async def go():
         async with fresh() as store:
             user = await a_user(store)
-            project = await store.create_project(user.id, "P")
-            await store.create_thread("older-live", project.id, user.id, "a brief")
-            await store.create_thread("newer-done", project.id, user.id, "a brief")
+            line = await store.create_line(user.id, "P")
+            await store.create_thread("older-live", line.id, user.id, "a brief")
+            await store.create_thread("newer-done", line.id, user.id, "a brief")
             await store.save_progress("older-live", 4, "running")
             await store.save_progress("newer-done", 90, "done")
-            return await store.threads_for_project(project.id, user.id)
+            return await store.threads_for_line(line.id, user.id)
 
     assert [thread.id for thread in run(go())][0] == "older-live"

@@ -1,4 +1,4 @@
-"""The six rules. Written by hand, never generated — physics does not vary by project.
+"""The six rules. Written by hand, never generated — physics does not vary by line.
 
 R1–R5 are electrical. R6 is sourcing, and it flows through the identical resolution
 loop, which is the architectural claim: one loop handling a sold-out part and an
