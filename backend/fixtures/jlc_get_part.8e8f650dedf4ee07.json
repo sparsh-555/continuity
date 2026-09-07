@@ -1,0 +1,42 @@
+{
+ "tool": "jlc_get_part",
+ "arguments": {
+  "mpn": "LD1117S33TR"
+ },
+ "response": {
+  "mpn": "LD1117S33TR",
+  "total": 1,
+  "results": [
+   {
+    "lcsc": "C86781",
+    "model": "LD1117S33TR",
+    "manufacturer": "STMicroelectronics",
+    "package": "SOT-223",
+    "stock": 41254,
+    "price": 0.2429,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "0℃~+125℃@(Tj) 1 1.1V@(800mA) 100uV 15V 3.3V 5mA 75dB@(120Hz) 800mA Fixed Over Current Protection、Over Temperature Protection Positive SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "75dB@(120Hz)",
+     "Operating Temperature": "0℃~+125℃@(Tj)",
+     "standby current": "5mA",
+     "Noise": "100uV",
+     "Voltage - Supply": "15V",
+     "Output Type": "Fixed",
+     "Output Current": "800mA",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.1V@(800mA)",
+     "Number of Outputs": "1"
+    }
+   }
+  ]
+ }
+}

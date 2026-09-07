@@ -1,0 +1,278 @@
+{
+ "tool": "jlc_search",
+ "arguments": {
+  "query": "22uF 25V X5R ceramic capacitor 1206",
+  "sort_by": "stock",
+  "limit": 8
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C12891",
+    "model": "CL31A226KAHNNNE",
+    "manufacturer": "Samsung Electro-Mechanics",
+    "package": "1206",
+    "stock": 1473130,
+    "price": 0.1725,
+    "price_10": null,
+    "library_type": "basic",
+    "preferred": true,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "description": "22uF 25V X5R ±10% 1206 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+    "specs": {
+     "Voltage Rating": "25V",
+     "Tolerance": "±10%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   },
+   {
+    "lcsc": "C342620",
+    "model": "C3216X5R1V226MTJ00E",
+    "manufacturer": "TDK",
+    "package": "1206",
+    "stock": 239994,
+    "price": 0.4662,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "description": "22uF 35V X5R ±20% 1206 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+    "specs": {
+     "Voltage Rating": "35V",
+     "Tolerance": "±20%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   },
+   {
+    "lcsc": "C7432785",
+    "model": "HGC1206R5226K250NSPJ",
+    "manufacturer": "Chinocera",
+    "package": "1206",
+    "stock": 169832,
+    "price": 0.1719,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "description": "22uF 25V X5R ±10% 1206 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+    "specs": {
+     "Voltage Rating": "25V",
+     "Tolerance": "±10%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   },
+   {
+    "lcsc": "C5448922",
+    "model": "TCC1206X5R226K250HT",
+    "manufacturer": "CCTC",
+    "package": "1206",
+    "stock": 158256,
+    "price": 0.1706,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "description": "22uF 25V X5R ±10% 1206 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+    "specs": {
+     "Voltage Rating": "25V",
+     "Tolerance": "±10%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   },
+   {
+    "lcsc": "C380359",
+    "model": "TCC1206X5R226M250HT",
+    "manufacturer": "CCTC",
+    "package": "1206",
+    "stock": 152852,
+    "price": 0.1524,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "description": "22uF 25V X5R ±20% 1206 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+    "specs": {
+     "Voltage Rating": "25V",
+     "Tolerance": "±20%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   },
+   {
+    "lcsc": "C77091",
+    "model": "GRM31CR61E226KE15L",
+    "manufacturer": "Murata Electronics",
+    "package": "1206",
+    "stock": 144556,
+    "price": 0.3436,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "description": "22uF 25V X5R ±10% 1206 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+    "specs": {
+     "Voltage Rating": "25V",
+     "Tolerance": "±10%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   },
+   {
+    "lcsc": "C7419438",
+    "model": "FCC1206X226K250HT",
+    "manufacturer": "FOJAN",
+    "package": "1206",
+    "stock": 133548,
+    "price": 0.1696,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "description": "-55℃~+85℃ 22uF 25V X5R ±10% 1206 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+    "specs": {
+     "Operating Temperature": "-55℃~+85℃",
+     "Voltage Rating": "25V",
+     "Tolerance": "±10%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   },
+   {
+    "lcsc": "C7432786",
+    "model": "HGC1206R5226M250NSPJ",
+    "manufacturer": "Chinocera",
+    "package": "1206",
+    "stock": 122934,
+    "price": 0.1622,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "description": "22uF 25V X5R ±20% 1206 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+    "specs": {
+     "Voltage Rating": "25V",
+     "Tolerance": "±20%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   }
+  ],
+  "total": 24,
+  "page_info": {
+   "limit": 8,
+   "offset": 0,
+   "returned": 8
+  },
+  "filters_applied": {
+   "query": null,
+   "subcategory_id": 2929,
+   "subcategory_name": "multilayer ceramic capacitors mlcc - smd/smt",
+   "subcategory_resolved": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+   "category_id": null,
+   "category_name": null,
+   "category_resolved": null,
+   "spec_filters": [
+    {
+     "name": "Capacitance",
+     "op": "=",
+     "value": "22uF"
+    },
+    {
+     "name": "Voltage Rating",
+     "op": ">=",
+     "value": "25V"
+    },
+    {
+     "name": "Temperature Coefficient",
+     "op": "=",
+     "value": "X5R"
+    }
+   ],
+   "library_type": null,
+   "prefer_no_fee": true,
+   "min_stock": 10,
+   "package": "1206",
+   "packages": null,
+   "manufacturer": null,
+   "match_all_terms": true
+  },
+  "library_type_counts": {
+   "basic": 1,
+   "preferred": 0,
+   "extended": 23
+  },
+  "no_fee_available": true,
+  "parsed": {
+   "original_query": "22uF 25V X5R ceramic capacitor 1206",
+   "detected": {
+    "package": "1206",
+    "component_type": "ceramic capacitor",
+    "subcategory": "multilayer ceramic capacitors mlcc - smd/smt",
+    "values": [
+     {
+      "raw": "22uF",
+      "type": "capacitance",
+      "normalized": "22uF"
+     },
+     {
+      "raw": "25V",
+      "type": "voltage",
+      "normalized": "25V"
+     }
+    ],
+    "semantic": [
+     "x5r"
+    ]
+   },
+   "subcategory": "multilayer ceramic capacitors mlcc - smd/smt",
+   "package": "1206",
+   "mounting_type": null,
+   "spec_filters": [
+    {
+     "name": "Capacitance",
+     "op": "=",
+     "value": "22uF"
+    },
+    {
+     "name": "Voltage Rating",
+     "op": ">=",
+     "value": "25V"
+    },
+    {
+     "name": "Temperature Coefficient",
+     "op": "=",
+     "value": "X5R"
+    }
+   ],
+   "remaining_text": ""
+  }
+ }
+}

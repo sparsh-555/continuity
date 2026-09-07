@@ -1143,6 +1143,82 @@ def _check_availability(board: Board, slot_id: str, part: PartSpec) -> Verdict:
 # ── R7 · temperature_rating ──────────────────────────────────────────────────
 
 
+# ── R7b · footprint_compatibility ─────────────────────────────────────────────
+
+
+def footprint_compatibility(board: Board) -> list[Verdict]:
+    """Does the replacement fit the land pattern the outgoing part leaves behind?
+
+    Distinct from `footprint`, which asks whether a part is under a size target the brief
+    named. This asks a substitution question — *does this drop into that* — and it is the
+    first rule that needs `Slot.baseline`, because "fits where the old one was" cannot be
+    answered from the new part alone.
+
+    A differing land pattern is a **failure**, not a note. The question a change request
+    answers is whether the replacement is a drop-in, and SOT-23-5 into a SOT-223 land
+    pattern is not one at any price — it is a board revision, new stencils and a new
+    qualification. Saying so is the difference between a substitution a buyer can action
+    and a suggestion they have to go and check.
+
+    This deliberately checks the land pattern and not pin function. Pin names reach the
+    system only for bus masters and only to count GPIOs — `PartSpec` keeps the count, not
+    the names — so comparing pinouts would mean a distributor call for every part on every
+    board. The package answers the decisive question here and the pin map is recorded as
+    unbuilt rather than half-done.
+    """
+    verdicts: list[Verdict] = []
+    for slot_id, slot in board.slots.items():
+        if slot.part is None or slot.baseline is None:
+            continue
+        verdicts.append(_check_footprint_swap(board, slot_id, slot.part, slot.baseline))
+    return verdicts or [
+        _not_applicable(
+            "footprint_compatibility",
+            board,
+            "No part on this board is replacing another, so there is no land pattern to match.",
+        )
+    ]
+
+
+def _check_footprint_swap(
+    board: Board, slot_id: str, part: PartSpec, baseline: PartSpec
+) -> Verdict:
+    evidence = part.cite(slot_id, "package") + (
+        Evidence(slot_id, "replacing", f"{baseline.mpn} in {baseline.package}", baseline.datasheet),
+    )
+
+    def verdict(status: str, detail: str) -> Verdict:
+        return Verdict(
+            rule="footprint_compatibility",
+            status=status,
+            detail=detail,
+            subject=slot_id,
+            involved=(slot_id,),
+            evidence=evidence,
+        )
+
+    if not part.package or not baseline.package:
+        missing = part.mpn if not part.package else baseline.mpn
+        return verdict(
+            "evidence_missing",
+            f"{missing} states no package, so whether {part.mpn} drops into "
+            f"{baseline.mpn}'s land pattern could not be checked.",
+        )
+
+    if packages.same_land_pattern(part.package, baseline.package):
+        return verdict(
+            "satisfied",
+            f"{part.mpn} is {part.package}, the same land pattern as {baseline.mpn} — "
+            f"a drop-in, with no layout change.",
+        )
+
+    return verdict(
+        "failed",
+        f"{part.mpn} is {part.package} where {baseline.mpn} is {baseline.package}. "
+        f"Not a drop-in: the footprint differs, so the board needs a layout revision.",
+    )
+
+
 def temperature_rating(board: Board) -> list[Verdict]:
     """Every placed part must cover the board's required ambient temperature range."""
     verdicts: list[Verdict] = []
@@ -1431,6 +1507,7 @@ RULES = (
     thermal_dissipation,
     availability,
     footprint,
+    footprint_compatibility,
     temperature_rating,
     energy_budget,
     # Last: it reports on the *absence* of the checks above rather than on the board.

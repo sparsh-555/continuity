@@ -1838,3 +1838,65 @@ def test_chip_select_shortfall_is_failed():
     verdict = next(v for v in rules.interface_role_match(board) if "chip select" in v.detail)
 
     assert verdict.status == "failed"
+
+
+# ── R7b · footprint_compatibility ─────────────────────────────────────────────
+
+
+def _swap_board(candidate: PartSpec, outgoing: PartSpec):
+    """A board where one slot's part is replacing another, which is what R7b needs."""
+    board = usb_board(regulator=candidate, loads={"mcu": parts.esp32s3()})
+    slots = dict(board.slots)
+    slots["regulator"] = replace(slots["regulator"], baseline=outgoing)
+    return replace(board, slots=slots)
+
+
+def test_the_same_land_pattern_is_a_drop_in():
+    board = _swap_board(parts.ap2112k(mpn="NEW", package="SOT-223"), parts.ap2112k(package="SOT-223"))
+
+    verdict = only(rules.footprint_compatibility(board), "footprint_compatibility", "regulator")
+
+    assert verdict.status == "satisfied"
+    assert "drop-in" in verdict.detail
+
+
+def test_a_differing_land_pattern_fails_rather_than_notes():
+    """SOT-23-5 into a SOT-223 land pattern is a board revision, not a caveat.
+
+    This is why ME6211 left the finals candidate set: half the price and it does not fit.
+    A change request that called that a drop-in would be actioned and then discovered on
+    the line, so the rule fails it and names the consequence.
+    """
+    board = _swap_board(parts.ap2112k(package="SOT-23-5"), parts.ap2112k(mpn="OLD", package="SOT-223"))
+
+    verdict = only(rules.footprint_compatibility(board), "footprint_compatibility", "regulator")
+
+    assert verdict.status == "failed"
+    assert "layout revision" in verdict.detail
+    assert "SOT-223" in verdict.detail and "SOT-23-5" in verdict.detail
+
+
+def test_distributor_spellings_of_one_package_are_one_land_pattern():
+    """`SOT-223`, `SOT-223-3` and `SOT223` are four listings of the same footprint."""
+    board = _swap_board(parts.ap2112k(mpn="NEW", package="SOT-223-3L"), parts.ap2112k(package="SOT223"))
+
+    assert only(
+        rules.footprint_compatibility(board), "footprint_compatibility", "regulator"
+    ).status == "satisfied"
+
+
+def test_designing_a_board_has_no_baseline_to_match():
+    """Nothing is being replaced, so the question does not arise — it is not a pass."""
+    board = usb_board(regulator=parts.ap2112k(), loads={"mcu": parts.esp32s3()})
+
+    verdict = only(rules.footprint_compatibility(board), "footprint_compatibility")
+
+    assert verdict.status == "not_applicable"
+
+
+def test_an_unstated_package_cannot_be_matched():
+    board = _swap_board(parts.ap2112k(mpn="NEW", package=None), parts.ap2112k(package="SOT-223"))
+
+    verdict = only(rules.footprint_compatibility(board), "footprint_compatibility", "regulator")
+
+    assert verdict.status == "evidence_missing"

@@ -13,51 +13,51 @@
     "description": "Board Mount Temperature Sensors Lo Pwr Dig Temp Sens or A 595-TMP102AIDR A 595-TMP102AIDRLT",
     "category": "Board Mount Temperature Sensors",
     "stock": 0,
-    "price": 1.06,
+    "price": 1.2,
     "price_breaks": [
      {
       "qty": 1,
-      "price": 1.06,
+      "price": 1.2,
       "currency": "USD"
      },
      {
       "qty": 5,
-      "price": 0.934,
+      "price": 1.06,
       "currency": "USD"
      },
      {
       "qty": 10,
-      "price": 0.832,
+      "price": 0.942,
       "currency": "USD"
      },
      {
       "qty": 50,
-      "price": 0.794,
+      "price": 0.899,
       "currency": "USD"
      },
      {
       "qty": 100,
-      "price": 0.759,
+      "price": 0.86,
       "currency": "USD"
      },
      {
       "qty": 500,
-      "price": 0.686,
+      "price": 0.767,
       "currency": "USD"
      },
      {
       "qty": 1000,
-      "price": 0.661,
+      "price": 0.717,
       "currency": "USD"
      },
      {
       "qty": 2000,
-      "price": 0.616,
+      "price": 0.678,
       "currency": "USD"
      },
      {
       "qty": 4000,
-      "price": 0.595,
+      "price": 0.656,
       "currency": "USD"
      }
     ],

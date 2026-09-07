@@ -1,0 +1,92 @@
+{
+ "tool": "jlc_stock_check",
+ "arguments": {
+  "query": "CR1220-2",
+  "limit": 5
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C70381",
+    "model": "CR1220-2",
+    "manufacturer": "Q&J",
+    "package": "-",
+    "stock": 60221,
+    "price": 0.2424,
+    "price_10": 0.1903,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Industrial control electrical",
+    "subcategory": "Battery holder base",
+    "subcategory_id": 3739,
+    "mounting_type": "not_sure",
+    "specs": {
+     "Operating Temperature": "-40~80℃",
+     "Contact material": "Phosphor bronze",
+     "Type": "Battery base",
+     "Applicable battery specifications": "CR1220"
+    }
+   },
+   {
+    "lcsc": "C969906",
+    "model": "CR1220-2ZX",
+    "manufacturer": "Q&J",
+    "package": "-",
+    "stock": 31072,
+    "price": 0.2868,
+    "price_10": 0.2232,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Industrial control electrical",
+    "subcategory": "Battery holder base",
+    "subcategory_id": 3739,
+    "mounting_type": "not_sure",
+    "specs": {
+     "Operating Temperature": "-25~85℃",
+     "Type": "Battery base",
+     "Applicable battery specifications": "CR1220"
+    }
+   },
+   {
+    "lcsc": "C5365933",
+    "model": "KH-CR1220-2",
+    "manufacturer": "Shenzhen Kinghelm Elec",
+    "package": "SMD",
+    "stock": 38199,
+    "price": 0.1784,
+    "price_10": 0.1402,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Connectors",
+    "subcategory": "Button And Strip Battery Connector",
+    "subcategory_id": 2989,
+    "mounting_type": "smd",
+    "specs": {
+     "Connector Type": "Battery base",
+     "Battery Type": "CR1220"
+    }
+   },
+   {
+    "lcsc": "C54973990",
+    "model": "HYCW-CR1220-2",
+    "manufacturer": "HOAUC",
+    "package": "SMD",
+    "stock": 356,
+    "price": 0.1764,
+    "price_10": 0.1396,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Connectors",
+    "subcategory": "Button And Strip Battery Connector",
+    "subcategory_id": 2989,
+    "mounting_type": "smd",
+    "specs": {}
+   }
+  ],
+  "page": 1,
+  "per_page": 5,
+  "total": 4,
+  "total_pages": 1,
+  "has_more": false
+ }
+}

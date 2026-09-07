@@ -1,0 +1,253 @@
+{
+ "tool": "jlc_search",
+ "arguments": {
+  "query": "3.3V LDO regulator SOT-23-5",
+  "sort_by": "stock",
+  "limit": 6
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C347386",
+    "model": "XC6219B332MR",
+    "manufacturer": "UMW(Youtai Semiconductor Co., Ltd.)",
+    "package": "SOT-23-5",
+    "stock": 502290,
+    "price": 0.0441,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-20℃~+60℃ 1 15uA 280mV@(100mA) 3.3V 300mA 40dB@(1kHz) 7V Fixed Over Current Protection、Enable、Short Circuit Protection Positive SOT-23-5 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "40dB@(1kHz)",
+     "Operating Temperature": "-20℃~+60℃",
+     "standby current": "15uA",
+     "Noise": "-",
+     "Voltage - Supply": "7V",
+     "Output Type": "Fixed",
+     "Output Current": "300mA",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Enable control",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "280mV@(100mA)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C82942",
+    "model": "ME6211C33M5G-N",
+    "manufacturer": "MICRONE(Nanjing Micro One Elec)",
+    "package": "SOT-23-5",
+    "stock": 328982,
+    "price": 0.0597,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+150℃ 1 120mV@(100mA) 3.3V 500mA 50uVrms 60uA 6V 70dB@(1kHz) Fixed Over Current Protection、Enable、Short Circuit Protection Positive SOT-23-5 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "70dB@(1kHz)",
+     "Operating Temperature": "-40℃~+150℃",
+     "standby current": "60uA",
+     "Noise": "50uVrms",
+     "Voltage - Supply": "6V",
+     "Output Type": "Fixed",
+     "Output Current": "500mA",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Enable control",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "120mV@(100mA)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C95414",
+    "model": "LP2985-33DBVR",
+    "manufacturer": "Texas Instruments",
+    "package": "SOT-23-5",
+    "stock": 225117,
+    "price": 0.2476,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃@(Tj) 1 150mA 16V 3.3V 30uVrms 45dB@(1kHz) 575mV@(150mA) 850uA Fixed Over Current Protection、Over Temperature Protection、Enable、Short Circuit Protection Positive SOT-23-5 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "45dB@(1kHz)",
+     "standby current": "850uA",
+     "Operating Temperature": "-40℃~+125℃@(Tj)",
+     "Noise": "30uVrms",
+     "Voltage - Supply": "16V",
+     "Output Type": "Fixed",
+     "Output Current": "150mA",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown、Enable control、Noise bypass terminal",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "575mV@(150mA)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C5370990",
+    "model": "TPLP5907MFX-3.3",
+    "manufacturer": "TECH PUBLIC",
+    "package": "SOT-23-5",
+    "stock": 196460,
+    "price": 0.099,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "1 200mV@(300mA) 2uA 3.3V 300mA 5.5V 51uVrms 75dB@(1kHz) Fixed Over Current Protection、Over Temperature Protection、Enable Positive SOT-23-5 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "75dB@(1kHz)",
+     "Operating Temperature": "-",
+     "standby current": "2uA",
+     "Noise": "51uVrms",
+     "Output Type": "Fixed",
+     "Voltage - Supply": "5.5V",
+     "Output Current": "300mA",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Thermal shutdown、Enable control、Output discharge",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "200mV@(300mA)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C47773",
+    "model": "RT9013-33GB",
+    "manufacturer": "Richtek Tech",
+    "package": "SOT-23-5",
+    "stock": 169390,
+    "price": 0.1397,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃@(Tj) 1 25uA 3.3V 30uVrms 400mV@(500mA) 5.5V 500mA 50dB@(10kHz) Fixed Over Current Protection、Over Temperature Protection、Enable Positive SOT-23-5 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "50dB@(10kHz)",
+     "standby current": "25uA",
+     "Operating Temperature": "-40℃~+125℃@(Tj)",
+     "Noise": "30uVrms",
+     "Voltage - Supply": "5.5V",
+     "Output Type": "Fixed",
+     "Output Current": "500mA",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown、Enable control",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "400mV@(500mA)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C136156",
+    "model": "LDK320AM33R",
+    "manufacturer": "STMicroelectronics",
+    "package": "SOT-23-5",
+    "stock": 151545,
+    "price": 0.2983,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃@(Tj) 1 100mV@(100mA) 18V 200mA 3.3V 60uA 63uVrms 88dB@(120Hz) Fixed Over Temperature Protection、Enable Positive SOT-23-5 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "88dB@(120Hz)",
+     "Operating Temperature": "-40℃~+125℃@(Tj)",
+     "standby current": "60uA",
+     "Noise": "63uVrms",
+     "Output Type": "Fixed",
+     "Voltage - Supply": "18V",
+     "Output Current": "200mA",
+     "Features": "Short Circuit Protection、Thermal shutdown、Enable control",
+     "Output Configuration": "Positive",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "100mV@(100mA)",
+     "Number of Outputs": "1"
+    }
+   }
+  ],
+  "total": 1020,
+  "page_info": {
+   "limit": 6,
+   "offset": 0,
+   "returned": 6
+  },
+  "filters_applied": {
+   "query": "LDO",
+   "subcategory_id": 2956,
+   "subcategory_name": "voltage regulators - linear, low drop out (ldo) regulators",
+   "subcategory_resolved": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+   "category_id": null,
+   "category_name": null,
+   "category_resolved": null,
+   "spec_filters": [
+    {
+     "name": "Output Voltage",
+     "op": ">=",
+     "value": "3.3V"
+    }
+   ],
+   "library_type": null,
+   "prefer_no_fee": true,
+   "min_stock": 10,
+   "package": "SOT-23-5",
+   "packages": null,
+   "manufacturer": null,
+   "match_all_terms": true
+  },
+  "library_type_counts": {
+   "basic": 0,
+   "preferred": 0,
+   "extended": 1020
+  },
+  "no_fee_available": false,
+  "parsed": {
+   "original_query": "3.3V LDO regulator SOT-23-5",
+   "detected": {
+    "package": "SOT-23-5",
+    "component_type": "regulator",
+    "subcategory": "voltage regulators - linear, low drop out (ldo) regulators",
+    "values": [
+     {
+      "raw": "3.3V",
+      "type": "voltage",
+      "normalized": "3.3V"
+     }
+    ]
+   },
+   "subcategory": "voltage regulators - linear, low drop out (ldo) regulators",
+   "package": "SOT-23-5",
+   "mounting_type": null,
+   "spec_filters": [
+    {
+     "name": "Output Voltage",
+     "op": ">=",
+     "value": "3.3V"
+    }
+   ],
+   "remaining_text": "LDO"
+  }
+ }
+}

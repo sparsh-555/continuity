@@ -159,7 +159,13 @@ def make_board(line: ProductLine, regulator: PartSpec) -> Board:
             mounting="1000 mm² top and back copper, 1/16in FR-4, 1 oz",
         ),
         slots={
-            "u1": Slot("u1", "3V3 regulator", "power", status="pass", part=regulator),
+            # The incumbent is the baseline every candidate is measured against, and a
+            # candidate replacing itself is not a substitution — line A running AMS1117
+            # is the board as it stands today, not a proposed change to it.
+            "u1": Slot(
+                "u1", "3V3 regulator", "power", status="pass", part=regulator,
+                baseline=None if regulator is AMS1117 else AMS1117,
+            ),
             "u2": Slot("u2", line.label + " module", "core", status="pass", part=line.load_part),
             "c1": Slot("c1", "3V3 output capacitor", "passives", status="pass", part=OUTPUT_CAPACITOR),
         },

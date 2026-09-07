@@ -1,0 +1,78 @@
+{
+ "tool": "mouser_get_part",
+ "arguments": {
+  "part_number": "TLV1117LV33DCYR"
+ },
+ "response": {
+  "results": [
+   {
+    "source": "mouser",
+    "part_number": "595-TLV1117LV33DCYR",
+    "mfr_part_number": "TLV1117LV33DCYR",
+    "manufacturer": "Texas Instruments",
+    "description": "LDO Voltage Regulators 1A Pos Fix Vltg LDO Linear Reg A 595-TLV A 595-TLV1117LV33DCYT",
+    "category": "LDO Voltage Regulators",
+    "stock": 0,
+    "price": 0.33,
+    "price_breaks": [
+     {
+      "qty": 1,
+      "price": 0.33,
+      "currency": "USD"
+     },
+     {
+      "qty": 10,
+      "price": 0.227,
+      "currency": "USD"
+     },
+     {
+      "qty": 25,
+      "price": 0.2,
+      "currency": "USD"
+     },
+     {
+      "qty": 100,
+      "price": 0.171,
+      "currency": "USD"
+     },
+     {
+      "qty": 250,
+      "price": 0.157,
+      "currency": "USD"
+     },
+     {
+      "qty": 500,
+      "price": 0.149,
+      "currency": "USD"
+     },
+     {
+      "qty": 1000,
+      "price": 0.143,
+      "currency": "USD"
+     },
+     {
+      "qty": 2500,
+      "price": 0.136,
+      "currency": "USD"
+     },
+     {
+      "qty": 5000,
+      "price": 0.133,
+      "currency": "USD"
+     }
+    ],
+    "datasheet_url": "",
+    "product_url": "https://www.mouser.ca/en/ProductDetail/Texas-Instruments/TLV1117LV33DCYR?qs=tEz3BkPb1rwzXMb8FiWhow%3D%3D",
+    "rohs": "RoHS Compliant",
+    "lifecycle": "Active",
+    "parameters": {
+     "Packaging": "MouseReel",
+     "Standard Pack Qty": "2500"
+    },
+    "min_qty": 1,
+    "currency": "USD"
+   }
+  ],
+  "total": 1
+ }
+}

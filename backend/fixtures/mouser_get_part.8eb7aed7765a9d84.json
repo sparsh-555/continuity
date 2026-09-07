@@ -12,7 +12,7 @@
     "manufacturer": "Espressif Systems",
     "description": "Multiprotocol Modules SMD module, ESP32-S3R2 with 2 MB PSRAM die inside, 8 MB SPI flash, PCB antenna",
     "category": "Multiprotocol Modules",
-    "stock": 7975,
+    "stock": 7896,
     "price": 5.88,
     "price_breaks": [
      {

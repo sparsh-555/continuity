@@ -1,0 +1,42 @@
+{
+ "tool": "jlc_get_part",
+ "arguments": {
+  "mpn": "STM32F103C8T6"
+ },
+ "response": {
+  "mpn": "STM32F103C8T6",
+  "total": 1,
+  "results": [
+   {
+    "lcsc": "C8734",
+    "model": "STM32F103C8T6",
+    "manufacturer": "STMicroelectronics",
+    "package": "LQFP-48(7x7)",
+    "stock": 224069,
+    "price": 1.7203,
+    "price_10": null,
+    "library_type": "preferred",
+    "preferred": true,
+    "category": "Embedded Processors & Controllers",
+    "subcategory": "Microcontrollers (MCU/MPU/SOC)",
+    "subcategory_id": 2584,
+    "mounting_type": "smd",
+    "description": "-40℃~+85℃ 12bit 20KB 2V~3.6V 32 Bit 37 64KB 72MHz ARM Cortex-M3 Built-in FLASH LQFP-48(7x7) Microcontrollers (MCU/MPU/SOC) ROHS",
+    "specs": {
+     "EEPROM": "-",
+     "Operating Temperature": "-40℃~+85℃",
+     "CPU Maximum Speed": "72MHz",
+     "Program Memory Type": "FLASH",
+     "Program Storage Size": "64KB",
+     "Voltage - Supply": "2V~3.6V",
+     "Core Size": "32 Bit",
+     "RAM Size": "20KB",
+     "CPU Core": "ARM Cortex-M3",
+     "Number of I/O": "37",
+     "ADC (Bit)": "12bit",
+     "Oscillator Type": "Built-in"
+    }
+   }
+  ]
+ }
+}

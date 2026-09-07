@@ -12,52 +12,27 @@
     "manufacturer": "Texas Instruments",
     "description": "Board Mount Temperature Sensors Hi-Prec Lo-Pwr Dig T emp Sensor A 595-TM A 595-TMP112AIDRLT",
     "category": "Board Mount Temperature Sensors",
-    "stock": 27690,
-    "price": 1.42,
+    "stock": 26901,
+    "price": 1.12,
     "price_breaks": [
      {
       "qty": 1,
-      "price": 1.42,
+      "price": 1.12,
       "currency": "USD"
      },
      {
       "qty": 5,
-      "price": 1.19,
-      "currency": "USD"
-     },
-     {
-      "qty": 10,
-      "price": 1.11,
+      "price": 0.99,
       "currency": "USD"
      },
      {
       "qty": 50,
-      "price": 0.933,
-      "currency": "USD"
-     },
-     {
-      "qty": 100,
-      "price": 0.867,
-      "currency": "USD"
-     },
-     {
-      "qty": 500,
-      "price": 0.73,
-      "currency": "USD"
-     },
-     {
-      "qty": 1000,
-      "price": 0.69,
-      "currency": "USD"
-     },
-     {
-      "qty": 2000,
-      "price": 0.65,
+      "price": 0.988,
       "currency": "USD"
      },
      {
       "qty": 4000,
-      "price": 0.628,
+      "price": 0.988,
       "currency": "USD"
      }
     ],

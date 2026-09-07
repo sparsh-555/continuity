@@ -1,0 +1,24 @@
+{
+ "tool": "cse_search",
+ "arguments": {
+  "query": "NCP1117ST33T3G"
+ },
+ "response": {
+  "results": [
+   {
+    "source": "cse",
+    "mfr_part_number": "NCP1117ST33T3G",
+    "manufacturer": "onsemi",
+    "description": "Output Current in Excess of 1.0 A; 1.2 V Maximum Dropout Voltage at 800 mA Over Temperature; Fixed Output Voltages of 1.5 V, 1.8 V, 2.0 V, 2.5 V, 2.85 V, 3.3 V, 5.0 V, and 12 V; Adjustable Output Voltage Option; No Minimum Load Requirement for Fixed Voltage Output Devices; Reference/Output Voltage Trimmed to +/- 1.0%; Current Limit, Safe Operating and Thermal Shutdown Protection; Operation to 20 V Input; Pb-Free Packages are Available",
+    "datasheet_url": "https://www.onsemi.com/pub/Collateral/NCP1117-D.PDF",
+    "has_model": true,
+    "has_3d": true,
+    "model_quality": 2,
+    "cse_part_id": 226072,
+    "pin_count": 4,
+    "image_url": "https://www.onsemi.com/PowerSolutions/product.do?id=NCP1117ST33T3G"
+   }
+  ],
+  "total": 1
+ }
+}

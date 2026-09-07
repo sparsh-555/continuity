@@ -1,0 +1,74 @@
+{
+ "tool": "jlc_stock_check",
+ "arguments": {
+  "query": "ME6211C33M5G-N",
+  "limit": 5
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C3021094",
+    "model": "TP6211C33M5G",
+    "manufacturer": "TECH PUBLIC",
+    "package": "SOT-23-5",
+    "stock": 932,
+    "price": 0.1272,
+    "price_10": 0.1014,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "80dB@(100Hz)",
+     "standby current": "2uA",
+     "Operating Temperature": "-40℃~+125℃@(Tj)",
+     "Noise": "-",
+     "Output Type": "Fixed",
+     "Voltage - Supply": "5.5V",
+     "Output Current": "300mA",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Thermal shutdown、Enable control、Output discharge",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "180mV@(300mA)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C82942",
+    "model": "ME6211C33M5G-N",
+    "manufacturer": "MICRONE(Nanjing Micro One Elec)",
+    "package": "SOT-23-5",
+    "stock": 328862,
+    "price": 0.0597,
+    "price_10": 0.0485,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "70dB@(1kHz)",
+     "Operating Temperature": "-40℃~+150℃",
+     "standby current": "60uA",
+     "Noise": "50uVrms",
+     "Voltage - Supply": "6V",
+     "Output Type": "Fixed",
+     "Output Current": "500mA",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Enable control",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "120mV@(100mA)",
+     "Number of Outputs": "1"
+    }
+   }
+  ],
+  "page": 1,
+  "per_page": 5,
+  "total": 2,
+  "total_pages": 1,
+  "has_more": false
+ }
+}

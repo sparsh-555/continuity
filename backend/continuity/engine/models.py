@@ -43,6 +43,7 @@ RULE_NAMES = (
     "thermal_dissipation",
     "availability",
     "footprint",
+    "footprint_compatibility",
     "temperature_rating",
     "energy_budget",
     "rail_coverage",
@@ -454,6 +455,18 @@ class Slot:
 
     repair_count: int = 0
     """Escalates above MAX_REPAIRS. See `policy`."""
+
+    baseline: PartSpec | None = None
+    """The part this slot is replacing, when it is replacing one.
+
+    A substitution is a different question from a design, and until now the engine could
+    not tell them apart: it saw whatever part was in the slot and had nothing to compare
+    it against. `footprint_compatibility` is the first rule that needs the comparison —
+    "does this fit where the old one was" is unanswerable without knowing what was there.
+
+    `None` in design mode, where nothing is being replaced, and every rule that depends on
+    it reports *not applicable* rather than inventing a baseline from the current part.
+    """
 
     def with_part(self, part: PartSpec, status: SlotStatus = "pass") -> "Slot":
         return replace(self, part=part, status=status)

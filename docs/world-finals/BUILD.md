@@ -207,6 +207,31 @@ this test, and so does concluding nothing was published when handed Rev 26, whic
 column entirely. The extraction must record the document revision alongside the value. Uploading
 a different datasheet for the same MPN returns the new value, not the cached one.
 
+## 6 · `power_dissipation_max` — **not built, and why**
+
+Checked before building, and the quantity it tests is not stated by anything we source.
+
+Every distributor field mentioning power is a different measurement: `Output Power(Max)` is RF
+transmit power in dBm, `Current Rating-Power` is a connector's ampacity, and `Power - Max` on a
+PoE controller is *deliverable output*. Reading that last one as a dissipation ceiling is the
+same category error as reading an ambient rating as a junction limit, which item 1 exists to
+have fixed.
+
+The datasheets close it. AMS1117 and NCP1117 both say **"Internally Limited"**, TLV1117LV says
+**"See Thermal Information"**, and LD1117 gives 12 W against 0.7 W on our hottest board. For a
+linear regulator the dissipation limit *is* the thermal one, and `thermal_dissipation` already
+computes it.
+
+So the rule would report *evidence missing* on every cell of the demo and nearly every
+regulator in design mode — a label covering a check with no subject, which is what the rule
+governing this file forbids.
+
+The case that motivated it is real and its subject is **passives**: a 0603 resistor's 100 mW
+rating is a genuine stated spec, and a board full of them wants this check. Continuity's boards
+are ICs and a capacitor. Revisit when a board has resistors on it.
+
+<details><summary>The original item</summary>
+
 ## 6 · `power_dissipation_max`
 
 **Files** `engine/models.py`, `engine/rules.py`, `parts/normalize.py`
@@ -217,6 +242,8 @@ and over its power rating.
 
 **Test** a part rated 300 mW dissipating 340 mW fails; a part with no stated maximum reports
 *evidence missing*.
+
+</details>
 
 ## 7 · `footprint_compatibility`
 

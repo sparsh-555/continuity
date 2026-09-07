@@ -1,0 +1,24 @@
+{
+ "tool": "cse_search",
+ "arguments": {
+  "query": "CR1220-2ZX"
+ },
+ "response": {
+  "results": [
+   {
+    "source": "cse",
+    "mfr_part_number": "CR1220-2ZX",
+    "manufacturer": "Q&J",
+    "description": "CR1220 SMD Battery Connectors ROHS",
+    "datasheet_url": "https://datasheet.lcsc.com/lcsc/2101071835_Q&J-CR1220-2ZX_C969906.pdf",
+    "has_model": true,
+    "has_3d": false,
+    "model_quality": 4,
+    "cse_part_id": 15516050,
+    "pin_count": 2,
+    "image_url": null
+   }
+  ],
+  "total": 1
+ }
+}

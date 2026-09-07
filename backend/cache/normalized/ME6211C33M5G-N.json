@@ -1,0 +1,24 @@
+{
+ "mpn": "ME6211C33M5G-N",
+ "prompt": "7fde8e5c4f2c",
+ "fields": {
+  "vmax": 6.0,
+  "vout_min": 3.3,
+  "vout_max": 3.3,
+  "i_typ": 6e-05,
+  "i_max": 0.5,
+  "role": "passive",
+  "topology": "ldo",
+  "temp_min": -40.0,
+  "temp_max": 150.0
+ },
+ "provenance": {
+  "vmax": "Voltage - Supply",
+  "vout_min": "Output Voltage",
+  "vout_max": "Output Voltage",
+  "i_typ": "standby current",
+  "i_max": "Output Current",
+  "temp_min": "Operating Temperature",
+  "temp_max": "Operating Temperature"
+ }
+}

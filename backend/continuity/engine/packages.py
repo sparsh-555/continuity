@@ -269,3 +269,20 @@ def longest_side_mm(package: str | None) -> float | None:
 
 def known_packages() -> tuple[str, ...]:
     return tuple(sorted(_THETA_JA))
+
+
+def same_land_pattern(left: str | None, right: str | None) -> bool:
+    """Whether two package names describe the same footprint on the board.
+
+    Folded through the same spelling normalisation the θJA table uses, because a
+    distributor writes the one package as `SOT-223`, `SOT-223-3`, `SOT223` and
+    `SOT-223-3L` across four listings of the same part, and treating those as four
+    footprints would report a drop-in replacement as a layout change.
+
+    Deliberately not a similarity score. Two packages either share a land pattern or they
+    do not, and a rule that answers "probably" about whether a part fits the board is
+    worse than one that answers at all.
+    """
+    if not left or not right:
+        return False
+    return bool(set(_candidate_keys(left)) & set(_candidate_keys(right)))

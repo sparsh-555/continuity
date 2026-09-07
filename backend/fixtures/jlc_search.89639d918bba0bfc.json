@@ -1,0 +1,252 @@
+{
+ "tool": "jlc_search",
+ "arguments": {
+  "query": "3.3V LDO regulator SOT-223",
+  "sort_by": "stock",
+  "limit": 6
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C6186",
+    "model": "AMS1117-3.3",
+    "manufacturer": "Advanced Monolithic Systems",
+    "package": "SOT-223",
+    "stock": 1493627,
+    "price": 0.2176,
+    "price_10": null,
+    "library_type": "basic",
+    "preferred": true,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃ 0.003%Vout 1 1.1V@(800mA) 15V 1A 3.3V 5mA 72dB@(120Hz) Fixed Over Current Protection、Short Circuit Protection、Thermal shutdown Positive SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "72dB@(120Hz)",
+     "Operating Temperature": "-40℃~+125℃",
+     "standby current": "5mA",
+     "Noise": "0.003%Vout",
+     "Voltage - Supply": "15V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.1V@(800mA)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C6187",
+    "model": "AMS1117-5.0",
+    "manufacturer": "Advanced Monolithic Systems",
+    "package": "SOT-223",
+    "stock": 143096,
+    "price": 0.2539,
+    "price_10": null,
+    "library_type": "basic",
+    "preferred": true,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃ 1 1.3V 15V 1A 5V 60dB Fixed Positive Short Circuit Protection、Thermal shutdown SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "60dB",
+     "Operating Temperature": "-40℃~+125℃",
+     "standby current": "5mA",
+     "Noise": "0.003%Vout",
+     "Voltage - Supply": "15V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Features": "Short Circuit Protection、Thermal shutdown",
+     "Output Configuration": "Positive",
+     "Voltage Dropout": "1.3V",
+     "Output Voltage": "5V",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C347222",
+    "model": "AMS1117-3.3",
+    "manufacturer": "UMW(Youtai Semiconductor Co., Ltd.)",
+    "package": "SOT-223",
+    "stock": 1408471,
+    "price": 0.0485,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃ 0.003%Vout 1 1.3V@(1A) 12V 1A 3.3V 5mA 60dB@(120Hz) Fixed Over Current Protection Positive SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "60dB@(120Hz)",
+     "Operating Temperature": "-40℃~+125℃",
+     "standby current": "5mA",
+     "Noise": "0.003%Vout",
+     "Voltage - Supply": "12V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.3V@(1A)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C5120765",
+    "model": "AMS1117-3.3V",
+    "manufacturer": "MSKSEMI",
+    "package": "SOT-223",
+    "stock": 282770,
+    "price": 0.0524,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "0℃~+125℃@(Ta) 1 1.4V@(1A) 12mA 15V 1A 3.3V Fixed Over Current Protection、Thermal shutdown Positive SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "standby current": "12mA",
+     "Operating Temperature": "0℃~+125℃@(Ta)",
+     "Noise": "-",
+     "Voltage - Supply": "15V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.4V@(1A)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C347223",
+    "model": "AMS1117-5.0",
+    "manufacturer": "UMW(Youtai Semiconductor Co., Ltd.)",
+    "package": "SOT-223",
+    "stock": 171760,
+    "price": 0.0475,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃ 0.003%Vout 1 1.3V@(1A) 12V 1A 5V 5mA 60dB@(120Hz) Fixed Over Current Protection Positive SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "60dB@(120Hz)",
+     "Operating Temperature": "-40℃~+125℃",
+     "standby current": "5mA",
+     "Noise": "0.003%Vout",
+     "Voltage - Supply": "12V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection",
+     "Output Voltage": "5V",
+     "Voltage Dropout": "1.3V@(1A)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C48937499",
+    "model": "TLV1117LV33DCYR",
+    "manufacturer": "JSMSEMI",
+    "package": "SOT-223",
+    "stock": 165060,
+    "price": 0.1115,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃@(TJ) 0.003%Vout 1 1.2V@(1A) 12V 1A 3.3V 75dB@(120Hz) Fixed Over Current Protection、Thermal shutdown Positive SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "75dB@(120Hz)",
+     "Operating Temperature": "-40℃~+125℃@(TJ)",
+     "Noise": "0.003%Vout",
+     "Voltage - Supply": "12V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.2V@(1A)",
+     "Number of Outputs": "1"
+    }
+   }
+  ],
+  "total": 457,
+  "page_info": {
+   "limit": 6,
+   "offset": 0,
+   "returned": 6
+  },
+  "filters_applied": {
+   "query": "LDO",
+   "subcategory_id": 2956,
+   "subcategory_name": "voltage regulators - linear, low drop out (ldo) regulators",
+   "subcategory_resolved": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+   "category_id": null,
+   "category_name": null,
+   "category_resolved": null,
+   "spec_filters": [
+    {
+     "name": "Output Voltage",
+     "op": ">=",
+     "value": "3.3V"
+    }
+   ],
+   "library_type": null,
+   "prefer_no_fee": true,
+   "min_stock": 10,
+   "package": "SOT-223",
+   "packages": null,
+   "manufacturer": null,
+   "match_all_terms": true
+  },
+  "library_type_counts": {
+   "basic": 2,
+   "preferred": 0,
+   "extended": 455
+  },
+  "no_fee_available": true,
+  "parsed": {
+   "original_query": "3.3V LDO regulator SOT-223",
+   "detected": {
+    "package": "SOT-223",
+    "component_type": "regulator",
+    "subcategory": "voltage regulators - linear, low drop out (ldo) regulators",
+    "values": [
+     {
+      "raw": "3.3V",
+      "type": "voltage",
+      "normalized": "3.3V"
+     }
+    ]
+   },
+   "subcategory": "voltage regulators - linear, low drop out (ldo) regulators",
+   "package": "SOT-223",
+   "mounting_type": null,
+   "spec_filters": [
+    {
+     "name": "Output Voltage",
+     "op": ">=",
+     "value": "3.3V"
+    }
+   ],
+   "remaining_text": "LDO"
+  }
+ }
+}

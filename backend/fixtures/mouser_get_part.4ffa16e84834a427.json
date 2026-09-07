@@ -12,7 +12,7 @@
     "manufacturer": "Texas Instruments",
     "description": "Switching Voltage Regulators 5.5 to 36V Input 3A Step Dwn Converter A A 595-TPS5430DDA",
     "category": "Switching Voltage Regulators",
-    "stock": 35660,
+    "stock": 20002,
     "price": 4.54,
     "price_breaks": [
      {
@@ -74,31 +74,41 @@
     "manufacturer": "Texas Instruments",
     "description": "Switching Voltage Regulators 5.5 to 36V Input 3A Step Dwn Converter A ALT 595-TPS5430DDAR",
     "category": "Switching Voltage Regulators",
-    "stock": 1228,
-    "price": 4.46,
+    "stock": 1233,
+    "price": 4.54,
     "price_breaks": [
      {
       "qty": 1,
-      "price": 4.46,
+      "price": 4.54,
       "currency": "USD"
      },
      {
       "qty": 10,
-      "price": 3.39,
+      "price": 3.42,
       "currency": "USD"
      },
      {
       "qty": 25,
-      "price": 3.18,
+      "price": 3.37,
       "currency": "USD"
      },
      {
       "qty": 100,
-      "price": 2.88,
+      "price": 3.05,
       "currency": "USD"
      },
      {
       "qty": 250,
+      "price": 2.9,
+      "currency": "USD"
+     },
+     {
+      "qty": 500,
+      "price": 2.89,
+      "currency": "USD"
+     },
+     {
+      "qty": 1000,
       "price": 2.73,
       "currency": "USD"
      },
@@ -126,17 +136,17 @@
     "manufacturer": "Texas Instruments",
     "description": "Switching Voltage Regulators 5.5 to 36V Input 3A Step Dwn Converter A A 595-TPS5430DDAR",
     "category": "Switching Voltage Regulators",
-    "stock": 712,
-    "price": 5.4,
+    "stock": 399,
+    "price": 5.43,
     "price_breaks": [
      {
       "qty": 1,
-      "price": 5.4,
+      "price": 5.43,
       "currency": "USD"
      },
      {
       "qty": 10,
-      "price": 4.14,
+      "price": 4.16,
       "currency": "USD"
      },
      {
@@ -151,17 +161,17 @@
      },
      {
       "qty": 300,
-      "price": 3.4,
+      "price": 3.43,
       "currency": "USD"
      },
      {
       "qty": 525,
-      "price": 3.3,
+      "price": 3.33,
       "currency": "USD"
      },
      {
       "qty": 1050,
-      "price": 3.26,
+      "price": 3.27,
       "currency": "USD"
      },
      {
@@ -188,7 +198,7 @@
     "manufacturer": "Texas Instruments",
     "description": "Switching Voltage Regulators 5.5 to 36V Input 3A Step Dwn Converter A ALT 595-TPS5430DDA",
     "category": "Switching Voltage Regulators",
-    "stock": 762,
+    "stock": 746,
     "price": 5.63,
     "price_breaks": [
      {

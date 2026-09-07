@@ -12,7 +12,7 @@
     "manufacturer": "Texas Instruments",
     "description": "LDO Voltage Regulators 800MA LDO LINEAR REG A 926-LM1117MP-3.3N A 926-LM1117MP-3.3NOPB",
     "category": "LDO Voltage Regulators",
-    "stock": 66366,
+    "stock": 66644,
     "price": 1.21,
     "price_breaks": [
      {
@@ -22,22 +22,22 @@
      },
      {
       "qty": 10,
-      "price": 0.876,
+      "price": 0.875,
       "currency": "USD"
      },
      {
       "qty": 25,
-      "price": 0.793,
+      "price": 0.792,
       "currency": "USD"
      },
      {
       "qty": 100,
-      "price": 0.701,
+      "price": 0.7,
       "currency": "USD"
      },
      {
       "qty": 250,
-      "price": 0.657,
+      "price": 0.656,
       "currency": "USD"
      },
      {
@@ -47,12 +47,12 @@
      },
      {
       "qty": 1000,
-      "price": 0.626,
+      "price": 0.609,
       "currency": "USD"
      },
      {
       "qty": 2000,
-      "price": 0.626,
+      "price": 0.609,
       "currency": "USD"
      }
     ],
