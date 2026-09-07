@@ -331,6 +331,16 @@ Junction temperature is `T_A + P × θJA`, each part against its own published l
 | **LD1117S33** — 110 °C/W, limit 125 °C | 53 °C | 123.5 °C — **1.5 °C of margin** | 112 °C |
 | **NCP1117ST33** — 160 °C/W at minimum pad, limit 150 °C | 66 °C | **fails: 159 °C** | 139 °C, 11 °C of margin |
 
+**Every figure in that table is a datasheet reading, and the system has to be *given* them.**
+A distributor's parametric fields are a hand-built index over the manufacturer's document,
+warranted by nobody: JLCPCB carries `TLV1117LV33DCYR` twice — TI's own listing at a 5.5 V
+ceiling and a second manufacturer's at 12 V — and it publishes no junction limit at all for
+onsemi's part. Sourced live and unaided, three of these four rows come out of the package
+table looking identical. So the matrix rests on verified part facts, `dossier.ENGINEERING_FIELDS`
+decides where a datasheet outranks a listing, and item 16's seed is what writes them. Until it
+does, this table is what the engine computes from PARTS.md's readings rather than what the
+deployed system reaches on its own — see DEFERRED.
+
 Four things this buys:
 
 - **Two different rules fire, and every θJA comes from a datasheet.** `thermal_dissipation` on

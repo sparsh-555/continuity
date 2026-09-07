@@ -49,7 +49,14 @@ def test_the_demo_case_produces_a_full_grid_with_no_gaps():
 
 def test_every_cell_names_its_board_its_candidate_and_who_owns_it():
     """Attribution is the whole point: a verdict with no cell is an opinion."""
-    for cell in demo_matrix().cells:
+    matrix = demo_matrix()
+
+    # The ownership invariant below is `False == False` on a grid where nothing fails, so
+    # pin that both kinds of cell are actually present before asserting anything about it.
+    assert any(cell.failures for cell in matrix.cells), "no failing cell to attribute"
+    assert any(cell.ok for cell in matrix.cells), "no passing cell to leave unattributed"
+
+    for cell in matrix.cells:
         assert cell.line_id and cell.line_name
         assert cell.candidate.mpn
         assert cell.verdicts, "a cell with no verdicts is a hole pretending to be a result"

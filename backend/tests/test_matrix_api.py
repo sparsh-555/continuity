@@ -147,6 +147,11 @@ def test_the_endpoint_returns_the_whole_grid_attributable():
 
     assert len(body["cells"]) == 12
     assert len(body["lines"]) == 3 and len(body["candidates"]) == 4
+
+    # The ownership invariant below proves nothing on a grid where nothing fails.
+    assert any(not cell["ok"] for cell in body["cells"]), "no failing cell to attribute"
+    assert any(cell["ok"] for cell in body["cells"]), "no passing cell to leave unattributed"
+
     for cell in body["cells"]:
         assert cell["line_id"] in body["lines"]
         assert cell["mpn"] in body["candidates"]
