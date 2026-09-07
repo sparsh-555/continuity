@@ -369,7 +369,7 @@ async function emitChecks(
       type: 'check',
       slot,
       rule,
-      status: override?.status ?? 'pass',
+      status: override?.status ?? 'satisfied',
       detail: override?.detail ?? CHECK_PASS_DETAIL[rule],
     })
   }
@@ -571,7 +571,7 @@ async function runScript(token: number, prompt: string) {
     token,
     'sensor',
     {
-      availability: { status: 'fail', detail: '0 in stock at primary distributor.' },
+      availability: { status: 'failed', detail: '0 in stock at primary distributor.' },
     },
     { warmup: true },
   )
@@ -653,7 +653,7 @@ async function runScript(token: number, prompt: string) {
   ])
   emitEvent({ type: 'candidate', slot: 'display', part: parts.display })
   await emitChecks(token, 'display', {
-    current_budget: { status: 'fail', detail: '700.6 mA load exceeds 600 mA regulator rating.' },
+    current_budget: { status: 'failed', detail: '700.6 mA load exceeds 600 mA regulator rating.' },
   })
 
   await sleep(scaledDelay(1200), token)
@@ -735,7 +735,7 @@ async function runScript(token: number, prompt: string) {
   emitEvent({ type: 'candidate', slot: 'regulator', part: parts.regulatorB })
   await emitChecks(token, 'regulator', {
     thermal_dissipation: {
-      status: 'fail',
+      status: 'failed',
       detail: 'Estimated dissipation 1.19 W exceeds package thermal capability.',
     },
   })

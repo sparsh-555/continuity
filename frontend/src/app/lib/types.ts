@@ -88,8 +88,9 @@ export interface Alternative {
 
 export interface Verdict {
   rule: string
-  status: 'pass' | 'warn' | 'fail'
+  status: EventStatus
   detail: string
+  margin?: string | null
   involved: string[]
   evidence: Evidence[]
 }
@@ -120,7 +121,12 @@ export type RepairAction =
   | 'relax_requirement'
   | 'escalate'
 
-export type EventStatus = 'pass' | 'warn' | 'fail'
+export type EventStatus =
+  | 'satisfied'
+  | 'failed'
+  | 'not_applicable'
+  | 'not_assessed'
+  | 'evidence_missing'
 
 export type EdgePatch = { id: string } & Partial<Omit<Edge, 'id'>>
 
@@ -176,6 +182,7 @@ export type CheckEvent = EventBase<'check'> & {
   scope?: string | null
   status: EventStatus
   detail: string
+  margin?: string | null
 }
 
 export type ConflictEvent = EventBase<'conflict'> & {

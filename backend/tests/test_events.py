@@ -14,7 +14,7 @@ consumed, and a stream that can be *started* from a number already issued.
 from __future__ import annotations
 
 from continuity.api.events import EventStream
-from continuity.engine.models import Edge
+from continuity.engine.models import Edge, Verdict
 from tests.boards import slot
 from tests import parts
 
@@ -99,3 +99,18 @@ def test_slot_added_uses_the_same_slot_and_edge_shapes_as_plan():
 
     assert set(added["slot"]) == set(planned["slots"][0])
     assert set(added["edges"][0]) == set(planned["edges"][0])
+
+
+def test_a_check_frame_carries_its_margin_when_the_verdict_has_one():
+    """The wire distinguishes a narrow satisfied result from a comfortable one."""
+    stream = EventStream("t1")
+
+    satisfied = stream.check(
+        Verdict("thermal_dissipation", "satisfied", "Junction stays below limit.", "regulator", margin="1 °C")
+    )
+    failed = stream.check(
+        Verdict("thermal_dissipation", "failed", "Junction exceeds limit.", "regulator")
+    )
+
+    assert satisfied["margin"] == "1 °C"
+    assert failed["margin"] is None

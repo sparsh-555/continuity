@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 
@@ -209,6 +210,28 @@ def test_the_walkthrough_replay_persists_its_recorded_findings(monkeypatch):
     findings = asyncio.run(go())
     assert findings is not None
     assert findings[0].mpn == "SHT40"
+
+
+def test_replay_translates_legacy_check_statuses_without_inventing_a_margin(monkeypatch):
+    """Recorded checks predate five-status vocabulary and have no measured margin."""
+    frames = [
+        {"type": "check", "slot": "sensor", "rule": "availability", "status": "pass", "detail": "In stock."},
+        {"type": "check", "slot": "sensor", "rule": "availability", "status": "warn", "detail": "Stock unavailable."},
+        {"type": "check", "slot": "sensor", "rule": "availability", "status": "fail", "detail": "No stock."},
+    ]
+    monkeypatch.setattr("continuity.api.app.walkthrough_frames", lambda: frames)
+
+    async def go():
+        return [json.loads(item.removeprefix("data: ")) async for item in _replay("legacy-statuses", _RecordingStore())]
+
+    replayed = asyncio.run(go())
+
+    assert [frame["status"] for frame in replayed] == [
+        "satisfied",
+        "evidence_missing",
+        "failed",
+    ]
+    assert all("margin" not in frame for frame in replayed)
 
 
 def test_the_bom_validation_stream_persists_its_recorded_findings(monkeypatch):

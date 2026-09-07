@@ -50,16 +50,43 @@ function repairActionLabel(action: RepairAction) {
  *
  * A failure wins over the tally: "4/5 checks passed" beside a line about a part that has
  * just failed thermal is technically true and useless — the reader wants the one that failed.
+ * The remaining labels deliberately distinguish checks that held from ones that could not
+ * be performed or are outside the engine's coverage, rather than treating every row as a pass.
  */
 function captionFor(checks: Map<string, CheckEvent>) {
   const results = [...checks.values()]
-  const failed = results.filter((check) => check.status === 'fail')
+  const failed = results.filter((check) => check.status === 'failed')
   if (failed.length > 0) {
     return failed[failed.length - 1].detail
   }
 
-  const passed = results.filter((check) => check.status === 'pass').length
-  return `${passed}/${results.length} checks passed.`
+  const satisfied = results.filter((check) => check.status === 'satisfied')
+  // Margins are prose because their units belong to their rules. Only leading numeric
+  // margins can be ordered honestly; qualitative margins such as lifecycle concerns
+  // remain useful evidence but cannot be called tighter than a measured one.
+  const measurableMargins = satisfied.flatMap((check) => {
+    const value = Number.parseFloat(check.margin ?? '')
+    return Number.isFinite(value) ? [{ value, margin: check.margin as string }] : []
+  })
+  const tightestMargin = measurableMargins.reduce(
+    (tightest, candidate) => (candidate.value < tightest.value ? candidate : tightest),
+    measurableMargins[0],
+  )
+  const unchecked = results.filter((check) => check.status === 'evidence_missing').length
+  const unassessed = results.filter((check) => check.status === 'not_assessed').length
+
+  const summary = [
+    satisfied.length
+      ? `${satisfied.length} satisfied${tightestMargin ? `, tightest margin ${tightestMargin.margin}` : ''}`
+      : '',
+    unchecked ? `${unchecked} could not be checked` : '',
+    unassessed ? `${unassessed} not assessed` : '',
+  ].filter(Boolean)
+
+  // Every count can be zero — a slot whose only checks were `not_applicable`, or one
+  // whose checks have not arrived yet. An empty caption reads as a rendering fault, so
+  // say what is true instead: nothing has been checked here.
+  return summary.length > 0 ? summary.join(' · ') : 'No checks yet.'
 }
 
 function scrollBehavior(): ScrollBehavior {

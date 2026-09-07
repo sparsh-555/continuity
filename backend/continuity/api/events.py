@@ -114,6 +114,7 @@ class EventStream:
             scope=verdict.scope,
             status=verdict.status,
             detail=verdict.detail,
+            margin=verdict.margin,
         )
 
     def conflict(

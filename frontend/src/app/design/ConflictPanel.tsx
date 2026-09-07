@@ -43,6 +43,20 @@ function stockChip(alt: Alternative) {
   return { label: `${weeks}-week lead`, className: 'bg-tertiary-container' }
 }
 
+/** The five coverage labels as a reader should see them.
+ *
+ *  `status.toUpperCase()` used to be enough when the vocabulary was pass/warn/fail. It is
+ *  not now: it renders `EVIDENCE_MISSING` and `NOT_APPLICABLE` into a drawer someone is
+ *  reading to decide whether to trust the board, and an underscore in a screaming enum
+ *  reads as a leaked internal rather than a considered answer. */
+const CHECK_LABEL: Record<string, string> = {
+  satisfied: 'SATISFIED',
+  failed: 'FAILED',
+  not_applicable: 'N/A',
+  not_assessed: 'NOT ASSESSED',
+  evidence_missing: 'NO EVIDENCE',
+}
+
 export function ConflictPanel({ open, onClose, conflict, slots, edges, reasoning }: ConflictPanelProps) {
   const slotsById = useMemo(() => new Map(slots.map((slot) => [slot.id, slot])), [slots])
   const terminalRef = useRef<HTMLDivElement>(null)
@@ -78,7 +92,11 @@ export function ConflictPanel({ open, onClose, conflict, slots, edges, reasoning
     .filter((item): item is CheckEvent => item.type === 'check')
     .filter((item) => conflict.involved.includes(item.slot))
     .slice(-8)
-    .map((item) => `> ${item.rule} [${item.status.toUpperCase()}] ${item.detail}`)
+    .map((item) => {
+      const label = CHECK_LABEL[item.status] ?? item.status.toUpperCase()
+      const margin = item.margin ? ` · ${item.margin}` : ''
+      return `> ${item.rule} [${label}${margin}] ${item.detail}`
+    })
 
   const price = (alt: Alternative) =>
     alt.unit_price == null ? '—' : `${alt.currency} ${alt.unit_price.toFixed(2)}`

@@ -40,6 +40,13 @@ DERATING_THRESHOLD = 0.80
 THERMAL_RISE_WARN_C = 60.0
 """Warn on this much junction rise even when the absolute limit is met."""
 
+BOARD_SUBJECT = "board"
+"""Subject for verdicts that belong to the whole board rather than to any component.
+
+Deliberately not a slot id. A rule with nothing to blame must not blame the first part
+it finds — see `not_assessed`, and `not_applicable` for a board with no buses on it.
+"""
+
 MAX_EVIDENCE_ROWS = 4
 """Beyond this the drawer stops being readable."""
 
@@ -48,11 +55,16 @@ def _not_applicable(rule: str, board: Board, detail: str) -> Verdict:
     """Make an absent rule subject visible without pretending its constraint held.
 
     A rule whose operand is not present did not pass and did not lack evidence; it simply
-    had nothing to evaluate. The stable board-level subject keeps that coverage result in
-    the same stream as ordinary verdicts without attributing it to an invented component.
+    had nothing to evaluate.
+
+    `BOARD_SUBJECT` rather than a slot, and the distinction is not cosmetic: this took
+    `next(iter(board.slots))` at first, which is a real component, so "this board has no
+    buses to check" arrived attributed to whichever part was placed first and appeared in
+    that part's caption. Nothing on a board is at fault for a rule having no subject.
     """
-    subject = next(iter(board.slots), "board")
-    return Verdict(rule=rule, status="not_applicable", detail=detail, subject=subject)
+    return Verdict(
+        rule=rule, status="not_applicable", detail=detail, subject=BOARD_SUBJECT, scope="board"
+    )
 
 def efficiency_evidence(
     part: PartSpec, subject: str, band: tuple[float, float] | None
@@ -1385,10 +1397,17 @@ def not_assessed(board: Board) -> list[Verdict]:
     These are coverage boundaries rather than missing inputs. Returning them on every
     evaluation gives an approver an honest denominator without making a board look as if
     its geometry, emissions, or regulator stability had been inspected.
+
+    **Scoped to the board, not to a slot.** These first carried `next(iter(board.slots))`
+    as their subject, which blamed whichever part happened to be placed first for the
+    fact that nobody had run an EMC scan. It also reached the screen: every slot's
+    caption inherited the three entries, so a line reading "Searching JLCPCB for an
+    ESP32 module" was captioned "3 not assessed". A coverage boundary belongs to the
+    board, and `BOARD_SUBJECT` is deliberately not a slot id so nothing attributes it
+    to a component.
     """
-    subject = next(iter(board.slots), "board")
     return [
-        Verdict(rule=rule, status="not_assessed", detail=reason, subject=subject)
+        Verdict(rule=rule, status="not_assessed", detail=reason, subject=BOARD_SUBJECT, scope="board")
         for rule, reason in NOT_ASSESSED
     ]
 

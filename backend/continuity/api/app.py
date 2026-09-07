@@ -645,6 +645,16 @@ async def _replay(thread_id: str, store: Store) -> AsyncIterator[str]:
             continue
         stream.last_seq += 1
         frame = {**event, "seq": stream.last_seq, "thread_id": thread_id}
+        if frame.get("type") == "check":
+            # Old recordings preserve only a three-state label. `warn` could mean either
+            # a narrow pass or an unmeasurable constraint, and the frozen frame cannot
+            # distinguish them; mapping it to satisfied would falsely promote a historic
+            # check. Evidence missing is the conservative, honest reading on replay.
+            frame["status"] = {
+                "pass": "satisfied",
+                "warn": "evidence_missing",
+                "fail": "failed",
+            }.get(frame.get("status"), frame.get("status"))
         if frame.get("type") == "bom":
             rows = frame["rows"]
         if frame.get("type") == "done":
@@ -1003,4 +1013,3 @@ async def _save_trace(store: Store, thread_id: str, trace: Sequence[dict[str, An
 # the built frontend served from this origin so the session cookie is first-party. See
 # `spa` for why that was not optional.
 ui = spa.serve(app)
-
