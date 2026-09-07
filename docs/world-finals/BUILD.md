@@ -291,12 +291,31 @@ item 7 refuses one that does not.
 
 # Phase 3 · The enterprise flow
 
-## 10 · Product lines
+## 10a · A project becomes a product line — **DONE**
 
-**Files** `api/projects.py`, `api/store.py`, frontend routes
+**Files** `api/schema.sql`, `api/store.py`, `api/projects.py` → `api/lines.py`, `api/app.py`,
+`routes/projects.tsx` → `routes/lines.tsx`, and every user-facing string.
+
+The rename carried all the way through, with no `/projects` alias: a parallel concept kept
+alive so the old thing still works is the drift this project keeps paying for. The migration
+runs **before** the `CREATE TABLE` statements — afterwards, an old deployment would create an
+empty `product_lines` and then fail the rename on every boot — and it was verified against a
+clone of the real database three times, and against a fresh one, which is how the primary key
+index still being called `projects_pkey` was found. **Written, not deployed.**
+
+## 10b · A line holds a BOM, a profile and a revision — **DONE**
+
+**Files** `api/schema.sql`, `api/store.py`, `api/lines.py`, new `api/exposure.py`, new
+`continuity/profile.py`, frontend line detail. Brief: `tasks/ITEM-10B.md`.
 
 **Done when** a product line holds a BOM, an operating profile and a revision, and exposure
 matching returns the affected lines from an MPN.
+
+The BOM is a **table** and the profile is a **jsonb column**, and they go opposite ways for one
+reason: exposure matching asks "which rows across every line I own name this MPN", which is an
+index probe against `line_parts(user_id, mpn)` and a scan of every stored BOM against jsonb.
+The profile is read whole and never filtered on, so typed columns would buy nothing and cost a
+migration per new condition.
 
 **Also the half split out of item 2**: the operating profile becomes a *persisted* property of
 the line — ambient, copper area and rail load stored against a revision and reaching a run from
@@ -305,6 +324,12 @@ are, so this is new storage rather than a change to existing storage.
 
 **Test** an MPN present in three of five lines returns exactly those three; and a run against a
 stored line uses that line's ambient, copper and load without any of the three being passed in.
+
+Both verified against a running server rather than only in the suite. Exposure returns exactly
+three of five lines, excluding one whose only row is `populated = false` and one with no BOM. A
+live design run on the gateway emitted *"This product line runs at 45 °C — gateway operating
+profile Rev C"* and then computed its junction temperature from that ambient. The **rail** half
+of a profile is deliberately not applied to a design run — see DEFERRED.
 
 ## 11 · Authorisation and roles
 
