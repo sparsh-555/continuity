@@ -399,3 +399,75 @@ def test_an_ambiguous_candidate_is_named_on_the_matrix_rather_than_checked():
     assert "JSMSEMI" in body["ambiguous"][TLV1117.mpn]
     assert body["candidates"] == [AMS1117.mpn], "an ambiguous part is not silently checked"
     assert TLV1117.mpn not in body["unresolved"], "not found and not sure are different things"
+
+
+def test_a_part_on_the_bill_of_materials_is_not_ambiguous():
+    """The BOM row says whose part is fitted, so the guard must not fire on the incumbent.
+
+    JLCPCB lists `AMS1117-3.3` under three manufacturers. Without the BOM's answer the
+    ambiguity guard refuses the part every affected board already carries, and no board can
+    be assembled at all — which is exactly what happened the first time this ran against
+    the seeded world.
+    """
+    from continuity.api import matrix as matrix_api
+    from continuity.parts.search import Candidate
+
+    def listing(manufacturer: str) -> Candidate:
+        return Candidate(
+            lcsc="C1", mpn="AMS1117-3.3", manufacturer=manufacturer,
+            description="LDO", package="SOT-223", category="ICs",
+            subcategory="LDO", stock=1000, unit_price=0.2, library_type="basic",
+        )
+
+    async def three_listings(mpn: str, **_kwargs):
+        return [
+            listing("UMW(Youtai Semiconductor Co., Ltd.)"),
+            listing("Advanced Monolithic Systems"),
+            listing("TWGMC"),
+        ]
+
+    async def chosen(candidate):
+        return candidate
+
+    async def go(manufacturer):
+        real_search, real_choose = matrix_api.part_search.search, matrix_api.sourcing.choose
+        matrix_api.part_search.search = three_listings
+        matrix_api.sourcing.choose = chosen
+        try:
+            return await _REAL_RESOLVE("AMS1117-3.3", manufacturer)
+        finally:
+            matrix_api.part_search.search = real_search
+            matrix_api.sourcing.choose = real_choose
+
+    named = run(go("Advanced Monolithic Systems"))
+    assert named.manufacturer == "Advanced Monolithic Systems"
+
+    with pytest.raises(matrix_api.Ambiguous):
+        run(go(None))
+
+
+def test_a_manufacturer_the_distributor_does_not_list_falls_back_to_the_question():
+    """Naming a manufacturer nobody stocks is not an answer, so the ambiguity stands."""
+    from continuity.api import matrix as matrix_api
+    from continuity.parts.search import Candidate
+
+    def listing(manufacturer: str) -> Candidate:
+        return Candidate(
+            lcsc="C1", mpn="AMS1117-3.3", manufacturer=manufacturer,
+            description="LDO", package="SOT-223", category="ICs",
+            subcategory="LDO", stock=1000, unit_price=0.2, library_type="basic",
+        )
+
+    async def two_listings(mpn: str, **_kwargs):
+        return [listing("Advanced Monolithic Systems"), listing("TWGMC")]
+
+    async def go():
+        real = matrix_api.part_search.search
+        matrix_api.part_search.search = two_listings
+        try:
+            return await _REAL_RESOLVE("AMS1117-3.3", "Somebody Else Entirely")
+        finally:
+            matrix_api.part_search.search = real
+
+    with pytest.raises(matrix_api.Ambiguous):
+        run(go())

@@ -180,7 +180,7 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
                      *(line.load_part for line in LINES))
     }
 
-    async def resolve(mpn: str):
+    async def resolve(mpn: str, manufacturer: str | None = None):
         return specs.get(mpn)
 
     async def read_notice(_system, _user, **_kwargs):

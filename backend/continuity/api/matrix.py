@@ -60,7 +60,7 @@ class Ambiguous(Exception):
         )
 
 
-async def resolve(mpn: str) -> PartSpec | None:
+async def resolve(mpn: str, manufacturer: str | None = None) -> PartSpec | None:
     """One MPN, through the path a design run already trusts.
 
     Returns `None` rather than raising when the distributor has never heard of the part.
@@ -83,6 +83,14 @@ async def resolve(mpn: str) -> PartSpec | None:
     exact = [c for c in hits if c.mpn.upper() == mpn.upper()]
     if not exact:
         return None
+
+    # A part already on a bill of materials is not ambiguous: the BOM row says whose it is.
+    # Without this the guard fires on the incumbent — JLCPCB lists AMS1117-3.3 under three
+    # manufacturers — and a board that has shipped for years cannot be assembled at all.
+    if manufacturer:
+        named = [c for c in exact if (c.manufacturer or "").upper() == manufacturer.upper()]
+        if named:
+            return await sourcing.choose(named[0])
 
     makers = list(dict.fromkeys(c.manufacturer for c in exact if c.manufacturer))
     if len(makers) > 1:

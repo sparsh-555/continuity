@@ -110,6 +110,85 @@ export type MatrixResponse = {
   cells: MatrixCell[]
 }
 
+export type Notice = {
+  id: string
+  mpn: string
+  mpn_line: string
+  manufacturer: string | null
+  effective_date: string | null
+  replacement_mpn: string | null
+  reason: string | null
+  source: string
+  created_at: string
+}
+
+export type AffectedLine = {
+  line_id: string
+  name: string
+  revision: string | null
+  refdes: string[]
+}
+
+export type ReceivedNotice = {
+  id: string
+  notice: Omit<Notice, 'id' | 'source' | 'created_at'> & {
+    effective_date_line: string | null
+    replacement_line: string | null
+  }
+  affected: AffectedLine[]
+}
+
+export type ChangeRequestAlternative = {
+  mpn: string
+  /** The sentence that ruled it out, or null when it survived and simply was not chosen. */
+  rejected_because: string | null
+}
+
+export type ChangeRequestCost = {
+  unit_delta: number | null
+  annual_volume: number | null
+  /** Null without a stated volume rather than assumed — an assumed volume makes a
+   *  plausible number out of nothing. */
+  recurring_annual: number | null
+  one_time: number
+  one_time_basis: string
+}
+
+export type ChangeRequest = {
+  id?: string
+  line_id: string
+  line_name: string
+  revision: string | null
+  baseline_mpn: string | null
+  notice_mpn: string
+  notice_id: string | null
+  /** Null when nothing offered clears this line, which is the finding rather than an
+   *  absence of one. */
+  proposal: string | null
+  proposal_detail: string
+  alternatives: ChangeRequestAlternative[]
+  evidence: Array<{
+    rule: string
+    scope: string | null
+    status: EventStatus
+    detail: string
+    margin: string | null
+  }>
+  /** Rules the engine declares it does not answer. */
+  not_assessed: string[]
+  /** Rules it tried to answer and could not — a different admission, kept apart. */
+  no_evidence: string[]
+  cost: ChangeRequestCost
+  approvals_required: string[]
+}
+
+export type Review = {
+  notice_id: string
+  unresolved: string[]
+  ambiguous: Record<string, string>
+  requests: ChangeRequest[]
+}
+
 export type MemoryLine = {
   id: string
   name: string
@@ -208,6 +287,32 @@ export function buildMatrix(lineIds: string[], slot: string, candidates: string[
     method: 'POST',
     body: { line_ids: lineIds, slot, candidates },
   })
+}
+
+export function listNotices() {
+  return request<Notice[]>('/notices')
+}
+
+export function receiveNotice(documentBase64: string) {
+  return request<ReceivedNotice>('/notices', {
+    method: 'POST',
+    body: { document: documentBase64 },
+  })
+}
+
+export function reviewNotice(
+  noticeId: string,
+  candidates: string[],
+  annualVolume: number | null,
+) {
+  return request<Review>(`/notices/${encodeURIComponent(noticeId)}/review`, {
+    method: 'POST',
+    body: { candidates, annual_volume: annualVolume },
+  })
+}
+
+export function listChangeRequests(noticeId: string) {
+  return request<ChangeRequest[]>(`/notices/${encodeURIComponent(noticeId)}/review`)
 }
 
 export function listLines() {

@@ -183,12 +183,20 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
             "conditions to check a substitution against.",
         )
 
-    wanted = {r["mpn"] for bom in boms.values() for r in bom if r.get("populated", True)}
-    wanted |= set(body.candidates) | {notice["mpn"]}
+    # A part on a bill of materials carries the manufacturer it was bought as, so an MPN
+    # several vendors publish is not ambiguous *here* — the board already chose. A
+    # candidate somebody names is a different matter and stays ambiguous.
+    fitted: dict[str, str | None] = {}
+    for bom in boms.values():
+        for row in bom:
+            if row.get("populated", True):
+                fitted.setdefault(row["mpn"], row.get("manufacturer"))
+    wanted = set(fitted) | set(body.candidates) | {notice["mpn"]}
 
     ordered = sorted(wanted)
     outcomes = await asyncio.gather(
-        *(matrix_api.resolve(mpn) for mpn in ordered), return_exceptions=True
+        *(matrix_api.resolve(mpn, fitted.get(mpn)) for mpn in ordered),
+        return_exceptions=True,
     )
     specs: dict[str, PartSpec] = {}
     ambiguous: dict[str, str] = {}

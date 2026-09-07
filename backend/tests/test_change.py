@@ -253,3 +253,19 @@ def test_a_rejection_on_one_board_does_not_reach_another():
     assert by_line["A"].proposal == NCP1117.mpn, "the sensor node never rejected it"
     assert by_line["C"].proposal == NCP1117.mpn
     assert by_line["B"].proposal != NCP1117.mpn
+
+
+def test_a_request_with_no_proposal_does_not_invoice_for_a_part_that_does_not_exist():
+    """It quoted $15,656 to qualify nobody's candidate, which the screen printed in full."""
+    matrix = evaluate_matrix(
+        [(LINES[1].id, LINES[1].label, make_board(LINES[1], AMS1117))],
+        [AMS1117, NCP1117],
+        SLOT,
+    )
+
+    request = change.for_line(matrix, "B", notice_mpn=AMS1117.mpn, annual_volume=20_000)
+
+    assert not request.viable
+    assert request.cost.one_time == 0.0
+    assert request.cost.one_time_basis == "no candidate to cost"
+    assert request.cost.recurring_annual is None

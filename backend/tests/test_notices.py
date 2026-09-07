@@ -380,7 +380,7 @@ def test_a_notice_yields_one_change_request_per_affected_line(model, monkeypatch
                      *(line.load_part for line in LINES))
     }
 
-    async def resolve(mpn: str):
+    async def resolve(mpn: str, manufacturer: str | None = None):
         return specs.get(mpn)
 
     monkeypatch.setattr(matrix_api, "resolve", resolve)
@@ -586,7 +586,7 @@ def test_a_second_notice_does_not_re_propose_what_the_first_ruled_out(model, mon
                      *(line.load_part for line in LINES))
     }
 
-    async def resolve(mpn: str):
+    async def resolve(mpn: str, manufacturer: str | None = None):
         return specs.get(mpn)
 
     monkeypatch.setattr(matrix_api, "resolve", resolve)

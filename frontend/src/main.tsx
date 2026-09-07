@@ -10,6 +10,7 @@ import LandingRoute from './app/routes/landing'
 import LinesRoute from './app/routes/lines'
 import MatrixRoute from './app/routes/matrix'
 import MemoryRoute from './app/routes/memory'
+import NoticesRoute from './app/routes/notices'
 import WalkthroughRoute from './app/routes/walkthrough'
 import { AppFrame } from './app/shell/AppFrame'
 import { AppShell } from './app/shell/AppShell'
@@ -47,6 +48,14 @@ const router = createBrowserRouter([
             element: (
               <RequireAuth>
                 <WalkthroughRoute />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: '/notices',
+            element: (
+              <RequireAuth>
+                <NoticesRoute />
               </RequireAuth>
             ),
           },

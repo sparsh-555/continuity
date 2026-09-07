@@ -152,6 +152,18 @@ class ChangeRequest:
 
 
 def _cost_for(cell: Cell | None, baseline: Cell | None, volume: int | None, qualified: bool) -> Cost:
+    if cell is None:
+        # Nothing was proposed, so there is nothing to cost. Printing a qualification
+        # figure here invoices the reader for a part that does not exist — which the demo
+        # did, quoting $15,656 to qualify nobody's candidate.
+        return Cost(
+            unit_delta=None,
+            annual_volume=volume,
+            recurring_annual=None,
+            one_time=0.0,
+            one_time_basis="no candidate to cost",
+        )
+
     basis = (
         "already on the approved manufacturer list"
         if qualified
