@@ -366,7 +366,7 @@ never ran, added none of the five tests the brief asked for, and hedged the whol
 `if org_id is not None else` branches calling two different arities. **Do not delegate schema
 work.**
 
-### 11b · A decision names who may answer it
+### 11b · A decision names who may answer it — **DONE**
 
 **Files** `graph/nodes.py`, `graph/state.py`, `api/app.py`. Brief: `tasks/ITEM-11B.md`.
 
@@ -386,6 +386,12 @@ would consume or misalign the pending interrupt.
 
 **Test** a procurement user resumes an engineer's run at a procurement gate and is refused at an
 engineering gate; an approval granted for one candidate does not carry to the next.
+
+Both hold, over HTTP, against a run the graph actually paused — and both were confirmed to fail
+when the check is removed, because a security test that passes for the wrong reason is worse
+than none. `tests/test_roles.py` reads the rule names out of `rules.py` rather than from
+evaluating a board: the obvious version ran one board, covered nine rules of twelve, and would
+have passed while `energy_budget`, `footprint` and `rail_coverage` went unmapped.
 
 ## 12 · Fan-out and the matrix
 

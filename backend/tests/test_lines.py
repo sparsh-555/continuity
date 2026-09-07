@@ -55,7 +55,7 @@ async def a_store():
         store = Store(pool)
         await store.setup()
         async with pool.connection() as conn:
-            await conn.execute("TRUNCATE users, sessions, product_lines, threads CASCADE")
+            await conn.execute("TRUNCATE users, organisations, sessions, product_lines, threads CASCADE")
 
         previous = app.state.store
         app.state.store = store
@@ -692,3 +692,81 @@ def test_two_concurrent_walkthrough_requests_make_one_line():
                 return await walkthrough_line_count(store, me["id"])
 
     assert run(go()) == 1
+
+
+# ── who may answer an open decision ───────────────────────────────────────────
+
+
+@asynccontextmanager
+async def _colleagues(store):
+    """An engineer and a buyer in one company, each with their own signed-in client.
+
+    Organisation membership is what lets the buyer see the engineer's run at all — item
+    11a. Whether they may *answer* it is a separate question, which is the point below.
+    """
+    async with a_client() as engineer, a_client() as buyer:
+        await engineer.post("/auth/register", json={"email": "eng@example.com", "password": "a-good-password"})
+        await buyer.post("/auth/register", json={"email": "proc@example.com", "password": "a-good-password"})
+
+        them = (await buyer.get("/auth/me")).json()
+        us = (await engineer.get("/auth/me")).json()
+        await store.add_user_to_organisation(them["id"], us["org_id"], ["procurement"])
+
+        yield engineer, buyer
+
+
+def test_a_colleague_is_refused_at_a_gate_that_is_not_theirs_to_answer():
+    """BUILD's test, over HTTP, against a run actually paused by the graph.
+
+    The buyer can reach this thread — same company — and that is exactly why membership
+    alone cannot be the authorisation. The supply question is a circuit question, and
+    "procurement signed off the input voltage" is a worse outcome than the 404 that
+    per-user ownership used to give.
+    """
+    async def go():
+        async with a_store() as store:
+            async with _colleagues(store) as (engineer, buyer):
+                frames = await frames_of(engineer, "/design", {"prompt": UNRESOLVED})
+                thread_id = frames[0]["thread_id"]
+                question = [f for f in frames if f["type"] == "question"][-1]
+
+                refused = await buyer.post(
+                    "/resume", json={"thread_id": thread_id, "answer": "USB-C"}
+                )
+                return question, refused
+
+    question, refused = run(go())
+
+    assert question["roles"] == ["engineering"], "the frame says whose decision this is"
+    assert refused.status_code == 403, "membership is not permission"
+    assert "engineering" in refused.json()["detail"], "name the desk it belongs to"
+
+
+def test_the_person_whose_decision_it_is_may_answer_it():
+    async def go():
+        async with a_store() as store:
+            async with _colleagues(store) as (engineer, buyer):
+                frames = await frames_of(engineer, "/design", {"prompt": UNRESOLVED})
+                thread_id = frames[0]["thread_id"]
+                async with engineer.stream(
+                    "POST", "/resume", json={"thread_id": thread_id, "answer": "USB-C"}
+                ) as response:
+                    await response.aread()
+                    return response.status_code
+
+    assert run(go()) == 200
+
+
+def test_a_thread_in_another_company_is_still_a_404_and_never_a_403():
+    """A 403 would confirm the thread exists to someone with no business knowing."""
+    async def go():
+        async with a_store() as store:
+            async with signed_in("mine@example.com") as mine:
+                frames = await frames_of(mine, "/design", {"prompt": UNRESOLVED})
+                thread_id = frames[0]["thread_id"]
+            async with signed_in("stranger@example.com") as stranger:
+                return await stranger.post(
+                    "/resume", json={"thread_id": thread_id, "answer": "USB-C"}
+                )
+
+    assert run(go()).status_code == 404

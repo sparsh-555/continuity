@@ -198,10 +198,25 @@ class EventStream:
         return event
 
     def question(
-        self, question_id: str, text: str, suggestions: Iterable[str] = ()
+        self,
+        question_id: str,
+        text: str,
+        suggestions: Iterable[str] = (),
+        roles: Iterable[str] = (),
     ) -> dict[str, Any]:
+        """One open decision, and who is qualified to answer it.
+
+        `roles` travels on the frame so the screen can tell the reader whether this is
+        theirs to answer or whose desk to take it to. The authorisation itself is enforced
+        at `/resume` against the checkpoint, never against this — a frame is a thing a
+        client was handed, not evidence of what the run is waiting for.
+        """
         return self._event(
-            "question", question_id=question_id, text=text, suggestions=list(suggestions)
+            "question",
+            question_id=question_id,
+            text=text,
+            suggestions=list(suggestions),
+            roles=list(roles),
         )
 
     def bom(self, rows: list[dict[str, Any]], total: float, currency: str = "USD") -> dict[str, Any]:

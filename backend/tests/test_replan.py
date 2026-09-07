@@ -291,7 +291,9 @@ def test_exact_escalation_option_skips_classifier(monkeypatch):
 
     updated = asyncio.run(nodes.escalate(state, _config()))
 
-    assert updated["accepted"][-1] == ("availability", "sensor")
+    # The waiver names the *candidate* it was granted for, not just the rule and the slot:
+    # an approval of this part is not an approval of whatever replaces it.
+    assert updated["accepted"][-1] == ("availability", "sensor", "SHT31-DIS-B", None)
     assert calls == []
 
 

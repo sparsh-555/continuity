@@ -25,6 +25,13 @@ class DesignState(TypedDict, total=False):
     it did.
     """
 
+    revision: str | None
+    """The product line's revision, as item 10b stores it against the line.
+
+    Carried so a waiver can be scoped to it: an approval given under one set of operating
+    conditions is not an approval under the next. `None` for a scratch run, which has no
+    revision to change, so those behave exactly as they did."""
+
     requirements: Requirements
 
     plan: Any
@@ -67,8 +74,16 @@ class DesignState(TypedDict, total=False):
     started_at: float
 
     accepted: Annotated[list, _replace]
-    """(rule, slot) pairs the user waived. `validate` downgrades these to warnings —
-    a waiver is not a pass, so the finding stays on screen with its evidence."""
+    """`(rule, subject, mpn, revision)` tuples a person waived.
+
+    Scoped to the *candidate* and the *revision*, not just to `(rule, subject)`. A waiver
+    on the rule alone silently covered the next regulator a repair dropped into that slot
+    — a part nobody looked at, carrying a temperature nobody approved. A repair changes
+    the mpn and the waiver evaporates, which is the behaviour an approval should have.
+
+    `validate` marks these `accepted` rather than relabelling them: a waiver is not a pass
+    and not a gap in the evidence, so the finding stays on screen with its evidence and
+    its status, and only stops blocking the run."""
 
     stopped: bool
     """The user chose to stop rather than accept. Ends the run at `finalize`."""

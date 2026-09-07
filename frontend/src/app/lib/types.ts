@@ -237,6 +237,19 @@ export type QuestionEvent = EventBase<'question'> & {
   question_id: string
   text: string
   suggestions: string[]
+
+  /** The roles qualified to answer this decision, from the server's `ROLES_BY_RULE`.
+   *
+   *  Whether a regulator's junction temperature is acceptable is an engineering
+   *  judgement; whether a distributor is an approved source is not. The screen can use
+   *  this to tell the reader whose desk a question belongs to — item 13 builds that. The
+   *  authorisation itself is enforced at `/resume` against the checkpoint and never
+   *  against this field: a frame is what a client was handed, not evidence of what the
+   *  run is waiting for.
+   *
+   *  Empty on a run paused before decisions carried roles, which stays answerable by
+   *  anyone in the organisation. */
+  roles?: string[]
 }
 
 export interface BomRow {

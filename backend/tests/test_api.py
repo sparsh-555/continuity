@@ -184,9 +184,10 @@ def test_a_signed_in_run_without_a_line_uses_a_scratch_line(monkeypatch):
             # actually given — a stand-in that took `user_id` here would keep passing
             # while the route handed it the wrong id.
             calls.append(("line", line_id, org_id))
-            # A stand-in for `Line`, and it has to carry `profile`: `/design` reads the
-            # line's stored operating conditions into the run's initial state.
-            return SimpleNamespace(profile=None)
+            # A stand-in for `Line`, and it has to carry both of the fields `/design`
+            # reads into the run's initial state: the stored operating conditions, and the
+            # revision a waiver is scoped to.
+            return SimpleNamespace(profile=None, revision=None)
 
         async def create_thread(
             self, thread_id: str, line_id: str, user_id: str, org_id: str, prompt: str

@@ -323,6 +323,7 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
     user = await _signed_in(request)
     thread_id = uuid.uuid4().hex[:12]
     profile: dict[str, Any] | None = None
+    revision: str | None = None
 
     if store is not None:
         line_id = body.line_id
@@ -334,6 +335,7 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
         if line is None:
             raise HTTPException(404, "no such line")
         profile = line.profile
+        revision = line.revision
         await store.create_thread(thread_id, line_id, user.id, user.org_id, body.prompt)
 
     STREAMS[thread_id] = events.EventStream(thread_id)
@@ -341,7 +343,7 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
         _run(
             request.app.state.graph,
             thread_id,
-            {"prompt": body.prompt, "profile": profile},
+            {"prompt": body.prompt, "profile": profile, "revision": revision},
             store,
             user.org_id if user else None,
         ),
@@ -368,6 +370,9 @@ async def resume(body: ResumeRequest, request: Request) -> StreamingResponse:
         thread = await store.thread_for_user(body.thread_id, user.org_id)
         if thread is None:
             raise HTTPException(404, "unknown thread")
+        _authorise_answer(
+            await _pending_roles(request.app.state.graph, body.thread_id), user
+        )
         if stream is None:
             stream = events.EventStream(body.thread_id, last_seq=thread.last_seq)
             STREAMS[body.thread_id] = stream
@@ -963,6 +968,7 @@ def _interrupt_events(stream: events.EventStream, value: Any) -> list[dict[str, 
             payload.get("question_id", "q"),
             payload.get("text", ""),
             payload.get("suggestions", []),
+            payload.get("roles", []),
         )
         for payload in payloads
     ]
@@ -985,6 +991,47 @@ def _interrupt_payloads(value: Any) -> list[dict[str, Any]]:
     return payloads
 
 
+async def _pending_roles(graph: Any, thread_id: str) -> list[str]:
+    """The roles the run's open question says may answer it, from the checkpoint.
+
+    Read from the pending interrupt rather than from anything we hold in memory, because
+    the process serving `/resume` is routinely not the one that paused the run.
+    """
+    snapshot = await _checkpoint_snapshot(graph, thread_id)
+    if snapshot is None:
+        return []
+    for task in getattr(snapshot, "tasks", ()):
+        payloads = _interrupt_payloads({"__interrupt__": getattr(task, "interrupts", ())})
+        if payloads:
+            return list(payloads[0].get("roles", []))
+    return []
+
+
+def _authorise_answer(roles: Sequence[str], user: Any) -> None:
+    """Refuse an answer from someone whose desk the question does not belong to.
+
+    **This runs before the graph is invoked, and it has to.** LangGraph re-executes an
+    interrupting node from the top when a run resumes, and matches resume values to
+    `interrupt()` calls by index — so a refusal raised inside the node would already have
+    re-run that node's work, and would consume or misalign the pending interrupt. See
+    "The interrupt gotcha" in `graph/nodes.py`.
+
+    A run paused before decisions carried roles names none, and stays answerable by anyone
+    in the organisation. Old runs must not become unanswerable by a deployment.
+
+    **403 rather than 404, and this is the one place that is right.** The caller has
+    already been shown this thread exists — `thread_for_user` let them through on
+    organisation membership — so naming the roles reveals nothing they did not know, and
+    it is what they need in order to fetch the person who can answer.
+    """
+    if not roles:
+        return
+    if set(roles) & set(getattr(user, "roles", ()) or ()):
+        return
+    wanted = " or ".join(sorted(roles))
+    raise HTTPException(403, f"this decision is for {wanted} to answer")
+
+
 def _pending_question(snapshot: Any, thread: Any) -> dict[str, Any] | None:
     """Expose the exact payload retained by LangGraph's pending interrupt task."""
     if snapshot is None:
@@ -1000,6 +1047,7 @@ def _pending_question(snapshot: Any, thread: Any) -> dict[str, Any] | None:
                 "question_id": payload.get("question_id", "q"),
                 "text": payload.get("text", ""),
                 "suggestions": list(payload.get("suggestions", [])),
+                "roles": list(payload.get("roles", [])),
             }
     return None
 

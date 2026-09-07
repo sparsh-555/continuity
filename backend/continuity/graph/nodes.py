@@ -247,6 +247,8 @@ async def clarify(state: DesignState, config) -> DesignState:
                 else "What is this board powered from? I could not match it to a supply I know."
             ),
             "suggestions": sorted(by_label),
+            # What a board is powered from is a circuit question.
+            "roles": list(DEFAULT_DECISION_ROLES),
         }
     )
 
@@ -534,7 +536,12 @@ def validate(state: DesignState, config) -> DesignState:
     """Run the engine over the whole board and report every check it produced."""
     ev = _events(config)
     board = topology.Board(state["requirements"], state["slots"], state["rails"])
-    verdicts = _apply_waivers(rules.evaluate(board), state.get("accepted") or [])
+    verdicts = _apply_waivers(
+        rules.evaluate(board),
+        state.get("accepted") or [],
+        state["slots"],
+        state.get("revision"),
+    )
 
     current = state.get("current")
     if state.get("revalidate_all"):
@@ -609,7 +616,28 @@ def validate(state: DesignState, config) -> DesignState:
     return {"verdicts": verdicts, "slots": slots, "revalidate_all": False}
 
 
-def _apply_waivers(verdicts: list, accepted: list) -> list:
+def _waiver_key(slots: dict, rule: str, subject: str, revision: str | None) -> tuple:
+    """What a waiver is granted *for*: this rule, on this part, under these conditions."""
+    slot = slots.get(subject)
+    part = getattr(slot, "part", None) if slot is not None else None
+    return (rule, subject, getattr(part, "mpn", None), revision)
+
+
+def _matches_waiver(entry, key: tuple) -> bool:
+    """Whether a stored waiver covers this verdict.
+
+    A two-element entry is a waiver granted before waivers were scoped, sitting in a live
+    checkpoint. It covers any candidate and any revision, because that is what it meant
+    when it was written and a deployment must not silently widen or narrow a decision a
+    person already made. Added 7 Sep 2026; removable once no paused run predates it.
+    """
+    entry = tuple(entry)
+    if len(entry) == 2:
+        return entry == key[:2]
+    return entry == key
+
+
+def _apply_waivers(verdicts: list, accepted: list, slots: dict, revision: str | None) -> list:
     """Mark failures the user explicitly accepted. Never relabel them, never delete them.
 
     A waiver is not a pass and it is not a gap in the evidence. The check keeps its
@@ -624,10 +652,13 @@ def _apply_waivers(verdicts: list, accepted: list) -> list:
     """
     if not accepted:
         return verdicts
-    waived = {tuple(entry) for entry in accepted}
     return [
         replace(v, accepted=True)
-        if v.status == "failed" and (v.rule, v.subject) in waived
+        if v.status == "failed"
+        and any(
+            _matches_waiver(entry, _waiver_key(slots, v.rule, v.subject, revision))
+            for entry in accepted
+        )
         else v
         for v in verdicts
     ]
@@ -1015,6 +1046,52 @@ STOP_OPTION = "Stop and let me change the brief"
 CONTINUE_OPTION = "Continue anyway"
 RELAX_REQUIREMENT_OPTION = "Relax the stock requirement"
 
+ROLES_BY_RULE: dict[str, tuple[str, ...]] = {
+    # Whether a part can be bought, and on what terms, is a buying judgement.
+    "availability": ("procurement",),
+    # Everything else the engine decides is a question about the circuit.
+    "voltage_overlap": ("engineering",),
+    "current_budget": ("engineering",),
+    "thermal_dissipation": ("engineering",),
+    "pin_budget": ("engineering",),
+    "interface_role_match": ("engineering",),
+    "footprint": ("engineering",),
+    "footprint_compatibility": ("engineering",),
+    "capacitor_requirements": ("engineering",),
+    "temperature_rating": ("engineering",),
+    "energy_budget": ("engineering",),
+    "rail_coverage": ("engineering",),
+    "output_capacitor_stability": ("engineering",),
+    "emc": ("engineering",),
+    "signal_integrity": ("engineering",),
+}
+"""Who is qualified to answer when a rule fails and the run stops to ask.
+
+The permission belongs to the *question*, not to the person. Whether an LDO's 159 °C
+junction is acceptable is an engineering judgement; whether a distributor is an approved
+source is not, and no property of a user can tell those two apart — which is why
+organisation membership alone is not enough to authorise an answer.
+
+`tests/test_roles.py` reads the rule names out of `rules.py` and asserts every one appears
+here, so a rule added later cannot quietly inherit the fallback and route a circuit
+question to the wrong desk.
+"""
+
+DEFAULT_DECISION_ROLES = ("engineering",)
+"""Where an unmapped rule goes.
+
+Deliberate rather than incidental: an unmapped *electrical* rule reaching procurement is
+precisely the failure this exists to prevent, and engineering is the safe direction to be
+wrong in. The map is tested for completeness so this should never fire — it is the floor
+under a mistake, not a mechanism.
+"""
+
+
+def _decision_roles(conflict) -> tuple[str, ...]:
+    if conflict is None:
+        return DEFAULT_DECISION_ROLES
+    return ROLES_BY_RULE.get(conflict.rule, DEFAULT_DECISION_ROLES)
+
 REQUIREMENT_FIELD_BY_RULE: dict[str, str] = {
     "availability": "min_stock",
 }
@@ -1063,11 +1140,15 @@ async def escalate(state: DesignState, config) -> DesignState:
     """
     conflict = next(iter(rules.blocking(state.get("verdicts") or [])), None)
     options = _escalation_options(conflict, state["requirements"])
+    # `roles` rides on the payload because LangGraph retains it on the pending task, so
+    # `/resume` can read it out of a checkpoint written by an entirely different process
+    # — which is exactly the situation it has to authorise in.
     answer = interrupt(
         {
             "question_id": "escalation",
             "text": state.get("escalation") or "This needs a decision from you.",
             "suggestions": options,
+            "roles": list(_decision_roles(conflict)),
         }
     )
 
@@ -1123,7 +1204,10 @@ async def escalate(state: DesignState, config) -> DesignState:
         _emit(ev.reasoning(None, f"Taking that into account: {said}"))
         return {"escalation": None, "guidance": said, "verdicts": []}
 
-    waived = [*(state.get("accepted") or []), (conflict.rule, conflict.subject)]
+    waived = [
+        *(state.get("accepted") or []),
+        _waiver_key(state["slots"], conflict.rule, conflict.subject, state.get("revision")),
+    ]
     _emit(ev.reasoning(None, acceptance_message(conflict.rule, state["slots"][conflict.subject].label)))
     return {"escalation": None, "accepted": waived, "verdicts": []}
 
