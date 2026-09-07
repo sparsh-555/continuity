@@ -137,11 +137,17 @@ def explained_losses(run: Run) -> list[str]:
 
 
 def unresolved(run: Run) -> list[tuple[str, str, str]]:
-    """Failing verdicts that nothing subsequently acted on."""
+    """Failing verdicts that nothing subsequently acted on.
+
+    Matched `"fail"` for as long as that label existed and kept matching it afterwards, so
+    this returned `[]` on every run while the comment below called it the headline bug the
+    project exists to prevent. `test_brief_sweep_reads_the_labels_the_engine_emits` now
+    pins the spellings to `CheckStatus` itself.
+    """
     return [
         (key[0], key[1], event.get("detail") or "")
         for key, event in run.final_checks.items()
-        if event.get("status") == "fail" and not acted_on(run, event)
+        if event.get("status") == "failed" and not acted_on(run, event)
     ]
 
 
@@ -150,7 +156,7 @@ def repaired_but_unrestated(run: Run) -> list[tuple[str, str, str]]:
     return [
         (key[0], key[1], event.get("detail") or "")
         for key, event in run.final_checks.items()
-        if event.get("status") == "fail" and acted_on(run, event)
+        if event.get("status") == "failed" and acted_on(run, event)
     ]
 
 
@@ -233,13 +239,19 @@ def flags(run: Run) -> list[str]:
                     f"output {vout} V — a buck belongs here"
                 )
 
+    # `evidence_missing` only. `not_assessed` is a declared boundary the engine states on
+    # every board — three of them, always — so counting it here would add a constant to a
+    # threshold and tell us nothing, and `not_applicable` is a correct answer rather than a
+    # gap. This read `("warn", "unchecked")` until now, and neither is a check status: one
+    # was retired with the three-label vocabulary, the other is an `EdgeStatus` and was
+    # never right.
     unchecked = [
         f"{key[0]} on {key[1]}"
         for key, event in run.final_checks.items()
-        if event.get("status") in ("warn", "unchecked")
+        if event.get("status") == "evidence_missing"
     ]
     if len(unchecked) > 6:
-        out.append(f"{len(unchecked)} checks ended warn/unchecked — thin data on this board")
+        out.append(f"{len(unchecked)} checks had nothing to read — thin data on this board")
 
     if run.of("question"):
         out.append(f"paused for the user, unanswered: {run.of('question')[-1].get('text')!r}")

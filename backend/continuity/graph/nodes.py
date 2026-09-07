@@ -571,14 +571,20 @@ def validate(state: DesignState, config) -> DesignState:
             if verdict.subject == current or verdict.status == "satisfied":
                 continue
             before = previous.get((verdict.rule, verdict.subject, verdict.scope))
-            if before is not None and (before.status, before.detail) == (
+            # `accepted` belongs in this comparison. Waiving a finding changes nothing
+            # else about it — same status, same sentence — so leaving it out would let
+            # the one frame that tells the client a person accepted this failure be
+            # dropped as an unchanged repeat. It survives today only because `accept`
+            # happens to clear `verdicts`, which is not a property to depend on.
+            if before is not None and (before.status, before.detail, before.accepted) == (
                 verdict.status,
                 verdict.detail,
+                verdict.accepted,
             ):
                 continue
             _emit(ev.check(verdict))
 
-    failures = rules.failures(verdicts)
+    failures = rules.blocking(verdicts)
     slots = dict(state["slots"])
 
     if not failures:
@@ -604,20 +610,23 @@ def validate(state: DesignState, config) -> DesignState:
 
 
 def _apply_waivers(verdicts: list, accepted: list) -> list:
-    """Downgrade failures the user explicitly accepted. Never delete them.
+    """Mark failures the user explicitly accepted. Never relabel them, never delete them.
 
-    A waiver is not a pass. The check still appears, still carries its evidence, and
-    still says what is wrong — it simply no longer stops the run.
+    A waiver is not a pass and it is not a gap in the evidence. The check keeps its
+    status, its detail and its evidence, and gains `accepted` — which is what stops the
+    run treating it as work still to do, and nothing more.
+
+    This used to rewrite the verdict to `evidence_missing`, the closest the three-label
+    vocabulary could get to "failed, and not blocking". It said the opposite of the truth:
+    a waived thermal failure carries a junction temperature the user read before
+    accepting, and it rendered on screen as NO EVIDENCE, counted under "could not be
+    checked".
     """
     if not accepted:
         return verdicts
     waived = {tuple(entry) for entry in accepted}
     return [
-        replace(
-            v,
-            status="evidence_missing",
-            detail=f"{v.detail} Accepted by you, so this is not blocking.",
-        )
+        replace(v, accepted=True)
         if v.status == "failed" and (v.rule, v.subject) in waived
         else v
         for v in verdicts
@@ -625,7 +634,7 @@ def _apply_waivers(verdicts: list, accepted: list) -> list:
 
 
 def after_validate(state: DesignState) -> str:
-    if rules.failures(state["verdicts"]):
+    if rules.blocking(state["verdicts"]):
         return "review"
     return "select" if state["pending"] else "finalize"
 
@@ -643,7 +652,7 @@ async def review(state: DesignState, config) -> DesignState:
     ev = _events(config)
     board = topology.Board(state["requirements"], state["slots"], state["rails"])
     verdicts = state["verdicts"]
-    conflict = rules.failures(verdicts)[0]
+    conflict = rules.blocking(verdicts)[0]
 
     resolution = policy.plan_resolution(conflict, board, rules.passing(verdicts))
     subject_part = board.slots[conflict.subject].part if conflict.subject in board.slots else None
@@ -1052,7 +1061,7 @@ async def escalate(state: DesignState, config) -> DesignState:
     An accepted fault stays visible: `validate` downgrades it to a warning rather than
     deleting it, because the user waiving a check is not the same as the check passing.
     """
-    conflict = next(iter(rules.failures(state.get("verdicts") or [])), None)
+    conflict = next(iter(rules.blocking(state.get("verdicts") or [])), None)
     options = _escalation_options(conflict, state["requirements"])
     answer = interrupt(
         {

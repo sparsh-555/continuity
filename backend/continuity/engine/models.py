@@ -96,6 +96,24 @@ class Verdict:
     involved: tuple[str, ...] = ()
     evidence: tuple[Evidence, ...] = ()
 
+    accepted: bool = False
+    """Whether a person looked at this failure and chose to ship anyway.
+
+    An attribute of `failed`, for the same reason `margin` is an attribute of `satisfied`
+    rather than a fourth colour: a waiver does not change what the engine measured, it
+    changes what the run does about it. The check keeps its status, its detail and its
+    evidence, and the board still reports it.
+
+    This replaced rewriting the verdict to `evidence_missing`, which was the only way the
+    three-label vocabulary could express "failed, and not blocking". It read as the
+    opposite of the truth — a waived thermal failure has 159 °C of evidence and the user
+    read it before accepting — and on screen it rendered as NO EVIDENCE and was counted
+    under "could not be checked".
+
+    `rules.blocking()` is what the graph routes on. `rules.failures()` still answers what
+    failed, because that is what a person is owed.
+    """
+
     margin: str | None = None
     """How narrowly a satisfied check holds, in the rule's own units.
 

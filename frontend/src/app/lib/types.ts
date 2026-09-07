@@ -121,6 +121,12 @@ export type RepairAction =
   | 'relax_requirement'
   | 'escalate'
 
+/** The five coverage labels the engine publishes today.
+ *
+ *  Threads recorded before these landed hold `pass`/`warn`/`fail` in `run_events`, but
+ *  `events.with_current_labels` translates them at the read, so nothing reaching this
+ *  type carries a retired spelling. Declaring the old three here as well would tell every
+ *  consumer to handle cases the wire no longer produces. */
 export type EventStatus =
   | 'satisfied'
   | 'failed'
@@ -171,6 +177,13 @@ export type CandidateEvent = EventBase<'candidate'> & {
   part: PartSpec
 }
 
+/** The `slot` a board-wide verdict carries — `rules.BOARD_SUBJECT` on the server.
+ *
+ *  A rule that has nothing to do with any one component must not name one. Attributing
+ *  coverage boundaries to whichever part happened to be placed first captioned every
+ *  sourcing line "3 not assessed", which read as an accusation against the part on it. */
+export const BOARD_SUBJECT = 'board'
+
 export type CheckEvent = EventBase<'check'> & {
   slot: string
   rule: CheckRule
@@ -183,6 +196,15 @@ export type CheckEvent = EventBase<'check'> & {
   status: EventStatus
   detail: string
   margin?: string | null
+
+  /** Whether a person looked at this failure and chose to ship anyway.
+   *
+   *  Only meaningful on `failed`, the way `margin` is only meaningful on `satisfied`. A
+   *  waived check keeps its status, its sentence and its evidence — the waiver changes
+   *  what the run does about it, not what the engine measured. This field replaced
+   *  repainting the verdict as `evidence_missing`, which rendered as NO EVIDENCE beside
+   *  a junction temperature the user had just read. */
+  accepted?: boolean
 }
 
 export type ConflictEvent = EventBase<'conflict'> & {

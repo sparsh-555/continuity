@@ -393,18 +393,26 @@ def test_accepting_an_escalation_finishes_the_rest_of_the_board():
     assert selected == planned
 
 
-def test_a_waived_fault_stays_visible_as_a_warning():
-    """Waiving a check is not the same as the check passing."""
+def test_a_waived_fault_stays_a_failure_and_says_it_was_accepted():
+    """Waiving a check is not the same as the check passing, and not the same as a gap.
+
+    This asserted `evidence_missing` for as long as that was the only label the vocabulary
+    could reach for — which said the opposite of the truth about a finding whose evidence
+    the user had just read. The waiver is an attribute now: same status, same sentence,
+    same evidence, plus `accepted`.
+    """
     first = run(stream("/design", {"prompt": "industrial node on a 12V supply with a sensor"}))
     thread_id = first[0]["thread_id"]
     second = run(stream("/resume", {"thread_id": thread_id, "answer": "Accept the voltage mismatch"}))
 
-    waived = [
-        f for f in second
-            if f["type"] == "check" and f["status"] == "evidence_missing" and "Accepted by you" in f["detail"]
-    ]
+    waived = [f for f in second if f["type"] == "check" and f.get("accepted")]
 
-    assert waived, "the finding must remain on screen, downgraded rather than deleted"
+    assert waived, "the client is never told the failure was accepted"
+    assert all(f["status"] == "failed" for f in waived), "a waiver must not repaint the verdict"
+    assert all("Accepted by you" not in f["detail"] for f in waived), (
+        "the detail states what the engine measured; the waiver is a field, not a sentence"
+    )
+    assert second[-1]["type"] == "done", "an accepted failure must not block the run"
 
 
 def test_stopping_an_escalation_ends_the_run():

@@ -1653,7 +1653,18 @@ def evaluate(board: Board) -> list[Verdict]:
 
 
 def failures(verdicts: list[Verdict]) -> list[Verdict]:
+    """Everything that failed, waived or not. What a person is owed on screen."""
     return [v for v in verdicts if v.status == "failed"]
+
+
+def blocking(verdicts: list[Verdict]) -> list[Verdict]:
+    """Failures the run must still act on. What the graph routes and repairs on.
+
+    A waiver does not delete a finding or repaint it; it removes the run's obligation to
+    fix it. Keeping those two questions apart is what lets an accepted failure stay
+    failed on screen while the board goes on to finish.
+    """
+    return [v for v in verdicts if v.status == "failed" and not v.accepted]
 
 
 def passing(verdicts: list[Verdict]) -> list[Verdict]:

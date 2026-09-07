@@ -93,7 +93,12 @@ export function ConflictPanel({ open, onClose, conflict, slots, edges, reasoning
     .filter((item) => conflict.involved.includes(item.slot))
     .slice(-8)
     .map((item) => {
-      const label = CHECK_LABEL[item.status] ?? item.status.toUpperCase()
+      // A waived failure is still a failure, and the drawer says both things: what the
+      // engine measured, and that somebody decided to ship it anyway. Repainting it as a
+      // different label was how this used to read, and it made the evidence disappear.
+      const label = item.accepted
+        ? 'FAILED · ACCEPTED'
+        : CHECK_LABEL[item.status] ?? item.status.toUpperCase()
       const margin = item.margin ? ` · ${item.margin}` : ''
       return `> ${item.rule} [${label}${margin}] ${item.detail}`
     })

@@ -13,6 +13,7 @@ import type {
   SessionStatus,
   DoneEvent,
 } from '../lib/types'
+import { BOARD_SUBJECT } from '../lib/types'
 import { ReasoningLine } from './ReasoningLine'
 
 type ReasoningItem = ReasoningEvent | CheckEvent | RepairEvent | ErrorEvent
@@ -55,10 +56,16 @@ function repairActionLabel(action: RepairAction) {
  */
 function captionFor(checks: Map<string, CheckEvent>) {
   const results = [...checks.values()]
-  const failed = results.filter((check) => check.status === 'failed')
+
+  // An outstanding failure wins the caption. An accepted one does not: the reader already
+  // decided about it, and leaving it as the headline would caption every later line of the
+  // run with a finding that is no longer waiting on anybody. It is still reported, at the
+  // end, as what it is.
+  const failed = results.filter((check) => check.status === 'failed' && !check.accepted)
   if (failed.length > 0) {
     return failed[failed.length - 1].detail
   }
+  const accepted = results.filter((check) => check.status === 'failed' && check.accepted)
 
   const satisfied = results.filter((check) => check.status === 'satisfied')
   // Margins are prose because their units belong to their rules. Only leading numeric
@@ -81,12 +88,50 @@ function captionFor(checks: Map<string, CheckEvent>) {
       : '',
     unchecked ? `${unchecked} could not be checked` : '',
     unassessed ? `${unassessed} not assessed` : '',
+    accepted.length ? `${accepted.length} failed and accepted` : '',
   ].filter(Boolean)
 
   // Every count can be zero — a slot whose only checks were `not_applicable`, or one
   // whose checks have not arrived yet. An empty caption reads as a rendering fault, so
   // say what is true instead: nothing has been checked here.
   return summary.length > 0 ? summary.join(' · ') : 'No checks yet.'
+}
+
+/** What the engine declared about the board as a whole, rather than about any one part.
+ *
+ *  These verdicts carry `slot: "board"` — `rules.BOARD_SUBJECT` — because a coverage
+ *  boundary is not any component's fault. That is correct in the data and it left them
+ *  with nowhere to go on screen: the trace captions each line from `running.get(slot)`,
+ *  and no line is ever about "board", so the map entry was written and never read. Three
+ *  declared boundaries the product exists to be honest about were invisible.
+ *
+ *  Naming them once, when the run ends, is the opposite of the bug this replaced — every
+ *  sourcing line captioned "3 not assessed" as though each part were responsible. */
+const RULE_LABEL: Record<string, string> = {
+  // Underscore-stripping reads well for every rule but the acronyms, and "emc" in a
+  // sentence about what the engine did not check reads as a typo rather than a subject.
+  emc: 'EMC',
+}
+
+function boardCoverage(reasoning: ReasoningItem[]): string | null {
+  const checks = new Map<string, CheckEvent>()
+  for (const item of reasoning) {
+    if (item.type === 'check' && item.slot === BOARD_SUBJECT) {
+      checks.set(`${item.rule}:${item.scope ?? ''}`, item)
+    }
+  }
+
+  const named = [...checks.values()]
+    .filter((check) => check.status === 'not_assessed')
+    .map((check) => RULE_LABEL[check.rule] ?? check.rule.replace(/_/g, ' '))
+  const inapplicable = [...checks.values()].filter((check) => check.status === 'not_applicable').length
+
+  const parts = [
+    named.length ? `Not assessed: ${named.join(', ')}.` : '',
+    inapplicable ? `${inapplicable} rule${inapplicable === 1 ? '' : 's'} did not apply to this board.` : '',
+  ].filter(Boolean)
+
+  return parts.length ? parts.join(' ') : null
 }
 
 function scrollBehavior(): ScrollBehavior {
@@ -263,6 +308,9 @@ export function ChatPanel({
         : status === 'done'
           ? 'text-[#4ade80]'
           : 'text-on-surface-variant'
+  // Board-wide coverage, stated once when the run ends rather than on every line.
+  const coverage = useMemo(() => boardCoverage(reasoning), [reasoning])
+
   const statusText = composerRunning
     ? 'Running…'
     : awaitingAnswer
@@ -303,9 +351,19 @@ export function ChatPanel({
             <span className={`material-symbols-outlined text-[16px] ${statusIconClassName}`}>
               {statusIcon}
             </span>
-            <span className="font-data-tabular text-[11px] text-on-surface-variant truncate">
-              {statusText}
-            </span>
+            <div className="flex flex-col min-w-0">
+              <span className="font-data-tabular text-[11px] text-on-surface-variant truncate">
+                {statusText}
+              </span>
+              {status === 'done' && coverage ? (
+                <span
+                  className="font-data-tabular text-[10px] text-on-surface-variant/70 truncate"
+                  title={coverage}
+                >
+                  {coverage}
+                </span>
+              ) : null}
+            </div>
           </div>
           {composerRunning ? (
             <button

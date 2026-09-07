@@ -441,7 +441,11 @@ async def thread_board(thread_id: str, request: Request) -> dict[str, Any]:
 
     snapshot = await _checkpoint_snapshot(request.app.state.graph, thread_id)
     values = snapshot.values if snapshot and isinstance(snapshot.values, dict) else None
-    trace = await store.run_events(thread_id)
+    # Every stored frame, in today's vocabulary. Threads recorded before the five coverage
+    # labels landed still say `pass`/`warn`/`fail`, and a client that knows only the new
+    # names captions each of their narrative lines "No checks yet." while rendering a
+    # `PASS` chip beside it. Reopening an old run is a normal thing to do at a demo.
+    trace = [events.with_current_labels(event) for event in await store.run_events(thread_id)]
     question = _pending_question(snapshot, thread)
     resumable = thread.status in {"awaiting", "abandoned", "error"}
     if values is None:
@@ -655,16 +659,7 @@ async def _replay(thread_id: str, store: Store) -> AsyncIterator[str]:
             continue
         stream.last_seq += 1
         frame = {**event, "seq": stream.last_seq, "thread_id": thread_id}
-        if frame.get("type") == "check":
-            # Old recordings preserve only a three-state label. `warn` could mean either
-            # a narrow pass or an unmeasurable constraint, and the frozen frame cannot
-            # distinguish them; mapping it to satisfied would falsely promote a historic
-            # check. Evidence missing is the conservative, honest reading on replay.
-            frame["status"] = {
-                "pass": "satisfied",
-                "warn": "evidence_missing",
-                "fail": "failed",
-            }.get(frame.get("status"), frame.get("status"))
+        frame = events.with_current_labels(frame)
         if frame.get("type") == "bom":
             rows = frame["rows"]
         if frame.get("type") == "done":

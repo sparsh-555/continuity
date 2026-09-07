@@ -28,6 +28,36 @@ CLIENT_TIMEOUT_S = 30.0
 """What the client treats as dead. Twice the heartbeat, so one dropped frame is survivable."""
 
 
+LEGACY_CHECK_STATUS = {"pass": "satisfied", "warn": "evidence_missing", "fail": "failed"}
+"""The three labels the engine published before the five coverage labels replaced them.
+
+Rows recorded under the old vocabulary are still in the database — 5 of 11 threads on the
+production instance when this was written — and a `check` frame carrying `pass` reaches a
+client that knows only the new names. It renders as a screaming `PASS` chip, and every
+narrative line beside it captions "No checks yet.", because the caption counts `satisfied`
+and finds none.
+
+`warn` maps to `evidence_missing` rather than to `satisfied`. It could have meant either a
+narrow pass or a constraint nothing could measure, and a frozen frame cannot say which;
+promoting it would put a historic check forward as confirmed when it may never have been.
+The conservative reading is the honest one, and it is the same choice the walkthrough
+replay already made.
+"""
+
+
+def with_current_labels(event: dict[str, Any]) -> dict[str, Any]:
+    """One recorded event in today's vocabulary. Returns a new dict; the input is untouched.
+
+    Applied wherever stored frames are read back rather than at write time: rewriting the
+    rows would destroy the distinction between what a run actually reported and what we
+    now believe it meant, and it cannot be undone if the mapping turns out wrong.
+    """
+    if event.get("type") != "check":
+        return event
+    mapped = LEGACY_CHECK_STATUS.get(event.get("status"))
+    return event if mapped is None else {**event, "status": mapped}
+
+
 def frame(event: dict[str, Any]) -> str:
     """One SSE frame: `data: {json}\\n\\n`. Compact, because these get chatty."""
     return f"data: {json.dumps(event, separators=(',', ':'), default=_encode)}\n\n"
@@ -115,6 +145,7 @@ class EventStream:
             status=verdict.status,
             detail=verdict.detail,
             margin=verdict.margin,
+            accepted=verdict.accepted,
         )
 
     def conflict(

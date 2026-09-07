@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -14,16 +13,6 @@ from .store import User
 router = APIRouter(tags=["memory"])
 
 PART_LIMIT = 100
-
-_ACCEPTED = re.compile(
-    r"^Accepted on your say-so — (?P<rule>.+?) on .+ stays on the board as a warning\.$"
-)
-"""Matches `graph.nodes.acceptance_message`, which is the only evidence a run gives that a
-user waived a finding — acceptance has no structured signal in the event contract.
-
-`tests/test_memory.py` builds the message through that function and asserts this pattern
-matches it, so rewording one side fails loudly instead of quietly recording every accepted
-finding as unresolved."""
 
 
 class FindingRecorder:
@@ -45,8 +34,6 @@ class FindingRecorder:
             self._repair(event)
         elif kind == "check":
             self._check(event)
-        elif kind == "reasoning":
-            self._acceptance(event)
 
     def findings(self) -> list[Finding]:
         """Only materialised findings: without an MPN there is nothing useful to remember."""
@@ -128,6 +115,9 @@ class FindingRecorder:
         slot = event.get("slot")
         rule = event.get("rule")
         status = event.get("status")
+        if isinstance(slot, str) and isinstance(rule, str) and event.get("accepted"):
+            self._acceptance(slot, rule)
+            return
         # Only a *satisfied* check confirms a repair. This compared against "fail"
         # until the five coverage labels landed, and the retired spelling would have
         # matched nothing — so a rule still failing, or one that could no longer be
@@ -146,19 +136,21 @@ class FindingRecorder:
         if finding is not None:
             finding.worked = True
 
-    def _acceptance(self, event: dict[str, Any]) -> None:
-        text = event.get("text")
-        if not isinstance(text, str):
-            return
-        matched = _ACCEPTED.match(text)
-        if matched is None:
-            return
-        rule = matched.group("rule").replace(" ", "_")
+    def _acceptance(self, slot: str, rule: str) -> None:
+        """Record that a person waived this finding, from the `check` frame that says so.
+
+        This used to parse the narration — `graph.nodes.acceptance_message` produced a
+        sentence and a regular expression here matched it, because acceptance had no
+        structured signal in the event contract. That function's own docstring said to
+        delete the parsing the moment one existed. `check.accepted` is that signal, and
+        it is better than the prose in two ways: it names the slot as well as the rule,
+        and it cannot be broken by rewording a line of trace.
+        """
         finding = next(
             (
                 item
                 for item in reversed(self._findings)
-                if item.rule == rule and item.outcome == "unresolved"
+                if item.slot == slot and item.rule == rule and item.outcome == "unresolved"
             ),
             None,
         )

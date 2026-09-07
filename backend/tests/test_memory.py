@@ -113,7 +113,17 @@ def test_open_findings_are_unresolved_when_the_run_ends():
     assert recorder.findings()[0].outcome == "unresolved"
 
 
-def test_existing_acceptance_reasoning_marks_the_open_finding_accepted():
+def test_narration_alone_no_longer_records_an_acceptance():
+    """Deliberate: there is one mechanism for this now, and prose is not it.
+
+    The recorder used to match the acceptance sentence with a regular expression because
+    nothing structured said a waiver had happened. `check.accepted` does, so the parsing
+    is gone rather than kept alongside it — two mechanisms for one fact is how they drift
+    apart, and the sentence could be reworded without anything failing.
+
+    Findings already written to the database are unaffected: they are recorded during a
+    run and never recomputed from a stored trace.
+    """
     recorder = FindingRecorder()
     recorder.feed({"type": "selection", "slot": "sensor", "part": {"mpn": "SHT40"}})
     recorder.feed(
@@ -127,7 +137,7 @@ def test_existing_acceptance_reasoning_marks_the_open_finding_accepted():
     )
     recorder.feed({"type": "done"})
 
-    assert recorder.findings()[0].outcome == "accepted"
+    assert recorder.findings()[0].outcome == "unresolved"
 
 
 class _ConflictGraph:
@@ -357,22 +367,55 @@ def test_memory_reports_a_part_used_in_three_lines():
     assert len(memory["parts"][0]["used_in"]) == 3
 
 
-def test_the_acceptance_pattern_matches_the_message_the_run_actually_emits():
-    """The two sides of an unstructured signal, pinned together.
+def test_an_accepted_check_frame_records_the_waiver_without_reading_any_prose():
+    """Acceptance travels as a field now, not as a sentence to be matched.
 
-    Accepting an escalation has no structured signal — `api/memory.py` reads the narration
-    line to tell `accepted` from `unresolved`. Building the message through the real
-    emitter here means a rewording breaks this test rather than silently recording every
-    waived finding as unresolved, which nothing else would catch.
+    The recorder used to match `graph.nodes.acceptance_message` with a regular expression,
+    because a waiver had no structured signal — and that function's docstring said to
+    delete the parsing the moment one existed. `check.accepted` is it, and it carries the
+    slot as well as the rule, which the sentence never did.
     """
-    from continuity.api.memory import _ACCEPTED
-    from continuity.graph.nodes import acceptance_message
+    recorder = FindingRecorder()
+    recorder.feed({"type": "selection", "slot": "mcu", "part": {"mpn": "ESP32-C3", "manufacturer": "Espressif"}})
+    recorder.feed(
+        {
+            "type": "conflict",
+            "rule": "temperature_rating",
+            "involved": ["mcu"],
+            "message": "Rated to 85 °C; the board requires 105 °C.",
+        }
+    )
+    recorder.feed(
+        {
+            "type": "check",
+            "slot": "mcu",
+            "rule": "temperature_rating",
+            "status": "failed",
+            "accepted": True,
+            "detail": "Rated to 85 °C; the board requires 105 °C.",
+        }
+    )
 
-    message = acceptance_message("temperature_rating", "WiFi BLE MCU")
-    match = _ACCEPTED.match(message)
+    finding = recorder.findings()[0]
+    assert finding.outcome == "accepted"
 
-    assert match is not None, f"the recorder can no longer read {message!r}"
-    assert match.group("rule") == "temperature rating"
+
+def test_an_accepted_failure_is_not_mistaken_for_a_repair_that_worked():
+    """`accepted` is checked before `satisfied`, and a waived check is never satisfied.
+
+    A waived failure keeps `status == "failed"`, so it cannot reach the branch that marks
+    a repair as having worked. Asserting it here means the two paths cannot be merged by
+    accident later."""
+    recorder = FindingRecorder()
+    recorder.feed({"type": "selection", "slot": "mcu", "part": {"mpn": "ESP32-C3", "manufacturer": "Espressif"}})
+    recorder.feed({"type": "conflict", "rule": "temperature_rating", "involved": ["mcu"], "message": "Too hot."})
+    recorder.feed(
+        {"type": "check", "slot": "mcu", "rule": "temperature_rating", "status": "failed", "accepted": True}
+    )
+
+    finding = recorder.findings()[0]
+    assert finding.outcome == "accepted"
+    assert not finding.worked
 
 
 def test_a_conflicts_first_involved_slot_is_its_subject():

@@ -6,6 +6,7 @@ import asyncio
 
 from continuity.api import app as app_module
 from continuity.api.app import _run
+from continuity.api import events
 from continuity.api.events import EventStream
 
 
@@ -143,3 +144,37 @@ def test_trace_persistence_failure_does_not_break_the_run():
     frames, progress = asyncio.run(go())
     assert '"type":"done"' in frames[-1]
     assert progress == [("trace-failure", 0, "done")]
+
+
+def test_a_thread_recorded_before_the_five_labels_replays_in_todays_vocabulary():
+    """Reopening an old run is a normal thing to do, and it must not read as broken.
+
+    5 of 11 threads on the production instance still hold `pass`/`warn`/`fail` in
+    `run_events`. A client that knows only the five coverage labels renders a `PASS` chip
+    it has no label for and captions every narrative line beside it "No checks yet.",
+    because the caption counts `satisfied` and finds none.
+
+    `warn` becomes `evidence_missing`, never `satisfied`: it could have meant a narrow pass
+    or a constraint nothing could measure, and a frozen frame cannot say which. Promoting
+    it would put a historic check forward as confirmed when it may never have been.
+    """
+    recorded = [
+        {"type": "check", "slot": "u1", "rule": "availability", "status": "pass", "detail": "In stock."},
+        {"type": "check", "slot": "u1", "rule": "thermal_dissipation", "status": "warn", "detail": "Thin data."},
+        {"type": "check", "slot": "u1", "rule": "current_budget", "status": "fail", "detail": "Over budget."},
+        {"type": "check", "slot": "u1", "rule": "pin_budget", "status": "satisfied", "detail": "Fits."},
+        {"type": "reasoning", "slot": None, "text": "status is not a field on this one"},
+    ]
+
+    replayed = [events.with_current_labels(event) for event in recorded]
+
+    assert [event.get("status") for event in replayed] == [
+        "satisfied",
+        "evidence_missing",
+        "failed",
+        "satisfied",
+        None,
+    ]
+    # Everything else survives untouched, and the recorded frames are not rewritten.
+    assert replayed[1]["detail"] == "Thin data."
+    assert recorded[1]["status"] == "warn"
