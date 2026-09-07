@@ -26,7 +26,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
@@ -35,6 +35,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from .findings import Finding
 from ..parts.dossier import DOSSIER_FIELDS
+from ..profile import OperatingProfile
 
 SCHEMA = Path(__file__).with_name("schema.sql")
 
@@ -79,6 +80,15 @@ class Line:
     name: str
     created_at: datetime
     updated_at: datetime
+    revision: str | None = None
+    profile: dict[str, Any] | None = None
+
+    part_count: int = 0
+    """How many populated rows the line's BOM holds.
+
+    Counted in SQL beside the row rather than fetched per line by the dashboard, which is
+    what it did first: rendering "187 parts" cost one request and one whole BOM per line
+    on screen. The count is what the dashboard needs; the BOM is what the line page needs."""
 
 
 @dataclass(frozen=True)
@@ -248,7 +258,7 @@ class Store:
                 """
                 INSERT INTO product_lines (id, user_id, name, is_walkthrough)
                 VALUES (%s, %s, %s, %s)
-                RETURNING id, user_id, name, created_at, updated_at
+                RETURNING id, user_id, name, created_at, updated_at, revision, profile
                 """,
                 (new_id(), user_id, name, is_walkthrough),
             )
@@ -272,7 +282,9 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, user_id, name, created_at, updated_at
+                SELECT id, user_id, name, created_at, updated_at, revision, profile,
+                       (SELECT count(*) FROM line_parts lp
+                        WHERE lp.line_id = product_lines.id AND lp.populated) AS part_count
                   FROM product_lines WHERE user_id = %s AND NOT is_walkthrough
                  ORDER BY updated_at DESC
                 """,
@@ -285,13 +297,69 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, user_id, name, created_at, updated_at
+                SELECT id, user_id, name, created_at, updated_at, revision, profile,
+                       (SELECT count(*) FROM line_parts lp
+                        WHERE lp.line_id = product_lines.id AND lp.populated) AS part_count
                   FROM product_lines WHERE id = %s AND user_id = %s
                 """,
                 (line_id, user_id),
             )
             row = await cursor.fetchone()
         return None if row is None else Line(**row)
+
+    async def save_bom_rows(self, line_id: str, user_id: str, rows: Sequence[Mapping[str, Any]]) -> None:
+        async with self.pool.connection() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "DELETE FROM line_parts WHERE line_id = %s AND user_id = %s",
+                    (line_id, user_id),
+                )
+                cursor = conn.cursor()
+                await cursor.executemany(
+                    """INSERT INTO line_parts
+                       (line_id, user_id, refdes, mpn, manufacturer, footprint, populated)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    [
+                        (
+                            line_id, user_id, row["refdes"], row["mpn"], row.get("manufacturer"),
+                            row.get("footprint"), row.get("populated", True),
+                        )
+                        for row in rows
+                    ],
+                )
+
+    async def bom_for_line(self, line_id: str, user_id: str) -> list[dict[str, Any]]:
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """SELECT refdes, mpn, manufacturer, footprint, populated
+                     FROM line_parts WHERE line_id = %s AND user_id = %s ORDER BY refdes""",
+                (line_id, user_id),
+            )
+            return await cursor.fetchall()
+
+    async def save_profile(
+        self, line_id: str, user_id: str, profile: OperatingProfile, revision: str
+    ) -> bool:
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute(
+                """UPDATE product_lines SET profile = %s, revision = %s, updated_at = now()
+                   WHERE id = %s AND user_id = %s""",
+                (Json(profile.to_json()), revision, line_id, user_id),
+            )
+            return cursor.rowcount > 0
+
+    async def lines_exposed_to(self, user_id: str, mpn: str) -> list[dict[str, Any]]:
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """SELECT p.id AS line_id, p.name, p.revision,
+                          array_agg(lp.refdes ORDER BY lp.refdes) AS refdes
+                     FROM line_parts lp
+                     JOIN product_lines p ON p.id = lp.line_id AND p.user_id = lp.user_id
+                    WHERE lp.user_id = %s AND lp.mpn = %s AND lp.populated
+                 GROUP BY p.id, p.name, p.revision ORDER BY p.name""",
+                (user_id, mpn),
+            )
+            return await cursor.fetchall()
 
     async def ensure_scratch_line(self, user_id: str) -> str:
         """The account's visible, reusable home for runs started without a line.

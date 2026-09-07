@@ -14,6 +14,17 @@ def _replace(_old: Any, new: Any) -> Any:
 
 class DesignState(TypedDict, total=False):
     prompt: str
+
+    profile: dict | None
+    """The product line's stored operating conditions, as `OperatingProfile.to_json()`.
+
+    A brief describes a board somebody wants; a profile describes the one that already
+    ships. When a run belongs to a line that has recorded its ambient, that ambient is a
+    measured property of the product and beats anything inferred from a sentence — so
+    `parse_requirements` lays it over what the planner read, and says on the trace that
+    it did.
+    """
+
     requirements: Requirements
 
     plan: Any

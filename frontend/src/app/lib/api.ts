@@ -13,6 +13,14 @@ export type Line = {
   name: string
   created_at: string
   updated_at: string
+  revision: string | null
+  profile: {
+    ambient_c: number
+    ambient_source: string
+    mounting?: string | null
+    rails?: Record<string, unknown>
+  } | null
+  part_count: number
 }
 
 export type ThreadSummary = {
@@ -161,6 +169,12 @@ export function createLine(name: string) {
 
 export function getLine(lineId: string) {
   return request<Line>(`/lines/${encodeURIComponent(lineId)}`)
+}
+
+export function getLineBom(lineId: string) {
+  return request<Array<{ refdes: string; mpn: string; populated: boolean }>>(
+    `/lines/${encodeURIComponent(lineId)}/bom`,
+  )
 }
 
 export function listLineThreads(lineId: string) {

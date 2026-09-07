@@ -181,7 +181,9 @@ def test_a_signed_in_run_without_a_line_uses_a_scratch_line(monkeypatch):
 
         async def line_for_user(self, line_id: str, user_id: str):
             calls.append(("line", line_id, user_id))
-            return object()
+            # A stand-in for `Line`, and it has to carry `profile`: `/design` reads the
+            # line's stored operating conditions into the run's initial state.
+            return SimpleNamespace(profile=None)
 
         async def create_thread(
             self, thread_id: str, line_id: str, user_id: str, prompt: str

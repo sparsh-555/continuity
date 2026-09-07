@@ -35,6 +35,7 @@ from ..planner import plan as planner
 from ..planner import topology
 from ..parts import categories
 from ..parts.search import Candidate
+from ..profile import OperatingProfile
 from . import sourcing
 from .state import DesignState
 
@@ -96,6 +97,39 @@ def _precedent_lookup(config) -> PrecedentLookup | None:
     return lookup if callable(lookup) else None
 
 
+
+def _with_line_profile(ev, requirements: Requirements, stored: dict | None) -> Requirements:
+    """Lay a product line's recorded conditions over what the planner read from the brief.
+
+    Only the requirements half. A profile's *rail* statements are applied where a board is
+    built from that line's own BOM — item 12 — because a design run's rail ids come from
+    the planner, and a stored "3v3" meeting a planned "3V3" would raise mid-run and kill
+    the design rather than correct it.
+
+    A profile that cannot be read does not stop the run and does not pass silently either:
+    the run continues on the brief's own ambient and the trace says which one was used.
+    Silence here would reproduce the exact defect `ambient_source` was added to remove.
+    """
+    if not stored:
+        return requirements
+
+    try:
+        profile = OperatingProfile.from_json(stored)
+    except (KeyError, TypeError, ValueError) as exc:
+        _emit(ev.reasoning(None, f"This line's stored operating profile could not be read ({exc}), so the brief's own conditions stand."))
+        return requirements
+
+    applied = profile.to_requirements(requirements)
+    _emit(
+        ev.reasoning(
+            None,
+            f"This product line runs at {applied.ambient_c} °C — {applied.ambient_source}. "
+            "Using the line's recorded conditions rather than the brief's.",
+        )
+    )
+    return applied
+
+
 # ── parse_requirements ────────────────────────────────────────────────────────
 
 
@@ -150,8 +184,10 @@ async def parse_requirements(state: DesignState, config) -> DesignState:
             for slot_id in board_plan.order
         }
 
+    requirements = _with_line_profile(ev, board_plan.requirements, state.get("profile"))
+
     return {
-        "requirements": board_plan.requirements,
+        "requirements": requirements,
         "plan": board_plan,
         "started_at": time.time(),
         "conflicts_resolved": 0,

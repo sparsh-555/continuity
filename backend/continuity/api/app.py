@@ -40,7 +40,7 @@ from ..graph import nodes
 from ..graph.build import build
 from ..planner import topology
 from ..parts import datasheet, dossier, normalize
-from . import auth, bom, events, memory, lines, spa
+from . import auth, bom, events, exposure, memory, lines, spa
 from .memory import FindingRecorder
 from .store import Store
 
@@ -141,13 +141,14 @@ app.add_middleware(
     allow_origins=ORIGINS,
     allow_credentials=True,
     # Explicit for the same reason as the origins — wildcards and credentials do not mix.
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Accept"],
 )
 
 app.include_router(auth.router)
 app.include_router(memory.router)
 app.include_router(lines.router)
+app.include_router(exposure.router)
 
 STREAMS: dict[str, events.EventStream] = {}
 """thread_id → the live counter for a run in flight.
@@ -321,6 +322,7 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
     store = request.app.state.store
     user = await _signed_in(request)
     thread_id = uuid.uuid4().hex[:12]
+    profile: dict[str, Any] | None = None
 
     if store is not None:
         line_id = body.line_id
@@ -328,13 +330,21 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
             line_id = await store.ensure_scratch_line(user.id)
         elif not line_id:
             raise HTTPException(422, "line_id is required")
-        if await store.line_for_user(line_id, user.id) is None:
+        line = await store.line_for_user(line_id, user.id)
+        if line is None:
             raise HTTPException(404, "no such line")
+        profile = line.profile
         await store.create_thread(thread_id, line_id, user.id, body.prompt)
 
     STREAMS[thread_id] = events.EventStream(thread_id)
     return StreamingResponse(
-        _run(request.app.state.graph, thread_id, {"prompt": body.prompt}, store, user.id if user else None),
+        _run(
+            request.app.state.graph,
+            thread_id,
+            {"prompt": body.prompt, "profile": profile},
+            store,
+            user.id if user else None,
+        ),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )

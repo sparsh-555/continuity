@@ -390,6 +390,63 @@ def test_a_line_is_invisible_to_another_user():
     assert stolen is None
 
 
+def test_exposure_returns_populated_mpn_across_lines_but_not_dnp():
+    async def go():
+        async with fresh() as store:
+            user = await a_user(store)
+            lines = [await store.create_line(user.id, name) for name in "ABCDE"]
+            rows = [{"refdes": "U1", "mpn": "TARGET", "populated": True}]
+            for line in lines[:3]:
+                await store.save_bom_rows(line.id, user.id, rows)
+            await store.save_bom_rows(
+                lines[3].id, user.id,
+                [{"refdes": "U1", "mpn": "TARGET", "populated": False}],
+            )
+            await store.save_bom_rows(
+                lines[4].id, user.id,
+                [{"refdes": "U1", "mpn": "OTHER", "populated": True}],
+            )
+            return lines, await store.lines_exposed_to(user.id, "TARGET")
+
+    lines, exposed = run(go())
+    assert [row["line_id"] for row in exposed] == [line.id for line in lines[:3]]
+    assert all(row["refdes"] == ["U1"] for row in exposed)
+
+
+def test_exposure_never_crosses_accounts():
+    async def go():
+        async with fresh() as store:
+            mine = await a_user(store, "mine@example.com")
+            theirs = await a_user(store, "theirs@example.com")
+            mine_line = await store.create_line(mine.id, "Mine")
+            theirs_line = await store.create_line(theirs.id, "Theirs")
+            rows = [{"refdes": "U1", "mpn": "TARGET"}]
+            await store.save_bom_rows(mine_line.id, mine.id, rows)
+            await store.save_bom_rows(theirs_line.id, theirs.id, rows)
+            return (
+                await store.lines_exposed_to(mine.id, "TARGET"),
+                await store.lines_exposed_to(theirs.id, "TARGET"),
+            )
+
+    mine, theirs = run(go())
+    assert [row["name"] for row in mine] == ["Mine"]
+    assert [row["name"] for row in theirs] == ["Theirs"]
+
+
+def test_reuploading_a_bom_replaces_the_document():
+    async def go():
+        async with fresh() as store:
+            user = await a_user(store)
+            line = await store.create_line(user.id, "Board")
+            await store.save_bom_rows(line.id, user.id, [{"refdes": "C1", "mpn": "OLD"}])
+            await store.save_bom_rows(line.id, user.id, [{"refdes": "R1", "mpn": "NEW"}])
+            return await store.bom_for_line(line.id, user.id)
+
+    assert run(go()) == [
+        {"refdes": "R1", "mpn": "NEW", "manufacturer": None, "footprint": None, "populated": True}
+    ]
+
+
 def test_a_thread_is_invisible_to_another_user():
     """This lookup is what stands between `/resume` and an IDOR."""
 

@@ -116,6 +116,25 @@ ALTER TABLE threads ADD CONSTRAINT threads_status_check
 -- product lines, one of them abandoned mid-stream.
 ALTER TABLE product_lines ADD COLUMN IF NOT EXISTS is_walkthrough boolean NOT NULL DEFAULT false;
 
+-- Added 7 Sep 2026. A product line carries the production BOM and the conditions its
+-- boards operate under. `user_id` is denormalised deliberately: exposure matching is an
+-- authorisation boundary, so ownership must be checked without depending on a join.
+ALTER TABLE product_lines ADD COLUMN IF NOT EXISTS revision text;
+ALTER TABLE product_lines ADD COLUMN IF NOT EXISTS profile jsonb;
+
+CREATE TABLE IF NOT EXISTS line_parts (
+    line_id      text NOT NULL REFERENCES product_lines(id) ON DELETE CASCADE,
+    user_id      text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    refdes       text NOT NULL,
+    mpn          text NOT NULL,
+    manufacturer text,
+    footprint    text,
+    populated    boolean NOT NULL DEFAULT true,
+    PRIMARY KEY (line_id, refdes)
+);
+
+CREATE INDEX IF NOT EXISTS line_parts_mpn_idx ON line_parts(user_id, mpn);
+
 -- Findings are a user-facing record of what the engine reported. They are never input
 -- to a rule, planner, or reviewer: a part can correctly fail on one board and pass on
 -- another under different electrical conditions.

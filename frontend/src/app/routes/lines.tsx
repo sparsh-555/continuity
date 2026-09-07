@@ -53,6 +53,38 @@ function shortPartsLabel(missingCount: number) {
   return `short ${missingCount} part${missingCount === 1 ? '' : 's'}`
 }
 
+/** What this line is, for a line that has been described as a shipping product.
+ *
+ *  Returns null when nothing has been stored, so the caller can fall back to the brief
+ *  of the last run rather than captioning a design container "0 parts". The ambient
+ *  travels with its source for the same reason every other number in this product does:
+ *  a condition a verdict was computed against is only as good as where it came from. */
+function describe(line: Line): string | null {
+  if (!line.profile && line.part_count === 0) {
+    return null
+  }
+
+  const revision = line.revision ? `Rev ${line.revision}` : null
+  const parts = `${line.part_count} ${line.part_count === 1 ? 'part' : 'parts'}`
+  const ambient = line.profile
+    ? `${line.profile.ambient_c} °C ambient`
+    : 'no profile stored'
+
+  return [revision, parts, ambient].filter(Boolean).join(' · ')
+}
+
+/** The same line, unabridged, for the row's `title`.
+ *
+ *  The row truncates at a fixed width and the ambient's source is the first thing to go —
+ *  which leaves a temperature on screen with no way to see where it came from, the exact
+ *  thing `ambient_source` exists to prevent. The full source belongs on the line's own
+ *  page; until that page carries it, hovering the row is how it stays reachable. */
+function describeInFull(line: Line): string | undefined {
+  return line.profile
+    ? `${describe(line)} — ${line.profile.ambient_source}`
+    : describe(line) ?? undefined
+}
+
 function statusBadgeFromLatestThread(latestThread: LineThread | null): StatusBadge {
   if (!latestThread) {
     return {
@@ -288,7 +320,11 @@ export default function LinesRoute() {
 
         return {
           line,
-          subtitle: latestThread?.prompt ?? 'No runs yet',
+          // What the line *is*, when it has been described as a product; otherwise what
+          // was last asked of it. A line carrying neither a BOM nor a profile is a design
+          // container, and replacing its brief with "0 parts" would take information away.
+          subtitle: describe(line) ?? latestThread?.prompt ?? 'No runs yet',
+          subtitleTitle: describeInFull(line),
           status: statusBadgeFromLatestThread(latestThread),
           shortageLabel: shortageLabelFromLatestThread(latestThread),
         }
@@ -323,7 +359,7 @@ export default function LinesRoute() {
 
           <div className="flex flex-col gap-sm">
             {showRows
-              ? rows.map(({ line, subtitle, status, shortageLabel }) => (
+              ? rows.map(({ line, subtitle, subtitleTitle, status, shortageLabel }) => (
                   <div
                     // Separated by surface and space rather than a hairline. A 1px border
                     // around every card is the other reliable generated-UI tell, and the
@@ -343,7 +379,10 @@ export default function LinesRoute() {
                       <span className="font-headline-sm text-headline-sm text-on-surface truncate">
                         {line.name}
                       </span>
-                      <span className="font-data-tabular text-body-sm text-on-surface-variant truncate">
+                      <span
+                        className="font-data-tabular text-body-sm text-on-surface-variant truncate"
+                        title={subtitleTitle}
+                      >
                         {subtitle}
                       </span>
                     </div>
