@@ -44,11 +44,21 @@ Return ONE JSON object with ONLY these keys:
 - mpn: the manufacturer part number being discontinued or changed. Exact, as printed.
 - mpn_line: the exact full line of the document you read the MPN from.
 - manufacturer: who issued the notice.
-- effective_date: the last-order or effective date, ISO 8601 (YYYY-MM-DD), or null.
+- effective_date: the date after which the part can no longer be ordered, ISO 8601
+  (YYYY-MM-DD), or null.
 - effective_date_line: the exact line you read that date from, or null.
 - replacement_mpn: the part the notice recommends, or null if it recommends none.
 - replacement_line: the exact line you read the recommendation from, or null.
 - reason: one short sentence, in the notice's own terms, for why it was issued.
+
+A notice prints several dates and only one of them ends ordering. Take the last time
+buy or last order date. Never the date the notice was issued, never a last time ship
+date, never a date by which a response is requested. If the notice states no date that
+ends ordering, effective_date is null however many other dates are on the page.
+
+A notice that recommends nothing says so in words: "none", "to be advised", "under
+evaluation". Those are not part numbers. replacement_mpn is null unless the notice
+prints a part number to order instead.
 
 Every *_line must be copied verbatim from the document. Never paraphrase one, never
 assemble one from separate places, and use null rather than inventing one. If the document
@@ -58,6 +68,29 @@ what is typical, or from another notice you have seen."""
 _MPN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9\-_./+]{2,49}$")
 """A part number's shape. Loose on purpose — vendors are inventive — but it rules out a
 sentence, which is what an unconstrained field tends to come back as."""
+
+_NOT_A_PART = frozenset(
+    {
+        "none", "nil", "null", "na", "tbd", "tba", "unknown", "pending",
+        "tobeadvised", "tobeconfirmed", "notapplicable",
+        "noreplacement", "underevaluation", "undetermined", "notyetdetermined",
+    }
+)
+"""Words a notice uses where a part number would go, and which look like one.
+
+A preliminary notice writes *Recommended replacement: none.* That line is real, so
+quoting it proves nothing, and `none` passes the shape test above with room to spare.
+Believed, it opens a review of a part called "none" and searches every distributor for
+it. The absence has to survive as an absence."""
+
+
+def _flattened(value: str) -> str:
+    """Lowercase letters and digits only, so `To be advised.` meets `tobeadvised`."""
+    return "".join(character for character in value.lower() if character.isalnum())
+
+
+def _is_a_part_number(value: str) -> bool:
+    return bool(_MPN.match(value.strip())) and _flattened(value) not in _NOT_A_PART
 
 
 @dataclass(frozen=True)
@@ -111,7 +144,7 @@ def _from_reply(reply: Mapping[str, Any], text: str) -> Notice | None:
     """Believe the model only where the document backs it up."""
     mpn = reply.get("mpn")
     mpn_line = reply.get("mpn_line")
-    if not isinstance(mpn, str) or not _MPN.match(mpn.strip()):
+    if not isinstance(mpn, str) or not _is_a_part_number(mpn):
         return None
     if not isinstance(mpn_line, str) or _collapsed(mpn_line) not in _collapsed(text):
         return None
@@ -133,7 +166,13 @@ def _from_reply(reply: Mapping[str, Any], text: str) -> Notice | None:
     effective_date, effective_line = quoted("effective_date", "effective_date_line")
     replacement, replacement_line = quoted("replacement_mpn", "replacement_line")
     if replacement is not None and not (
-        isinstance(replacement, str) and _MPN.match(replacement.strip())
+        isinstance(replacement, str)
+        and _is_a_part_number(replacement)
+        # The same rule the affected part number lives under, and for the same reason:
+        # quoting *a* line is not sourcing *this* value. Without it a reply can cite the
+        # real recommendation line and name a different part on it, and the change
+        # request then proposes a part the manufacturer never mentioned.
+        and _collapsed(replacement) in _collapsed(replacement_line or "")
     ):
         replacement, replacement_line = None, None
     if effective_date is not None and not (

@@ -635,6 +635,28 @@ onsemi is a genuine AMS1117 second source — and the recommendation fails the g
 **Test** the parser extracts every declared field from it, and reports the fields it cannot find
 rather than inventing them.
 
+`docs/world-finals/notices/`, written by `tools/make_notice.py` on top of `tools/pdf.py` — a
+very small PDF writer, added because the project reads PDFs everywhere and could not produce
+one. Both halves hold, offline against the real documents and live against the real model,
+in `tests/test_notice_document.py`. The seed's end-to-end test now uploads the actual PDF
+rather than four typed lines, and the suite refuses a document that was edited without being
+regenerated.
+
+**Two documents, because the second one is the test.** `PCN-2026-114` states every declared
+field. `PCN-2026-118` is a preliminary notice that withholds two of them, the way early
+notices really do: the last-order date is *to be advised* and there is no recommendation.
+
+**And building it properly found two defects a typed fixture never could.** The full notice
+carries four dates and only one ends ordering. Against the real model the reader returned
+**2027-09-30, the last time *ship* date** — quoted honestly from a real line, verified by
+every check we had, and six months of runway the notice does not give. The instruction now
+names which date is wanted; removing it reproduces the wrong answer on demand. The
+preliminary notice exposed the other: `Recommended replacement: none.` is a real line, and
+`none` passes the part-number shape test, so the review would have gone looking for a part by
+that name. A word a notice uses for absence is no longer a part number, and — the same rule
+the affected part already lived under — a recommended part is refused unless the line quoted
+for it actually prints it.
+
 ## 18 · KiCad
 
 **Files** new module

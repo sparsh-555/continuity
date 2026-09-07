@@ -173,6 +173,7 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
     from continuity import notices as reader
     from continuity.api import matrix as matrix_api
     from tools.eol_differential import LINES, OUTPUT_CAPACITOR
+    from tools.make_notice import FULL
 
     specs = {
         part.mpn: part
@@ -199,12 +200,10 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
     monkeypatch.setattr(reader.llm, "available", lambda: True)
     monkeypatch.setattr(reader.llm, "complete_json", read_notice)
 
-    pcn = (
-        "PRODUCT CHANGE NOTIFICATION\n"
-        f"Affected part: {AMS1117.mpn} (SOT-223)\n"
-        "Last time buy: 2027-03-31\n"
-        f"Recommended replacement: {NCP1117.mpn}.\n"
-    )
+    # The document the demonstration actually uploads, PDF and all, rather than four
+    # typed lines that would prove nothing about extraction. Every line the stub above
+    # quotes is a line of it; `test_notice_document.py` is what holds that true.
+    pcn = FULL.pdf()
 
     async def go():
         async with empty() as store:
@@ -219,7 +218,7 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
                 notice = (
                     await http.post(
                         "/notices",
-                        json={"document": base64.b64encode(pcn.encode()).decode()},
+                        json={"document": base64.b64encode(pcn).decode()},
                     )
                 ).json()
                 reviewed = await http.post(

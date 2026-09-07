@@ -170,6 +170,10 @@ export default function NoticesRoute() {
       setBusy(true)
       setError(null)
       setRequests([])
+      // Both, and for the same reason: what was not checked was not checked *for the
+      // notice that was on screen*. Carried across, it reads as a finding about the new
+      // one, and names a candidate excluded from a review that has not been run yet.
+      setSkipped([])
       try {
         const bytes = new Uint8Array(await file.arrayBuffer())
         let binary = ''
@@ -237,6 +241,7 @@ export default function NoticesRoute() {
     setSelected(notice)
     setReceived(null)
     setError(null)
+    setSkipped([])
     try {
       setRequests(await listChangeRequests(notice.id))
     } catch {

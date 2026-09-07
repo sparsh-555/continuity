@@ -1,0 +1,67 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 2924 >>
+stream
+BT /F2 11 Tf 1 0 0 1 56 741.0 Tm (CONSTRUCTED EXAMPLE. NOT A REAL MANUFACTURER NOTICE.) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 726.0 Tm (Written for the Continuity demonstration. Advanced Monolithic Systems has issued no) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 711.0 Tm (notice of this kind. The reference number, the dates and the response instructions) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 696.0 Tm (below were invented. The part numbers are real, so that the document exercises real) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 681.0 Tm (sourcing against real distributor data.) Tj ET
+BT /F2 15 Tf 1 0 0 1 56 644.0 Tm (ADVANCED MONOLITHIC SYSTEMS) Tj ET
+BT /F2 12 Tf 1 0 0 1 56 627.0 Tm (PRODUCT CHANGE NOTIFICATION) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 598.0 Tm (PCN reference: AMS-PCN-2026-114) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 583.0 Tm (Date of issue: 2026-09-01) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 568.0 Tm (Notification type: product discontinuance \(end of life\)) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 553.0 Tm (Customer response requested by: 2026-11-30) Tj ET
+BT /F2 11 Tf 1 0 0 1 56 522.0 Tm (1. Affected product) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 503.0 Tm (Affected part: AMS1117-3.3 \(SOT-223\)) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 488.0 Tm (Description: 1 A low dropout linear regulator, fixed 3.3 V output) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 473.0 Tm (Ordering codes affected: AMS1117-3.3, AMS1117-3.3 tape and reel) Tj ET
+BT /F2 11 Tf 1 0 0 1 56 442.0 Tm (2. Key dates) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 423.0 Tm (Last time buy: 2027-03-31) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 408.0 Tm (Last time ship: 2027-09-30) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 393.0 Tm (Orders placed after the last time buy date cannot be accepted. Last time buy) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 378.0 Tm (orders are non-cancellable and non-returnable.) Tj ET
+BT /F2 11 Tf 1 0 0 1 56 347.0 Tm (3. Reason for the change) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 328.0 Tm (Closure of the wafer fabrication line that supplies this device. No) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 313.0 Tm (equivalent capacity is available at the remaining sites.) Tj ET
+BT /F2 11 Tf 1 0 0 1 56 282.0 Tm (4. Recommended replacement) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 263.0 Tm (Recommended replacement: NCP1117ST33T3G.) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 248.0 Tm (The recommended part is a fixed 3.3 V low dropout linear regulator in the same) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 233.0 Tm (SOT-223 outline. This recommendation is made on the part alone. Customers) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 218.0 Tm (remain responsible for qualifying it in their own application, and this notice) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 203.0 Tm (does not qualify any board.) Tj ET
+BT /F2 11 Tf 1 0 0 1 56 172.0 Tm (5. Response) Tj ET
+BT /F1 10.5 Tf 1 0 0 1 56 153.0 Tm (Direct questions and last time buy orders to your usual sales contact.) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 112.0 Tm (CONSTRUCTED EXAMPLE. Written for the Continuity demonstration, issued by nobody.) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /Encoding /WinAnsiEncoding /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /Encoding /WinAnsiEncoding /BaseFont /Helvetica-Bold >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000003227 00000 n 
+0000003324 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+3426
+%%EOF
