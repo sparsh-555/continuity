@@ -27,17 +27,22 @@ was entered.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Any, ClassVar, Mapping
+from typing import Any, ClassVar, Mapping, Sequence
 
-from .engine.models import Board, Rail, Requirements
+from .engine.models import Board, PartSpec, Rail, Requirements, Slot
 
 
 @dataclass(frozen=True)
 class RailProfile:
-    """The fields of `Rail` a product line states about itself.
+    """One rail of a product line's board, as the line records it.
 
-    `source` and `members` are deliberately absent: they describe the board's topology,
-    which comes from the BOM, not from the conditions the product operates under.
+    `source` and `members` were left out when this was written, on the reasoning that
+    topology comes from the BOM rather than from operating conditions. That was right for
+    a *design* run, whose rails the planner lays out, and wrong for a stored line: a BOM is
+    a list of parts and refdes, and nothing in it says which part feeds which net. Without
+    them a stored line cannot be turned into a board at all, which is what item 12's matrix
+    needs — and the gateway's 3V3 rail being fed by U1 is as much a fact about the shipping
+    product as its enclosure ambient is.
     """
 
     voltage: float | None = None
@@ -46,23 +51,42 @@ class RailProfile:
     i_load: float | None = None
     i_load_basis: str | None = None
 
+    source: str | None = None
+    """The refdes that produces this rail. `None` for a rail fed from outside the board."""
+
+    members: tuple[str, ...] = ()
+    """The refdes drawing from it. The producing part is not a member of its own output."""
+
     KEYS: ClassVar[frozenset[str]] = frozenset(
-        ("voltage", "i_limit", "basis", "i_load", "i_load_basis")
+        ("voltage", "i_limit", "basis", "i_load", "i_load_basis", "source", "members")
     )
 
     def stated(self) -> dict[str, Any]:
-        """Only what this profile actually says, for `replace` onto an existing rail."""
-        return {key: value for key in self.KEYS if (value := getattr(self, key)) is not None}
+        """Only what this profile actually says, for `replace` onto an existing rail.
+
+        `members` is excluded when empty rather than when `None`: an empty tuple is how a
+        profile says nothing about who draws from a rail, and writing it over a design
+        run's membership would empty a rail the planner had populated.
+        """
+        stated = {key: value for key in self.KEYS if (value := getattr(self, key)) is not None}
+        if not stated.get("members"):
+            stated.pop("members", None)
+        return stated
 
     @classmethod
     def from_json(cls, value: Mapping[str, Any]) -> "RailProfile":
         unknown = set(value) - cls.KEYS
         if unknown:
             raise ValueError(f"unknown rail profile keys: {sorted(unknown)}")
-        return cls(**dict(value))
+        fields = dict(value)
+        if "members" in fields:
+            fields["members"] = tuple(fields["members"] or ())
+        return cls(**fields)
 
     def to_json(self) -> dict[str, Any]:
-        return {key: getattr(self, key) for key in sorted(self.KEYS)}
+        stored = {key: getattr(self, key) for key in sorted(self.KEYS)}
+        stored["members"] = list(self.members)
+        return stored
 
 
 @dataclass(frozen=True)
@@ -138,3 +162,80 @@ class OperatingProfile:
             "mounting": self.mounting,
             "rails": {rail_id: rail.to_json() for rail_id, rail in self.rails.items()},
         }
+
+
+def board_from(
+    profile: "OperatingProfile",
+    bom: Sequence[Mapping[str, Any]],
+    specs: Mapping[str, PartSpec],
+) -> Board:
+    """A board the engine can check, built from what a product line has stored.
+
+    This is the other direction from everything Continuity did first. A design run invents
+    a board and then sources it; here the board already exists, ships, and is described by
+    its bill of materials and its operating profile — so the whole of it comes out of the
+    database and nothing is inferred from a brief.
+
+    **Rows the BOM marks unpopulated are left out.** A do-not-populate line is on the
+    document and not on the board, and checking a part that is not fitted would report
+    conflicts against a circuit nobody built.
+
+    **A row whose part could not be resolved is left out too, and that is a real limit.**
+    The board is then checked without it, so a rail load derived from summing parts would
+    under-count — which is exactly why `Rail.i_load` exists and why a product line states
+    its own load rather than having one derived. A line with no stated load and an
+    unresolved part is checked on a floor, and the verdicts say so.
+    """
+    slots: dict[str, Slot] = {}
+    sources = {rail.source for rail in profile.rails.values() if rail.source}
+
+    for row in bom:
+        refdes = row["refdes"]
+        spec = specs.get(row["mpn"])
+        if not row.get("populated", True) or spec is None:
+            continue
+        slots[refdes] = Slot(
+            id=refdes,
+            label=f"{refdes} · {spec.description or spec.mpn}",
+            # Never read by any rule — `evaluate` does not look at it. It steers policy
+            # and the screen, so it is derived here rather than stored and kept in sync.
+            tier="power" if refdes in sources else "core",
+            status="pass",
+            part=spec,
+        )
+
+    def voltage_of(rail: RailProfile) -> float:
+        """A stated voltage wins; otherwise the part that makes the rail decides it.
+
+        A rail fed by a regulator takes its voltage from that regulator's datasheet, which
+        is why a profile does not store it — storing 3.3 would overwrite each candidate's
+        own output with whatever number was true the day the line was entered, and the
+        matrix exists precisely to put different regulators in that slot. An external
+        supply has no part behind it, so there the profile is the only source and a
+        missing value is a gap in the stored line rather than something to invent.
+        """
+        if rail.voltage is not None:
+            return rail.voltage
+        source = specs.get(next((r["mpn"] for r in bom if r["refdes"] == rail.source), ""))
+        stated = source.vout if source is not None else None
+        return stated if stated is not None else 0.0
+
+    rails = {
+        rail_id: Rail(
+            id=rail_id,
+            voltage=voltage_of(rail),
+            source=rail.source,
+            members=tuple(m for m in rail.members if m in slots),
+            i_limit=rail.i_limit,
+            i_load=rail.i_load,
+            i_load_basis=rail.i_load_basis,
+            basis=rail.basis,
+        )
+        for rail_id, rail in profile.rails.items()
+    }
+
+    return Board(
+        requirements=profile.to_requirements(Requirements()),
+        slots=slots,
+        rails=rails,
+    )

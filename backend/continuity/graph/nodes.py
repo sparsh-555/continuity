@@ -38,6 +38,7 @@ from ..parts.search import Candidate
 from ..profile import OperatingProfile
 from . import sourcing
 from .state import DesignState
+from ..roles import DEFAULT_DECISION_ROLES, ROLES_BY_RULE, decision_roles
 
 
 log = logging.getLogger(__name__)
@@ -1046,51 +1047,6 @@ STOP_OPTION = "Stop and let me change the brief"
 CONTINUE_OPTION = "Continue anyway"
 RELAX_REQUIREMENT_OPTION = "Relax the stock requirement"
 
-ROLES_BY_RULE: dict[str, tuple[str, ...]] = {
-    # Whether a part can be bought, and on what terms, is a buying judgement.
-    "availability": ("procurement",),
-    # Everything else the engine decides is a question about the circuit.
-    "voltage_overlap": ("engineering",),
-    "current_budget": ("engineering",),
-    "thermal_dissipation": ("engineering",),
-    "pin_budget": ("engineering",),
-    "interface_role_match": ("engineering",),
-    "footprint": ("engineering",),
-    "footprint_compatibility": ("engineering",),
-    "capacitor_requirements": ("engineering",),
-    "temperature_rating": ("engineering",),
-    "energy_budget": ("engineering",),
-    "rail_coverage": ("engineering",),
-    "output_capacitor_stability": ("engineering",),
-    "emc": ("engineering",),
-    "signal_integrity": ("engineering",),
-}
-"""Who is qualified to answer when a rule fails and the run stops to ask.
-
-The permission belongs to the *question*, not to the person. Whether an LDO's 159 °C
-junction is acceptable is an engineering judgement; whether a distributor is an approved
-source is not, and no property of a user can tell those two apart — which is why
-organisation membership alone is not enough to authorise an answer.
-
-`tests/test_roles.py` reads the rule names out of `rules.py` and asserts every one appears
-here, so a rule added later cannot quietly inherit the fallback and route a circuit
-question to the wrong desk.
-"""
-
-DEFAULT_DECISION_ROLES = ("engineering",)
-"""Where an unmapped rule goes.
-
-Deliberate rather than incidental: an unmapped *electrical* rule reaching procurement is
-precisely the failure this exists to prevent, and engineering is the safe direction to be
-wrong in. The map is tested for completeness so this should never fire — it is the floor
-under a mistake, not a mechanism.
-"""
-
-
-def _decision_roles(conflict) -> tuple[str, ...]:
-    if conflict is None:
-        return DEFAULT_DECISION_ROLES
-    return ROLES_BY_RULE.get(conflict.rule, DEFAULT_DECISION_ROLES)
 
 REQUIREMENT_FIELD_BY_RULE: dict[str, str] = {
     "availability": "min_stock",
@@ -1148,7 +1104,7 @@ async def escalate(state: DesignState, config) -> DesignState:
             "question_id": "escalation",
             "text": state.get("escalation") or "This needs a decision from you.",
             "suggestions": options,
-            "roles": list(_decision_roles(conflict)),
+            "roles": list(decision_roles(conflict)),
         }
     )
 

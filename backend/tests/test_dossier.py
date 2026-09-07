@@ -23,8 +23,16 @@ def test_facts_from_part_keeps_only_known_nonempty_part_properties():
         provenance={"topology": "Topology", "efficiency": "Efficiency"},
     )
 
+    # `t_j_max` is on this list for the same reason `theta_ja` is, and its absence had
+    # teeth: the thermal rule falls back to `temp_max` when no junction limit is known,
+    # and an ambient grade is not a junction limit — a part graded to 125 °C ambient and
+    # rated to 150 °C at the junction would have been checked 25 °C too harshly, with a
+    # verdict that read as entirely reasonable.
     assert DOSSIER_FIELDS == frozenset(
-        {"package", "theta_ja", "topology", "synchronous", "efficiency", "temp_min", "temp_max"}
+        {
+            "package", "theta_ja", "topology", "synchronous", "efficiency",
+            "temp_min", "temp_max", "t_j_max",
+        }
     )
     assert facts_from_part(part) == [
         ("TPS54331DR", "efficiency", "0.91", "Efficiency"),

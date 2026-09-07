@@ -76,6 +76,8 @@ export function SideRail() {
       <div className="flex flex-col gap-sm w-full items-center">
         <RailButton disabled={creating} icon="add" label="New product line" onClick={() => { createNewLine().catch(() => undefined) }} />
         <RailButton active={location.pathname === '/lines'} icon="folder_open" label="All product lines" onClick={() => navigate('/lines')} />
+        {/* `grid_view` — a grid of candidates against product lines, which is what it is. */}
+        <RailButton active={location.pathname === '/matrix'} icon="grid_view" label="Substitution matrix" onClick={() => navigate('/matrix')} />
         {/* `hub` — nodes and the links between them, which is literally what /memory shows.
             It was `memory`, a chip glyph, sitting one rail away from the wordmark's
             `developer_board` chip: two chips for two unrelated things. */}

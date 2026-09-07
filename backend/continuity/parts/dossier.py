@@ -21,14 +21,23 @@ DOSSIER_FIELDS: frozenset[str] = frozenset(
         "efficiency",
         "temp_min",
         "temp_max",
+        "t_j_max",
     }
 )
-"""Properties that remain true for this MPN on every board."""
+"""Properties that remain true for this MPN on every board.
+
+`t_j_max` belongs here for the same reason `theta_ja` does, and its absence had teeth: the
+thermal rule falls back to `temp_max` when no junction limit is known, and those are two
+different quantities — onsemi's NCP1117 is graded to 125 °C *ambient* and rated to 150 °C
+at the *junction*. A stored dossier that carried the first and not the second would check
+every board against a limit 25 °C below the one the datasheet states, and the verdict
+would look entirely reasonable.
+"""
 
 DOSSIER_PROVENANCE_PREFIX = DOSSIER_SOURCE
 """One spelling, owned by the engine, because `rules` and `models` match on it too."""
 
-_FLOAT_FIELDS = frozenset({"theta_ja", "efficiency", "temp_min", "temp_max"})
+_FLOAT_FIELDS = frozenset({"theta_ja", "efficiency", "temp_min", "temp_max", "t_j_max"})
 
 NOT_STATED = frozenset({"-", "--", "–", "—", "n/a", "na", "none", "null", "tbd", "?"})
 """Values a listing uses to mean "we did not say", which must never become a fact.

@@ -393,7 +393,7 @@ than none. `tests/test_roles.py` reads the rule names out of `rules.py` rather t
 evaluating a board: the obvious version ran one board, covered nine rules of twelve, and would
 have passed while `energy_budget`, `footprint` and `rail_coverage` went unmapped.
 
-## 12 · Fan-out and the matrix
+## 12 · Fan-out and the matrix — **DONE**
 
 **Files** new orchestration, `api/app.py`, frontend
 
@@ -409,6 +409,33 @@ would inherit machinery none of them uses, at a cost research put at several eng
 
 **Test** the demo case produces the full matrix, every cell attributable to a board, a candidate
 and an owning department.
+
+Built as `continuity/matrix.py` (pure fan-out), `api/matrix.py` (`POST /matrix`) and
+`routes/matrix.tsx`. Verified in a browser against three seeded product lines and four sourced
+candidates: NCP1117 fails the gateway on thermal and is captioned *engineering*, LD1117 holds it
+with **1.5 °C to spare** in its own colour, and the grid names which candidates clear every line.
+**This is the screen that closes both coverage gaps** — every cell reports all five labels
+including the zeroes, and margin travels end to end for the first time.
+
+Two things the browser found that the suite could not:
+
+- **`t_j_max` was missing from `DOSSIER_FIELDS`.** The thermal rule falls back to `temp_max`
+  when no junction limit is known, and those are different quantities — NCP1117 is graded to
+  125 °C *ambient* and rated to 150 °C at the *junction*. A stored dossier carrying the first
+  and not the second checks every board 25 °C too harshly, with a verdict that reads fine.
+- **The matrix did not install the stored-dossier lookup** a design run installs, so all four
+  SOT-223 regulators fell back to the package table's single figure and produced four identical
+  junction temperatures. Honest — the evidence row said *"package table (per-package
+  approximation, board unknown)"* — and useless for choosing between them.
+
+**Open, and it needs a decision:** JLCPCB lists `TLV1117LV33DCYR` at *Voltage - Supply 12V*;
+TI's datasheet says 5.5 V, and PARTS.md records the datasheet figure. `normalize` states its
+policy outright — *"Facts only fill a blank from this run. A live listing is the buying truth"* —
+so the listing wins and the 12 V beat does not land on screen. `package` and `theta_ja` are
+already special-cased the other way, so there is precedent for a verified datasheet reading
+beating a listing on an *engineering* field while the listing stays authoritative for stock,
+price and lifecycle. That is a change to how every part on every board is trusted, so it is
+recorded here rather than made in passing.
 
 ## 13 · AML, AVL and the two gates
 

@@ -1,4 +1,4 @@
-import type { BomRow, DesignEvent, Edge, QuestionEvent, Slot, SupplyNode } from './types'
+import type { BomRow, DesignEvent, Edge, EventStatus, QuestionEvent, Slot, SupplyNode } from './types'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
@@ -62,6 +62,47 @@ export type ThreadBoard = {
   trace: DesignEvent[]
   question: QuestionEvent | null
   resumable: boolean
+}
+
+export type MatrixCheck = {
+  rule: string
+  scope: string | null
+  status: EventStatus
+  detail: string
+  margin: string | null
+  accepted: boolean
+  evidence: Array<{ field: string; value: string; source: string | null }>
+}
+
+export type MatrixCell = {
+  line_id: string
+  line_name: string
+  mpn: string
+  manufacturer: string | null
+  /** This board already runs this part — the row that says what it does today, which is
+   *  the status quo rather than a proposed change. */
+  is_incumbent: boolean
+  replaces: string | null
+  ok: boolean
+  /** The narrowest margin any satisfied check on this cell reports, where one can be
+   *  ordered. Satisfied and unshippable is the distinction this carries. */
+  margin: string | null
+  counts: Record<EventStatus, number>
+  /** Whose desks this cell lands on, derived from what actually failed on it. Empty on a
+   *  passing cell, because a cell that raises no question owns nobody's time. */
+  departments: string[]
+  checks: MatrixCheck[]
+}
+
+export type MatrixResponse = {
+  slot: string
+  lines: string[]
+  candidates: string[]
+  viable_everywhere: string[]
+  departments: string[]
+  /** Candidates the distributor has never heard of, named rather than dropped. */
+  unresolved: string[]
+  cells: MatrixCell[]
 }
 
 export type MemoryLine = {
@@ -155,6 +196,13 @@ export function logout() {
 
 export function me() {
   return request<PublicUser>('/auth/me')
+}
+
+export function buildMatrix(lineIds: string[], slot: string, candidates: string[]) {
+  return request<MatrixResponse>('/matrix', {
+    method: 'POST',
+    body: { line_ids: lineIds, slot, candidates },
+  })
 }
 
 export function listLines() {

@@ -23,6 +23,7 @@ from fastapi import HTTPException
 from continuity.api import app as app_module
 from continuity.engine import rules
 from continuity.engine.models import Verdict
+from continuity import roles as roles_module
 from continuity.graph import nodes
 
 
@@ -54,7 +55,7 @@ def test_every_rule_the_engine_can_emit_names_a_role():
     declared |= {name for name, _ in NOT_ASSESSED}
 
     assert len(declared) >= 12, "the scan stopped finding rules; fix the scan, not the map"
-    missing = sorted(declared - set(nodes.ROLES_BY_RULE))
+    missing = sorted(declared - set(roles_module.ROLES_BY_RULE))
     assert not missing, f"no role named for {missing}"
 
 
@@ -63,15 +64,15 @@ def test_sourcing_goes_to_procurement_and_the_circuit_goes_to_engineering():
     availability = Verdict(rule="availability", status="failed", detail="", subject="u1")
     thermal = Verdict(rule="thermal_dissipation", status="failed", detail="", subject="u1")
 
-    assert nodes._decision_roles(availability) == ("procurement",)
-    assert nodes._decision_roles(thermal) == ("engineering",)
+    assert roles_module.decision_roles(availability) == ("procurement",)
+    assert roles_module.decision_roles(thermal) == ("engineering",)
 
 
 def test_an_unmapped_rule_falls_back_to_engineering_not_procurement():
     unknown = Verdict(rule="a_rule_from_the_future", status="failed", detail="", subject="u1")
 
-    assert nodes._decision_roles(unknown) == ("engineering",)
-    assert nodes._decision_roles(None) == ("engineering",)
+    assert roles_module.decision_roles(unknown) == ("engineering",)
+    assert roles_module.decision_roles(None) == ("engineering",)
 
 
 # ── the authorisation itself ──────────────────────────────────────────────────
