@@ -264,3 +264,61 @@ CREATE INDEX IF NOT EXISTS findings_org_mpn_idx  ON findings(org_id, mpn);
 CREATE INDEX IF NOT EXISTS findings_org_line_idx ON findings(org_id, line_id);
 CREATE INDEX IF NOT EXISTS line_parts_org_mpn_idx ON line_parts(org_id, mpn);
 CREATE INDEX IF NOT EXISTS users_org_idx         ON users(org_id);
+
+-- Added 8 Sep 2026. Two lists, deliberately separate, because they answer different
+-- questions and are kept by different people. The AML says which parts engineering and
+-- quality have qualified; the AVL says which sources procurement will buy from. A part can
+-- be qualified and only available from an unapproved vendor, and an approved vendor can
+-- stock a part nobody has qualified — one combined list makes both unsayable.
+--
+-- An organisation with no rows in a table has *no list*, which is not the same as a list
+-- that approves nothing. `store.approved_lists` reports the difference, and the rules
+-- report `not_applicable` rather than failing every part on every board.
+CREATE TABLE IF NOT EXISTS approved_parts (
+    org_id       text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    mpn          text NOT NULL,
+    manufacturer text,
+    qualified_by text REFERENCES users(id) ON DELETE SET NULL,
+    note         text,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (org_id, mpn)
+);
+
+CREATE TABLE IF NOT EXISTS approved_vendors (
+    org_id      text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    distributor text NOT NULL,
+    approved_by text REFERENCES users(id) ON DELETE SET NULL,
+    note        text,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (org_id, distributor)
+);
+
+-- Whether an organisation keeps a list at all is a fact about the organisation, and it
+-- cannot be derived from an empty table. Without this, an AML that deliberately approves
+-- nothing and an AML that was never set up are the same query result.
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS keeps_aml boolean NOT NULL DEFAULT false;
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS keeps_avl boolean NOT NULL DEFAULT false;
+
+-- Who decided, when, on what, and why. A waiver that cannot name its author is not an
+-- approval — it is a setting. `rationale` is NOT NULL for the same reason: an approval
+-- with no stated reason tells a later reader that somebody clicked, and nothing else.
+--
+-- `user_id` survives the person leaving: a decision that vanishes from the record when an
+-- account is deleted takes the audit trail with it, so this does not cascade.
+CREATE TABLE IF NOT EXISTS approvals (
+    id         text PRIMARY KEY,
+    org_id     text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    thread_id  text NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+    user_id    text REFERENCES users(id) ON DELETE SET NULL,
+    user_email text NOT NULL,
+    roles      text[] NOT NULL,
+    rule       text NOT NULL,
+    subject    text NOT NULL,
+    mpn        text,
+    revision   text,
+    rationale  text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS approvals_org_idx ON approvals(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS approvals_thread_idx ON approvals(thread_id);

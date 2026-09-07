@@ -219,6 +219,32 @@ class EventStream:
             roles=list(roles),
         )
 
+    def approval(
+        self,
+        *,
+        rule: str,
+        subject: str,
+        mpn: str | None,
+        revision: str | None,
+        rationale: str,
+        by: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """A person decided to ship something the engine reported as broken.
+
+        A frame rather than a return value, because the decision has to reach two places
+        that are not the graph: the durable record, and the reader watching the run. The
+        graph's own answer to an escalation is a waiver — this is the paperwork.
+        """
+        return self._event(
+            "approval",
+            rule=rule,
+            subject=subject,
+            mpn=mpn,
+            revision=revision,
+            rationale=rationale,
+            by=by,
+        )
+
     def bom(self, rows: list[dict[str, Any]], total: float, currency: str = "USD") -> dict[str, Any]:
         return self._event("bom", rows=rows, total=round(total, 2), currency=currency)
 

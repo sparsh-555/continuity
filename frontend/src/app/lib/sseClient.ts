@@ -318,13 +318,17 @@ export const sseClient = {
    * stream — the sequence continues where the first left off rather than restarting,
    * which is why the hook's seq gate does not discard everything after a resume.
    */
-  answer(text: string) {
+  answer(text: string, rationale?: string) {
     if (!threadId) return
     reset()
     controller = new AbortController()
     const { signal } = controller
 
-    post('/resume', { thread_id: threadId, answer: text }, signal).catch(
+    post(
+      '/resume',
+      { thread_id: threadId, answer: text, rationale: rationale || null },
+      signal,
+    ).catch(
       (error: unknown) => {
         if (signal.aborted) return
         emitError(error instanceof Error ? error.message : 'Could not send the answer.')

@@ -447,7 +447,7 @@ The override is gated on an explicit `VERIFIED_PREFIX` marker, so nothing alread
 changes meaning: a fact recorded by an earlier run still only fills a blank and cannot quietly
 outrank the listing it was copied from.
 
-## 13 · AML, AVL and the two gates
+## 13 · AML, AVL and the two gates — **DONE**
 
 **Files** policy layer, `graph/nodes.py`, `api/app.py`, `api/store.py`
 
@@ -457,6 +457,26 @@ records identity, timestamp, the rule that fired and a rationale.
 
 **Test** the gate fires on an unqualified part with **no** electrical failure, since approval
 cannot depend on failure.
+
+Built as two engine rules — `part_qualification` and `source_approval` — for exactly that
+reason. A gate that only asked once something else had already failed would clear an
+unqualified part every time it happened to be electrically fine, which is most of the time.
+Being rules, they also appear in every matrix cell and carry the same five coverage labels.
+
+**No list is not an empty list.** `organisations.keeps_aml` / `keeps_avl` exist because that
+distinction cannot be derived from an empty table: a company that never set an AML has not
+asked the question, and answering it for them reports a policy breach on every part of every
+board. `ApprovedLists` uses `None` versus `frozenset()` to keep the two apart, and the rules
+report `not_applicable` for the first.
+
+**The approval ledger completes item 11b.** `/resume` now carries the answering user into the
+run through `Command(update=...)`, because only that request knows who is at the keyboard —
+the graph is resumed by whichever process serves the call. `rationale` is a *separate* field
+from `answer` and that turned out to matter: `answer` is matched against the options the run
+offered, and prose it does not recognise is treated as guidance for the next attempt, so
+somebody who typed their reasoning into it would have explained themselves and approved
+nothing. The question block now shows which roles may answer, before they type, which also
+closes the audit's 🟡 about a 403 arriving too late.
 
 ## 14 · Mailbox connector, both directions
 

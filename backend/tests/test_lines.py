@@ -770,3 +770,97 @@ def test_a_thread_in_another_company_is_still_a_404_and_never_a_403():
                 )
 
     assert run(go()).status_code == 404
+
+
+# ── the gates, end to end ─────────────────────────────────────────────────────
+
+
+def test_an_approval_records_the_person_who_gave_it():
+    """A waiver that cannot name its author is a setting, not a decision.
+
+    Driven through the AML gate on purpose: an organisation whose list approves nothing
+    fails qualification on a board with nothing electrically wrong, which is item 13's own
+    test, and accepting it is what writes the ledger row. The answering user reaches the
+    run through `Command(update=...)` on `/resume`, because only that request knows who is
+    at the keyboard — the graph is resumed by whichever process serves the call.
+    """
+    async def go():
+        async with a_store() as store:
+            async with signed_in("engineer@example.com") as http:
+                me = (await http.get("/auth/me")).json()
+                await store.keep_lists(me["org_id"], aml=True)
+
+                frames = await frames_of(http, "/design", {"prompt": DEMO})
+                thread_id = frames[0]["thread_id"]
+                question = [f for f in frames if f["type"] == "question"]
+                if not question:
+                    return None, [], me, frames
+
+                resumed = await frames_of(
+                    http,
+                    "/resume",
+                    {
+                        "thread_id": thread_id,
+                        "answer": "Qualify this part for use",
+                        "rationale": "Qualified on the 2025 audit; paperwork is in QMS-4417.",
+                    },
+                )
+                return (
+                    question[-1],
+                    await store.approvals_for_thread(thread_id, me["org_id"]),
+                    me,
+                    resumed,
+                )
+
+    question, recorded, me, frames = run(go())
+
+    assert question is not None, "an empty AML must stop the run for a decision"
+    assert set(question["roles"]) == {"engineering", "quality"}, (
+        "qualifying a part is engineering's call and quality's record"
+    )
+
+    emitted = [f for f in frames if f["type"] == "approval"]
+    assert emitted, "accepting produced no approval frame"
+    assert emitted[0]["by"]["email"] == "engineer@example.com"
+
+    assert recorded, "the approval never reached the durable record"
+    assert recorded[0]["user_email"] == "engineer@example.com"
+    assert "QMS-4417" in recorded[0]["rationale"], "the words they used, not a summary"
+    assert recorded[0]["rule"] == emitted[0]["rule"]
+    assert recorded[0]["created_at"] is not None
+
+
+def test_a_run_is_checked_against_its_organisations_lists():
+    """The gates fire on a real run, not only in a unit test."""
+    async def go():
+        async with a_store() as store:
+            async with signed_in("eng@example.com") as http:
+                me = (await http.get("/auth/me")).json()
+                # An AML that approves nothing: every part on the board is unqualified.
+                await store.keep_lists(me["org_id"], aml=True)
+                frames = await frames_of(http, "/design", {"prompt": DEMO})
+                return [
+                    f for f in frames
+                    if f["type"] == "check" and f["rule"] == "part_qualification"
+                ]
+
+    checks = run(go())
+
+    assert checks, "the gate never ran on a live board"
+    assert any(check["status"] == "failed" for check in checks)
+    assert all(check["status"] != "not_applicable" for check in checks)
+
+
+def test_a_run_without_any_list_is_not_told_every_part_is_unqualified():
+    async def go():
+        async with a_store():
+            async with signed_in("nolist@example.com") as http:
+                frames = await frames_of(http, "/design", {"prompt": DEMO})
+                return [
+                    f for f in frames
+                    if f["type"] == "check" and f["rule"] == "part_qualification"
+                ]
+
+    checks = run(go())
+
+    assert all(check["status"] == "not_applicable" for check in checks)

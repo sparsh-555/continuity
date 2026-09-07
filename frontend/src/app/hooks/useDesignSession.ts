@@ -32,7 +32,7 @@ export type EventSource = {
     lineId?: string,
   ) => void
   startDemo: (onEvent: (event: DesignEvent) => void) => void
-  answer: (text: string) => void
+  answer: (text: string, rationale?: string) => void
   continueRun: (threadId: string, onEvent: (event: DesignEvent) => void) => void
   restore: (threadId: string, onEvent: (event: DesignEvent) => void) => void
   cancel: () => void
@@ -740,12 +740,12 @@ export function useDesignSession() {
   )
 
   const answer = useCallback(
-    (text: string) => {
+    (text: string, rationale?: string) => {
       if (status === 'paused') {
         setStatus('running')
       }
       setQuestion(null)
-      source.answer(text)
+      source.answer(text, rationale)
     },
     [status],
   )

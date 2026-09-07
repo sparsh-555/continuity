@@ -194,6 +194,13 @@ def test_a_signed_in_run_without_a_line_uses_a_scratch_line(monkeypatch):
         ) -> None:
             calls.append(("thread", thread_id, line_id, user_id, org_id, prompt))
 
+        async def approved_lists(self, org_id: str):
+            # `/design` loads the organisation's AML and AVL into the run's initial state.
+            from continuity.engine.models import ApprovedLists
+
+            calls.append(("approved", org_id))
+            return ApprovedLists()
+
     async def signed_in(request):
         return SimpleNamespace(id="user-1", org_id="org-1")
 
@@ -209,9 +216,13 @@ def test_a_signed_in_run_without_a_line_uses_a_scratch_line(monkeypatch):
     assert frames == [{"thread_id": "thread-1"}]
     # The scratch line is created for the *person* and carries their organisation; the
     # lookup that decides whether the route may touch it authorises on the organisation.
-    assert calls[0] == ("ensure", "user-1", "org-1")
-    assert calls[1] == ("line", "scratch-line", "org-1")
-    assert calls[2][2:] == ("scratch-line", "user-1", "org-1", DEMO)
+    # By name rather than by position: what matters is which ids each call was given, and
+    # a positional assertion breaks whenever an unrelated lookup is added between them.
+    made = {call[0]: call for call in calls}
+    assert made["ensure"] == ("ensure", "user-1", "org-1")
+    assert made["line"] == ("line", "scratch-line", "org-1")
+    assert made["thread"][2:] == ("scratch-line", "user-1", "org-1", DEMO)
+    assert made["approved"] == ("approved", "org-1"), "the run is checked against its own lists"
 
 
 def test_seq_is_monotonic_from_zero():

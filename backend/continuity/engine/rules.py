@@ -1058,6 +1058,130 @@ def _thermal_sum(
 # ── R6 · availability ─────────────────────────────────────────────────────────
 
 
+def part_qualification(board: Board) -> list[Verdict]:
+    """Is every part on this board one the company has qualified? — the AML gate.
+
+    **This gate does not depend on anything being electrically wrong**, and that is the
+    whole reason it exists as its own rule. A part can pass every check on this board and
+    still be one nobody has qualified to ship, which is a question for engineering and
+    quality rather than a consequence of a conflict. A design that only ever asked about
+    qualification when something else had already failed would clear an unqualified part
+    the moment it happened to be electrically fine — which is most of the time.
+
+    Silent when the organisation keeps no AML. An empty list means nothing is approved and
+    is reported as such; *no* list means the question has not been asked here, and the two
+    must not look alike.
+    """
+    approved = board.approved.parts
+    if approved is None:
+        return [
+            _not_applicable(
+                "part_qualification",
+                board,
+                "This organisation keeps no approved-manufacturer list, so there is "
+                "nothing to check a part against.",
+            )
+        ]
+
+    verdicts: list[Verdict] = []
+    for slot_id, slot in board.slots.items():
+        if slot.part is None:
+            continue
+        part = slot.part
+        if part.mpn.upper() in approved:
+            verdicts.append(
+                Verdict(
+                    rule="part_qualification",
+                    status="satisfied",
+                    detail=f"{part.mpn} is on the approved manufacturer list.",
+                    subject=slot_id,
+                    involved=(slot_id,),
+                )
+            )
+        else:
+            verdicts.append(
+                Verdict(
+                    rule="part_qualification",
+                    status="failed",
+                    detail=(
+                        f"{part.mpn} is not on the approved manufacturer list, so it has "
+                        "not been qualified for use on a shipping product."
+                    ),
+                    subject=slot_id,
+                    involved=(slot_id,),
+                )
+            )
+    return verdicts
+
+
+def source_approval(board: Board) -> list[Verdict]:
+    """Is every part being bought from a source procurement approves? — the AVL gate.
+
+    Separate from the AML because it is a different question kept by different people, and
+    the interesting cases are the mismatches: a qualified part available only from a vendor
+    nobody has approved, and an approved vendor stocking a part nobody has qualified. One
+    combined list cannot express either.
+
+    A part with no distributor is `evidence_missing` rather than a failure. Nobody has said
+    it comes from an unapproved source; we simply do not know where it would come from, and
+    reporting that as a policy breach would put a decision in front of somebody that the
+    data does not support.
+    """
+    approved = board.approved.vendors
+    if approved is None:
+        return [
+            _not_applicable(
+                "source_approval",
+                board,
+                "This organisation keeps no approved-vendor list, so there is nothing to "
+                "check a source against.",
+            )
+        ]
+
+    verdicts: list[Verdict] = []
+    for slot_id, slot in board.slots.items():
+        if slot.part is None:
+            continue
+        part = slot.part
+        if not part.distributor:
+            verdicts.append(
+                Verdict(
+                    rule="source_approval",
+                    status="evidence_missing",
+                    detail=f"No source is recorded for {part.mpn}, so it cannot be checked "
+                    "against the approved-vendor list.",
+                    subject=slot_id,
+                    involved=(slot_id,),
+                )
+            )
+        elif part.distributor.upper() in approved:
+            verdicts.append(
+                Verdict(
+                    rule="source_approval",
+                    status="satisfied",
+                    detail=f"{part.distributor} is an approved source for {part.mpn}.",
+                    subject=slot_id,
+                    involved=(slot_id,),
+                    evidence=part.cite(slot_id, "distributor"),
+                )
+            )
+        else:
+            verdicts.append(
+                Verdict(
+                    rule="source_approval",
+                    status="failed",
+                    detail=(
+                        f"{part.mpn} would be bought from {part.distributor}, which is not "
+                        "on the approved-vendor list."
+                    ),
+                    subject=slot_id,
+                    involved=(slot_id,),
+                    evidence=part.cite(slot_id, "distributor"),
+                )
+            )
+    return verdicts
+
+
 def availability(board: Board) -> list[Verdict]:
     """Sourcing, not electrical — and the trigger our interviews said actually bites.
 
@@ -1636,6 +1760,8 @@ RULES = (
     current_budget,
     thermal_dissipation,
     availability,
+    part_qualification,
+    source_approval,
     footprint,
     footprint_compatibility,
     capacitor_requirements,

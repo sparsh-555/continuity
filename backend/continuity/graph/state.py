@@ -25,6 +25,24 @@ class DesignState(TypedDict, total=False):
     it did.
     """
 
+    approved: Any
+    """The organisation's AML and AVL, as `engine.models.ApprovedLists`.
+
+    Loaded once when the run starts rather than per node: the gates ask whether a part is
+    on a list, and a list that changed underneath a run would let two verdicts in the same
+    trace disagree with each other about the same part."""
+
+    rationale: str | None
+    """Why the last decision was made, in the answerer's own words. See `ResumeRequest`."""
+
+    answered_by: dict | None
+    """Who answered the run's last open decision — id, email and roles.
+
+    Set by `/resume` alongside the answer itself, because only the request that carried the
+    answer knows who gave it: the graph is resumed by whichever process serves the call,
+    and a checkpoint written yesterday cannot say who is at the keyboard today.
+    """
+
     revision: str | None
     """The product line's revision, as item 10b stores it against the line.
 

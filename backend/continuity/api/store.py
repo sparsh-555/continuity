@@ -34,6 +34,7 @@ from psycopg.types.json import Json
 from psycopg_pool import AsyncConnectionPool
 
 from .findings import Finding
+from ..engine.models import ApprovedLists
 from ..parts.dossier import DOSSIER_FIELDS
 from ..profile import OperatingProfile
 
@@ -874,6 +875,134 @@ class Store:
             "parts_capped": capped,
             "part_limit": part_limit,
         }
+    # ── the standing lists, and what was decided against them ────────────────
+
+    async def approved_lists(self, org_id: str) -> ApprovedLists:
+        """The AML and AVL in force for this organisation.
+
+        `None` for a list the organisation does not keep, and an empty `frozenset` for one
+        it keeps and has approved nothing on. Those are different answers and the rules
+        report them differently — an organisation that has never set an AML must not have
+        every part on every board reported unqualified.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                "SELECT keeps_aml, keeps_avl FROM organisations WHERE id = %s", (org_id,)
+            )
+            keeps = await cursor.fetchone()
+            if keeps is None:
+                return ApprovedLists()
+
+            parts = vendors = None
+            if keeps["keeps_aml"]:
+                cursor = await conn.execute(
+                    "SELECT mpn FROM approved_parts WHERE org_id = %s", (org_id,)
+                )
+                parts = frozenset(row[0].upper() for row in await cursor.fetchall())
+            if keeps["keeps_avl"]:
+                cursor = await conn.execute(
+                    "SELECT distributor FROM approved_vendors WHERE org_id = %s", (org_id,)
+                )
+                vendors = frozenset(row[0].upper() for row in await cursor.fetchall())
+
+        return ApprovedLists(parts=parts, vendors=vendors)
+
+    async def keep_lists(
+        self, org_id: str, *, aml: bool | None = None, avl: bool | None = None
+    ) -> None:
+        """Declare that this organisation keeps a list, which is what turns the gate on."""
+        sets, params = [], []
+        if aml is not None:
+            sets.append("keeps_aml = %s")
+            params.append(aml)
+        if avl is not None:
+            sets.append("keeps_avl = %s")
+            params.append(avl)
+        if not sets:
+            return
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                f"UPDATE organisations SET {', '.join(sets)} WHERE id = %s", (*params, org_id)
+            )
+
+    async def qualify_part(
+        self, org_id: str, mpn: str, *, manufacturer: str | None = None,
+        by: str | None = None, note: str | None = None,
+    ) -> None:
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO approved_parts (org_id, mpn, manufacturer, qualified_by, note)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (org_id, mpn) DO UPDATE
+                   SET manufacturer = EXCLUDED.manufacturer, note = EXCLUDED.note
+                """,
+                (org_id, mpn, manufacturer, by, note),
+            )
+
+    async def approve_vendor(
+        self, org_id: str, distributor: str, *, by: str | None = None, note: str | None = None
+    ) -> None:
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO approved_vendors (org_id, distributor, approved_by, note)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (org_id, distributor) DO UPDATE SET note = EXCLUDED.note
+                """,
+                (org_id, distributor, by, note),
+            )
+
+    async def record_approval(
+        self,
+        *,
+        org_id: str,
+        thread_id: str,
+        user_id: str | None,
+        user_email: str,
+        roles: Sequence[str],
+        rule: str,
+        subject: str,
+        mpn: str | None,
+        revision: str | None,
+        rationale: str,
+    ) -> str:
+        """Who decided, when, on what, and why — the four things a waiver has to carry.
+
+        Written where the decision is *made* rather than derived from a trace afterwards:
+        a run's frames say a finding was accepted, and only the request that accepted it
+        knows who was holding the keyboard.
+        """
+        approval_id = new_id()
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO approvals (
+                    id, org_id, thread_id, user_id, user_email, roles,
+                    rule, subject, mpn, revision, rationale
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    approval_id, org_id, thread_id, user_id, user_email, list(roles),
+                    rule, subject, mpn, revision, rationale,
+                ),
+            )
+        return approval_id
+
+    async def approvals_for_thread(self, thread_id: str, org_id: str) -> list[dict[str, Any]]:
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT id, user_email, roles, rule, subject, mpn, revision, rationale,
+                       created_at
+                  FROM approvals WHERE thread_id = %s AND org_id = %s
+                 ORDER BY created_at
+                """,
+                (thread_id, org_id),
+            )
+            return await cursor.fetchall()
+
     async def save_part_facts(
         self, facts: Iterable[tuple[str, str, str, str | None]]
     ) -> None:

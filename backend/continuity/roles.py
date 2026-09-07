@@ -15,6 +15,12 @@ from __future__ import annotations
 ROLES_BY_RULE: dict[str, tuple[str, ...]] = {
     # Whether a part can be bought, and on what terms, is a buying judgement.
     "availability": ("procurement",),
+    # Qualifying a part for a shipping product is engineering's call and quality's record,
+    # and it needs both: engineering says the part is right, quality says it is allowed.
+    "part_qualification": ("engineering", "quality"),
+    # Who we buy from is procurement's alone. The part is already qualified in this case —
+    # what is in question is the source, which engineering has no standing to approve.
+    "source_approval": ("procurement",),
     # Everything else the engine decides is a question about the circuit.
     "voltage_overlap": ("engineering",),
     "current_budget": ("engineering",),

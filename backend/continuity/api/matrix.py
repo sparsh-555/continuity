@@ -20,6 +20,7 @@ cell in the grid.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from typing import Any, Mapping, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -202,13 +203,17 @@ async def _build(body: MatrixRequest, store: Any, user: User) -> dict[str, Any]:
     if not candidates:
         raise HTTPException(422, "none of the candidates could be sourced")
 
+    # The same lists a design run is checked against. A substitution review that ignored
+    # the company's own AML would recommend a part nobody has qualified.
+    approved = await store.approved_lists(user.org_id)
+
     boards = []
     for line in lines:
         try:
             profile = OperatingProfile.from_json(line.profile)
         except (KeyError, TypeError, ValueError) as exc:
             raise HTTPException(409, f"{line.name}: {exc}") from exc
-        board = board_from(profile, boms[line.id], specs)
+        board = replace(board_from(profile, boms[line.id], specs), approved=approved)
         if body.slot not in board.slots:
             raise HTTPException(
                 409,

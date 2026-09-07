@@ -25,7 +25,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Sequence
+from typing import Any, AsyncIterator, Mapping, Sequence
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,7 +35,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field, ValidationError
 
 from .. import env
-from ..engine.models import PartSpec, Slot
+from ..engine.models import ApprovedLists, PartSpec, Slot
 from ..graph import nodes
 from ..graph.build import build
 from ..planner import topology
@@ -193,6 +193,15 @@ class ResumeRequest(BaseModel):
     thread_id: str
     answer: str
 
+    rationale: str | None = Field(default=None, max_length=2000)
+    """Why, in the answerer's own words, recorded with the approval.
+
+    Separate from `answer` because they do different jobs. `answer` decides what the run
+    does next and is matched against the options the run offered; prose it does not
+    recognise is treated as *guidance* for the next attempt, which is right. So a person
+    who typed their reasoning into `answer` would have explained themselves and approved
+    nothing. This field lets them do both, and it is what an auditor reads."""
+
 
 class DatasheetRequest(BaseModel):
     mpn: str = Field(max_length=256)
@@ -326,6 +335,7 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
     thread_id = uuid.uuid4().hex[:12]
     profile: dict[str, Any] | None = None
     revision: str | None = None
+    approved = ApprovedLists()
 
     if store is not None:
         line_id = body.line_id
@@ -338,6 +348,7 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
             raise HTTPException(404, "no such line")
         profile = line.profile
         revision = line.revision
+        approved = await store.approved_lists(user.org_id)
         await store.create_thread(thread_id, line_id, user.id, user.org_id, body.prompt)
 
     STREAMS[thread_id] = events.EventStream(thread_id)
@@ -345,7 +356,12 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
         _run(
             request.app.state.graph,
             thread_id,
-            {"prompt": body.prompt, "profile": profile, "revision": revision},
+            {
+                "prompt": body.prompt,
+                "profile": profile,
+                "revision": revision,
+                "approved": approved,
+            },
             store,
             user.org_id if user else None,
         ),
@@ -381,11 +397,26 @@ async def resume(body: ResumeRequest, request: Request) -> StreamingResponse:
     elif stream is None:
         raise HTTPException(404, "unknown thread")
 
+    # Who is answering travels with the answer. An approval that cannot name its author is
+    # a setting rather than a decision, and only this request knows who was at the keyboard
+    # — the graph is resumed by whichever process happens to serve the call.
     return StreamingResponse(
         _run(
             request.app.state.graph,
             body.thread_id,
-            Command(resume=body.answer),
+            Command(
+                resume=body.answer,
+                # `None` on a deployment with no accounts at all, which is a supported
+                # mode: the run still works and the approval simply has nobody to name.
+                update={
+                    "answered_by": (
+                        {"id": user.id, "email": user.email, "roles": list(user.roles)}
+                        if user is not None
+                        else None
+                    ),
+                    "rationale": body.rationale,
+                },
+            ),
             store,
             user.org_id if user else None,
         ),
@@ -760,6 +791,11 @@ async def _run(
                                     for part in placed_parts.values()
                                     for fact in dossier.facts_from_part(part)
                                 )
+                    if chunk.get("type") == "approval" and store is not None:
+                        # Persisted as it happens rather than at the end of the run: an
+                        # approval is a decision a person made, and a run that dies after
+                        # they made it must not lose the fact that they did.
+                        await _record_approval(store, thread_id, org_id, chunk)
                     if chunk.get("type") == "done":
                         outcome = "done"
                         summary = chunk.get("summary")
@@ -1052,6 +1088,35 @@ def _pending_question(snapshot: Any, thread: Any) -> dict[str, Any] | None:
                 "roles": list(payload.get("roles", [])),
             }
     return None
+
+
+async def _record_approval(
+    store: Store, thread_id: str, org_id: str | None, frame: Mapping[str, Any]
+) -> None:
+    """Write one approval to the durable record. Never lets a write failure kill the run.
+
+    An unattributed approval is not written at all. The ledger's whole value is answering
+    "who said this was acceptable", and a row that answers "somebody" is worse than an
+    absent row because it looks like an answer.
+    """
+    by = frame.get("by")
+    if org_id is None or not isinstance(by, Mapping) or not by.get("email"):
+        return
+    try:
+        await store.record_approval(
+            org_id=org_id,
+            thread_id=thread_id,
+            user_id=by.get("id"),
+            user_email=str(by["email"]),
+            roles=list(by.get("roles") or ()),
+            rule=str(frame.get("rule") or ""),
+            subject=str(frame.get("subject") or ""),
+            mpn=frame.get("mpn"),
+            revision=frame.get("revision"),
+            rationale=str(frame.get("rationale") or ""),
+        )
+    except Exception:
+        log.warning("could not record the approval on thread %s", thread_id, exc_info=True)
 
 
 async def _save_trace(store: Store, thread_id: str, trace: Sequence[dict[str, Any]]) -> None:

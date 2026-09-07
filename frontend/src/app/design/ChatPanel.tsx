@@ -26,7 +26,7 @@ type ChatPanelProps = {
   reasoning: ReasoningItem[]
   question: QuestionEvent | null
   conflict: SessionConflict
-  onAnswer: (text: string) => void
+  onAnswer: (text: string, rationale?: string) => void
   onContinue: () => void
   canContinue: boolean
   onCancel: () => void
@@ -194,6 +194,7 @@ export function ChatPanel({
   isHydrated,
 }: ChatPanelProps) {
   const [answerText, setAnswerText] = useState('')
+  const [rationaleText, setRationaleText] = useState('')
 
   const questionRef = useRef<HTMLDivElement>(null)
   const traceRef = useRef<HTMLDivElement>(null)
@@ -283,8 +284,9 @@ export function ChatPanel({
       return
     }
 
-    onAnswer(response)
+    onAnswer(response, rationaleText.trim() || undefined)
     setAnswerText('')
+    setRationaleText('')
   }
 
   const composerRunning = status === 'running'
@@ -452,18 +454,41 @@ export function ChatPanel({
             </div>
             <div className="p-sm flex flex-col gap-sm">
               <p className="font-body-sm text-body-sm text-on-surface leading-relaxed">{question.text}</p>
+
+              {/* Whose decision this is, said before they answer rather than after.
+                * `/resume` refuses an answer from the wrong department, and a 403 arriving
+                * once somebody has already typed is a correct refusal delivered far too
+                * late — the point of naming the desk is so they can fetch the right person. */}
+              {question.roles && question.roles.length > 0 ? (
+                <p className="font-data-tabular text-[10px] text-on-surface-variant">
+                  {question.roles.join(' and ')} to answer
+                </p>
+              ) : null}
+
               <div className="flex gap-sm flex-wrap">
                 {question.suggestions.map((suggestion) => (
                   <button
                     className="py-1 px-2 border border-outline-variant rounded font-data-tabular text-[11px] text-on-surface hover:bg-surface-variant hover:border-primary transition-colors text-center"
                     key={suggestion}
-                    onClick={() => onAnswer(suggestion)}
+                    onClick={() => onAnswer(suggestion, rationaleText.trim() || undefined)}
                     type="button"
                   >
                     {suggestion}
                   </button>
                 ))}
               </div>
+
+              {/* The reason, kept apart from the answer on purpose. The answer decides what
+                * the run does next and is matched against the options above; prose it does
+                * not recognise is treated as guidance for the next attempt. So somebody who
+                * typed their reasoning into the answer box would have explained themselves
+                * and approved nothing. This is the field an auditor reads. */}
+              <input
+                className="w-full h-7 input-field px-sm font-data-tabular text-[11px]"
+                onChange={(event) => setRationaleText(event.target.value)}
+                placeholder="Why — recorded with your decision"
+                value={rationaleText}
+              />
               <div className="relative w-full mt-1 flex gap-xs">
                 <input
                   className="w-full h-7 input-field px-sm font-data-tabular text-[11px]"
@@ -473,7 +498,7 @@ export function ChatPanel({
                       submitAnswer()
                     }
                   }}
-                  placeholder="Or type reasoning..."
+                  placeholder="Or answer in your own words…"
                   type="text"
                   value={answerText}
                 />

@@ -979,3 +979,142 @@ def test_the_organisation_backfill_reaches_every_row_and_is_idempotent():
     assert roles == ["{engineering}"], "the default keeps every existing account working"
 
     assert second == first, "the second boot must change nothing"
+
+
+# ── the standing lists ────────────────────────────────────────────────────────
+
+
+def test_no_list_and_an_empty_list_are_different_answers():
+    """The distinction cannot be derived from the table, which is why the flags exist.
+
+    An organisation that has never set an AML has not asked the question; one that has set
+    an empty AML has approved nothing. Both produce zero rows, and reporting them alike
+    would tell the first that every part on every board is unqualified.
+    """
+    async def go():
+        async with fresh() as store:
+            never = await a_user(store, "never@example.com")
+            empty = await a_user(store, "empty@example.com")
+            await store.keep_lists(empty.org_id, aml=True)
+
+            stocked = await a_user(store, "stocked@example.com")
+            await store.keep_lists(stocked.org_id, aml=True, avl=True)
+            await store.qualify_part(stocked.org_id, "AMS1117-3.3", manufacturer="AMS")
+            await store.approve_vendor(stocked.org_id, "JLCPCB")
+
+            return (
+                await store.approved_lists(never.org_id),
+                await store.approved_lists(empty.org_id),
+                await store.approved_lists(stocked.org_id),
+            )
+
+    never, empty, stocked = run(go())
+
+    assert never.parts is None and never.vendors is None, "no list is not an empty list"
+    assert empty.parts == frozenset(), "a list that approves nothing is still a list"
+    assert empty.vendors is None, "keeping an AML says nothing about keeping an AVL"
+    assert stocked.parts == frozenset({"AMS1117-3.3"})
+    assert stocked.vendors == frozenset({"JLCPCB"})
+
+
+def test_the_lists_are_matched_case_insensitively_but_stored_as_written():
+    async def go():
+        async with fresh() as store:
+            user = await a_user(store)
+            await store.keep_lists(user.org_id, aml=True)
+            await store.qualify_part(user.org_id, "ams1117-3.3")
+            return await store.approved_lists(user.org_id)
+
+    assert run(go()).parts == frozenset({"AMS1117-3.3"})
+
+
+def test_one_organisations_lists_are_invisible_to_another():
+    async def go():
+        async with fresh() as store:
+            ours = await a_user(store, "ours@example.com")
+            theirs = await a_user(store, "theirs@example.com")
+            for who in (ours, theirs):
+                await store.keep_lists(who.org_id, aml=True)
+            await store.qualify_part(ours.org_id, "OURS-ONLY")
+            return await store.approved_lists(theirs.org_id)
+
+    assert run(go()).parts == frozenset()
+
+
+# ── the approvals ledger ──────────────────────────────────────────────────────
+
+
+def test_an_approval_records_who_when_which_rule_and_why():
+    """The four things a waiver has to carry to be a decision rather than a setting."""
+    async def go():
+        async with fresh() as store:
+            user = await a_user(store, "engineer@example.com")
+            line = await store.create_line(user.id, user.org_id, "Gateway")
+            await store.create_thread("t-1", line.id, user.id, user.org_id, "brief")
+            await store.record_approval(
+                org_id=user.org_id,
+                thread_id="t-1",
+                user_id=user.id,
+                user_email=user.email,
+                roles=["engineering", "quality"],
+                rule="part_qualification",
+                subject="u1",
+                mpn="NCP1117ST33T3G",
+                revision="Rev C",
+                rationale="Qualified on the 2025 audit; paperwork is in QMS-4417.",
+            )
+            return await store.approvals_for_thread("t-1", user.org_id)
+
+    [approval] = run(go())
+
+    assert approval["user_email"] == "engineer@example.com"
+    assert approval["roles"] == ["engineering", "quality"]
+    assert approval["rule"] == "part_qualification"
+    assert approval["mpn"] == "NCP1117ST33T3G"
+    assert approval["revision"] == "Rev C", "an approval is given under stated conditions"
+    assert "QMS-4417" in approval["rationale"]
+    assert approval["created_at"] is not None
+
+
+def test_an_approval_survives_the_person_leaving():
+    """A decision that vanishes with the account takes the audit trail with it."""
+    async def go():
+        async with fresh() as store:
+            owner = await a_user(store, "owner@example.com")
+            leaver = await a_user(store, "leaver@example.com")
+            await store.add_user_to_organisation(leaver.id, owner.org_id, ["quality"])
+
+            line = await store.create_line(owner.id, owner.org_id, "Gateway")
+            await store.create_thread("t-2", line.id, owner.id, owner.org_id, "brief")
+            await store.record_approval(
+                org_id=owner.org_id, thread_id="t-2", user_id=leaver.id,
+                user_email=leaver.email, roles=["quality"], rule="part_qualification",
+                subject="u1", mpn="X", revision=None, rationale="Signed off.",
+            )
+
+            async with store.pool.connection() as conn:
+                await conn.execute("DELETE FROM users WHERE id = %s", (leaver.id,))
+
+            return await store.approvals_for_thread("t-2", owner.org_id)
+
+    [approval] = run(go())
+
+    assert approval["user_email"] == "leaver@example.com", "the record still names them"
+    assert "Signed off." in approval["rationale"]
+
+
+def test_approvals_do_not_cross_organisations():
+    async def go():
+        async with fresh() as store:
+            ours = await a_user(store, "ours@example.com")
+            theirs = await a_user(store, "theirs@example.com")
+            line = await store.create_line(ours.id, ours.org_id, "Gateway")
+            await store.create_thread("t-3", line.id, ours.id, ours.org_id, "brief")
+            await store.record_approval(
+                org_id=ours.org_id, thread_id="t-3", user_id=ours.id,
+                user_email=ours.email, roles=["engineering"], rule="availability",
+                subject="u1", mpn="X", revision=None, rationale="Fine.",
+            )
+            return await store.approvals_for_thread("t-3", theirs.org_id)
+
+    assert run(go()) == []

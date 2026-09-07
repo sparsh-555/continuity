@@ -30,7 +30,7 @@ from ..api import events
 from .. import interpret, llm, reviewer
 from ..engine import policy, rules
 from ..engine import situation
-from ..engine.models import Rail, Requirements, Slot, Verdict
+from ..engine.models import ApprovedLists, Rail, Requirements, Slot, Verdict
 from ..planner import plan as planner
 from ..planner import topology
 from ..parts import categories
@@ -129,6 +129,18 @@ def _with_line_profile(ev, requirements: Requirements, stored: dict | None) -> R
         )
     )
     return applied
+
+
+
+def _approved(state: DesignState):
+    """The organisation's standing lists, or none at all.
+
+    A run started without them — an offline instance, or a deployment with no accounts —
+    gets `ApprovedLists()`, whose two `None`s mean *no list is kept*. The gates then report
+    `not_applicable`, which is the truthful answer rather than failing every part on a
+    board nobody has a policy for.
+    """
+    return state.get("approved") or ApprovedLists()
 
 
 # ── parse_requirements ────────────────────────────────────────────────────────
@@ -279,7 +291,7 @@ def plan(state: DesignState, config) -> DesignState:
         board_plan.rails, state["requirements"], slot_ids=tuple(board_plan.slots)
     )
 
-    board = topology.Board(state["requirements"], board_plan.slots, rails)
+    board = topology.Board(state["requirements"], board_plan.slots, rails, _approved(state))
     edges = (
         topology.power_edges(rails)
         + topology.unmodelled(board_plan.slots, rails)
@@ -536,7 +548,7 @@ async def select(state: DesignState, config) -> DesignState:
 def validate(state: DesignState, config) -> DesignState:
     """Run the engine over the whole board and report every check it produced."""
     ev = _events(config)
-    board = topology.Board(state["requirements"], state["slots"], state["rails"])
+    board = topology.Board(state["requirements"], state["slots"], state["rails"], _approved(state))
     verdicts = _apply_waivers(
         rules.evaluate(board),
         state.get("accepted") or [],
@@ -682,7 +694,7 @@ async def review(state: DesignState, config) -> DesignState:
     decision against it, and an illegal answer falls back to minimum disruption.
     """
     ev = _events(config)
-    board = topology.Board(state["requirements"], state["slots"], state["rails"])
+    board = topology.Board(state["requirements"], state["slots"], state["rails"], _approved(state))
     verdicts = state["verdicts"]
     conflict = rules.blocking(verdicts)[0]
 
@@ -845,7 +857,7 @@ async def apply(state: DesignState, config) -> DesignState:
         if category not in categories.CATEGORIES:
             return {"escalation": "The requested component category is not recognised."}
 
-        input_rail = topology.Board(state["requirements"], slots, state["rails"]).input_rail(slot_id)
+        input_rail = topology.Board(state["requirements"], slots, state["rails"], _approved(state)).input_rail(slot_id)
         if input_rail is None:
             return {"escalation": f"Cannot determine where to power the added {category}."}
 
@@ -1160,11 +1172,24 @@ async def escalate(state: DesignState, config) -> DesignState:
         _emit(ev.reasoning(None, f"Taking that into account: {said}"))
         return {"escalation": None, "guidance": said, "verdicts": []}
 
-    waived = [
-        *(state.get("accepted") or []),
-        _waiver_key(state["slots"], conflict.rule, conflict.subject, state.get("revision")),
-    ]
+    key = _waiver_key(state["slots"], conflict.rule, conflict.subject, state.get("revision"))
+    waived = [*(state.get("accepted") or []), key]
     _emit(ev.reasoning(None, acceptance_message(conflict.rule, state["slots"][conflict.subject].label)))
+    # The paperwork, separate from the waiver. `said` is the rationale verbatim: the words
+    # the person actually used are worth more to a later reader than a tidied summary, and
+    # an approval with no stated reason records that somebody clicked and nothing else.
+    _emit(
+        ev.approval(
+            rule=conflict.rule,
+            subject=conflict.subject,
+            mpn=key[2],
+            revision=key[3],
+            # The stated reason where there is one, and the answer itself where there is
+            # not. Never empty: an approval with no reason records that somebody clicked.
+            rationale=state.get("rationale") or said,
+            by=state.get("answered_by"),
+        )
+    )
     return {"escalation": None, "accepted": waived, "verdicts": []}
 
 
@@ -1196,6 +1221,11 @@ def _escalation_options(conflict, requirements: Requirements | None = None) -> l
         "voltage_overlap": "Accept the voltage mismatch",
         "pin_budget": "Accept the pin count",
         "interface_role_match": "Accept the interface mismatch",
+        # The gates name the decision rather than the symptom: a person is not "accepting
+        # a failure" here, they are recording that the part is qualified or the source is
+        # allowed. The words are what ends up in the approval record.
+        "part_qualification": "Qualify this part for use",
+        "source_approval": "Approve this source",
     }
     options = [named.get(conflict.rule, "Accept this and continue")]
     field = REQUIREMENT_FIELD_BY_RULE.get(conflict.rule)

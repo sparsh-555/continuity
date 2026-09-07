@@ -42,6 +42,8 @@ RULE_NAMES = (
     "current_budget",
     "thermal_dissipation",
     "availability",
+    "part_qualification",
+    "source_approval",
     "footprint",
     "footprint_compatibility",
     "capacitor_requirements",
@@ -612,12 +614,42 @@ def slots_without_a_rail(
 
 
 @dataclass(frozen=True)
+class ApprovedLists:
+    """A company's standing lists, as they stood when this board was checked.
+
+    Two lists, deliberately separate, because they answer different questions and are kept
+    by different people. The **AML** says which parts engineering and quality have
+    qualified for use. The **AVL** says which sources procurement will buy from. A part can
+    be perfectly qualified and only available from a vendor nobody has approved, and a
+    vendor can be entirely approved and stocking a part nobody has qualified — collapsing
+    them into one list makes both of those unsayable.
+
+    `None` means **no list is configured**, which is not the same as a configured list that
+    happens to be empty. An organisation that has never set an AML must not have every part
+    on every board reported unqualified; one that has set an empty AML has approved
+    nothing, and saying so is correct. That distinction is why these are `| None` rather
+    than defaulting to an empty set.
+    """
+
+    parts: frozenset[str] | None = None
+    """Qualified MPNs. Exact, uppercased at the boundary where the list is built."""
+
+    vendors: frozenset[str] | None = None
+    """Approved distributor names, matched the same way."""
+
+
+@dataclass(frozen=True)
 class Board:
     """Everything the rules need, and nothing they do not."""
 
     requirements: Requirements
     slots: Mapping[str, Slot]
     rails: Mapping[str, Rail]
+
+    approved: ApprovedLists = ApprovedLists()
+    """The company policy in force, if any. Defaulted so every existing caller — and every
+    board built from a brief rather than from a product line — reports these checks as *not
+    applicable* rather than inventing an answer."""
 
     def part(self, slot_id: str) -> PartSpec | None:
         slot = self.slots.get(slot_id)
