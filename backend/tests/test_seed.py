@@ -100,10 +100,7 @@ def test_every_seeded_line_can_be_turned_into_a_board():
     for name, revision, has_profile, rows in run(go()):
         assert has_profile, f"{name} has no operating profile"
         assert revision == seed_world.REVISION, f"{name} states no revision"
-        # Three for a stated line, forty-one for the one that is a real board. The number
-        # is not the point; a line with an empty bill cannot be checked, and that is.
-        expected = 41 if name == seed_world.BOARD_LINE else 3
-        assert rows == expected, f"{name} has {rows} BOM rows"
+        assert rows == 3, f"{name} has {rows} BOM rows"
 
 
 def test_the_seed_writes_verified_part_facts():
@@ -394,17 +391,21 @@ def test_a_seeded_line_already_carries_its_kicad_project():
     assert board["project"] == "ProPico"
     assert board["bytes"] > 0
 
+    # The bill is unchanged by attaching a design. Continuity validates at block level and
+    # the board carries thirty-eight passives it has no business checking.
     at = {row["refdes"]: row["mpn"] for row in bill}
-    assert at["U3"] == "AMS1117-3.3", "the retired part, where the board actually puts it"
-    assert at["U5"] == "RP2040"
+    assert at["u1"] == "AMS1117-3.3", "the block-level bill, not the board's forty-one rows"
 
 
-def test_the_boards_line_states_the_bill_the_board_states():
-    """One product, one set of designators.
+def test_attaching_a_design_does_not_replace_the_bill():
+    """A board is a design. A bill is what Continuity validates, and they are not the same.
 
-    The alternative was a stated bill of three parts beside a project of forty, or the same
-    file attached to three different products. The first disagrees with itself and the second
-    claims three products are one board, which anybody can check by opening two of them.
+    The Singapore proposal draws the boundary at block-level validation because *"synthesis
+    requires pin-level connectivity, a substantially larger data problem"*, and the planner's
+    own prompt calls passives an implementation detail. Importing ProPico's forty-one rows
+    would put thirty-eight decoupling capacitors, pull-ups and a crystal in front of rules
+    that would each report evidence missing, which is scope creep wearing honesty as a
+    costume.
     """
 
     async def go():
@@ -414,8 +415,7 @@ def test_the_boards_line_states_the_bill_the_board_states():
 
     bill = run(go())
 
-    assert len(bill) == 41, "every row KiCad read, not a curated subset"
-    assert all(row["footprint"] for row in bill), "footprints come from the board too"
+    assert len(bill) == 3, "the regulator, what it feeds, and the output capacitor"
 
 
 def test_the_other_lines_honestly_have_no_project():
@@ -430,32 +430,3 @@ def test_the_other_lines_honestly_have_no_project():
             return [await store.board_for(line_id, world["org_id"]) for line_id in others]
 
     assert run(go()) == [None, None, None, None]
-
-
-def test_the_boards_power_tree_is_the_one_its_netlist_states():
-    """Read, not stated. The regulator's position and what it feeds come out of KiCad.
-
-    Before the board was seeded, every line said its regulator was at `u1` and fed `u2` and
-    `c1`. On this board `U1` is an FRAM and the regulator is at `U3`, so carrying the old
-    profile across would have drawn a power tree with a memory chip making the 3.3 V rail.
-    """
-
-    async def go():
-        async with empty() as store:
-            world = await seed_world.seed(store)
-            line = await store.line_for_user(world["board_line_id"], world["org_id"])
-            return line.profile
-
-    profile = run(go())
-    rails = profile["rails"]
-
-    assert rails["3v3"]["source"] == "U3", "the regulator, where the board puts it"
-    assert rails["vin"]["members"] == ["U3"], "the regulator is what sits on the input rail"
-
-    powered = set(rails["3v3"]["members"])
-    assert {"U1", "U2", "U5"} <= powered, "the FRAM, the flash and the RP2040"
-    assert "U3" not in powered, "the regulator makes the rail rather than loading it"
-    # Ten more capacitors and five resistors sit on +3V3 and are decoupling. A capacitor
-    # across a rail is on it without drawing from it, and a power tree drawing every one
-    # would be a wall. C1 stays because the capacitor rule needs the output cap by name.
-    assert powered == {"U1", "U2", "U5", "C1"}
