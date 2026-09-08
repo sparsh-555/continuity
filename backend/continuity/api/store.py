@@ -1494,3 +1494,23 @@ class Store:
                 (state, by, rationale, decision_id, org_id),
             )
             return cursor.rowcount == 1
+
+    async def manufacturer_of(self, org_id: str, mpn: str) -> str | None:
+        """Who makes the part this company actually fitted, as its bills record it.
+
+        A part on a board is not ambiguous however many manufacturers a distributor lists
+        it under: the bill of materials says whose it is. Without this, resolving the
+        incumbent by part number alone is refused as ambiguous and a whole review returns
+        nothing — which it did, twice, in two different features.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute(
+                """
+                SELECT manufacturer FROM line_parts
+                 WHERE org_id = %s AND mpn = %s AND manufacturer IS NOT NULL
+                 LIMIT 1
+                """,
+                (org_id, mpn),
+            )
+            row = await cursor.fetchone()
+        return row[0] if row else None

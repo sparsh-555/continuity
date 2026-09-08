@@ -173,6 +173,7 @@ async def find(
     constraint: Mapping[str, Any] | None = None,
     purpose: str | None = None,
     board: str | None = None,
+    pool: int | None = None,
 ) -> list[Candidate]:
     """Candidates for a slot, best-first. Applies constraint pushdown when given one.
 
@@ -183,12 +184,16 @@ async def find(
     """
     constraint = constraint or {}
     refined, filters, package = _push_down(query, constraint)
+    # A caller may ask for a deeper field than a repair needs. Substituting a part that is
+    # going end of life is the case: the top of a distributor's list for "3.3V LDO regulator
+    # in SOT-223" is four listings of the part being retired, and the answer is further down.
+    wanted = pool or pool_size(constraint)
 
     hits = await search(
         refined,
         spec_filters=filters or None,
         package=package,
-        limit=pool_size(constraint),
+        limit=wanted,
     )
     found = viable(hits, constraint)
     subcategory = _rescue_subcategory(query, constraint)
@@ -206,7 +211,7 @@ async def find(
             spec_filters=filters or None,
             package=package,
             subcategory_name=subcategory,
-            limit=pool_size(constraint),
+            limit=wanted,
         )
         known_mpns = {candidate.mpn for candidate in found}
         for candidate in viable(rescue, constraint):
@@ -221,7 +226,7 @@ async def find(
         # on a motor brief that still placed a 2-input AND gate after the shelves were
         # declared defining.
         found = _on_defining_shelf(found, constraint)
-    shortlist = found[:CANDIDATES_PER_SLOT]
+    shortlist = found[: pool or CANDIDATES_PER_SLOT]
     demoted: tuple[str, ...] = ()
     # A single-candidate shortlist cannot be reordered, so a judgement about it can only
     # produce a misleading line on screen — measured: the classifier called a genuine buck

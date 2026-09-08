@@ -37,6 +37,8 @@ from dataclasses import replace as replace_fields
 
 from .. import review
 from ..engine.models import ApprovedLists, PartSpec
+from ..graph import sourcing
+from ..parts import normalize
 from ..profile import OperatingProfile, board_from
 from . import events
 from .auth import current_user, store_of
@@ -53,6 +55,22 @@ SSE_HEADERS = {
     "Connection": "keep-alive",
     "X-Accel-Buffering": "no",  # nginx and friends will otherwise buffer the whole stream
 }
+
+
+CATALOGUE_POOL = 25
+"""How deep into the distributor's list to look before filtering.
+
+Measured against JLCPCB: a search for a 3.3 V LDO in SOT-223 returns the retired part and
+three other listings of it at the top, and the parts that could actually replace it —
+LD1117, SPX1117, AZ1117, NCP1117 — start at the seventh hit. A shortlist of six sees none
+of them."""
+
+CATALOGUE_LIMIT = 4
+"""How many catalogue hits to normalise and try.
+
+Each one costs a distributor lookup and a datasheet read, and a shortlist nobody can read is
+not a better answer than a short one. Four is enough for the search to be a real leg of the
+flow rather than a gesture."""
 
 
 class ReviewRun(BaseModel):
@@ -85,6 +103,82 @@ async def _resolve_quietly(mpn: str, manufacturer: str | None = None) -> PartSpe
     except Ambiguous as ambiguous:
         log.info("skipping %s: %s", mpn, ambiguous)
         return None
+
+
+def _flattened(mpn: str) -> str:
+    return "".join(character for character in mpn.casefold() if character.isalnum())
+
+
+def _same_part(candidate: str, retiring: str) -> bool:
+    """Whether a hit is the part being retired, under another listing or a suffix.
+
+    JLCPCB lists `AMS1117-3.3`, `AMS1117-3.3` under a second manufacturer and `AMS1117-3.3V`
+    as three separate parts, and a search for what could replace AMS1117-3.3 returns all
+    three at the top. They are the part that is going away.
+    """
+    left, right = _flattened(candidate), _flattened(retiring)
+    return left.startswith(right) or right.startswith(left)
+
+
+def _search_query(retiring: PartSpec) -> str:
+    """What to ask the distributor for, in the words a person would use.
+
+    **Not the part's own description.** A distributor description is a parametric blob —
+    AMS1117's begins *"-40℃~+125℃ 0.003%Vout 1 1.1V@(800mA) 15V 1A 3.3V"* — and searching
+    with it returns the part itself and its own clones. Measured: four hits, all AMS1117.
+    What the search wants is the *kind* of part the board needs, which is the rail it makes
+    and the family it belongs to.
+    """
+    category = (retiring.category or "").casefold()
+    if "low drop out" in category or "ldo" in category:
+        kind = "LDO regulator"
+    elif "regulator" in category:
+        kind = "regulator"
+    else:
+        kind = (retiring.category or "part").split(",")[0].strip()
+    volts = f"{retiring.vout:g}V " if retiring.vout is not None else ""
+    return f"{volts}{kind}"
+
+
+async def _catalogue_search(retiring: PartSpec) -> list[PartSpec]:
+    """What the distributor lists that could stand where this part stands.
+
+    Searched in the **same package**, which is production's leg of the scenario: a part in
+    the same land pattern is a substitution, and a part in a different one is a board
+    revision. The search is how a part nobody here has ever bought gets considered at all,
+    and it is the only leg that can produce the answer no approved part gives.
+    """
+    query = _search_query(retiring)
+    constraint = {"package": retiring.package} if retiring.package else None
+    try:
+        hits = await sourcing.find(query, constraint=constraint, pool=CATALOGUE_POOL)
+    except Exception as error:  # noqa: BLE001 — a dead distributor is not a failed review
+        log.warning("catalogue search failed for %s: %s", retiring.mpn, error)
+        return []
+
+    found: list[PartSpec] = []
+    for hit in hits:
+        if len(found) >= CATALOGUE_LIMIT:
+            break
+        # Filtered before normalising, because normalising costs a datasheet read: the top
+        # of a distributor's shortlist for "3.3V LDO regulator in SOT-223" is the retired
+        # part itself and three other listings of it. Another manufacturer's listing of the
+        # same part number is the same part, and this notice retires that part.
+        if _same_part(hit.mpn, retiring.mpn):
+            continue
+        try:
+            part = await sourcing.choose(hit)
+        except Exception as error:  # noqa: BLE001
+            log.info("could not normalise %s: %s", getattr(hit, "mpn", "?"), error)
+            continue
+        # A fixed regulator defines the rail it makes, so one with a different fixed output
+        # is not a substitute for this position — it is a different board. The engine would
+        # say so too, by moving the rail and failing everything downstream, but a shortlist
+        # of four that spends three of them on that is a worse shortlist.
+        if retiring.vout is not None and part.vout is not None and part.vout != retiring.vout:
+            continue
+        found.append(part)
+    return found
 
 
 async def _board_for(store: Any, line: dict[str, Any], org_id: str):
@@ -121,7 +215,7 @@ async def _run_line(
     user: User,
     notice: dict[str, Any],
     line: dict[str, Any],
-    named: list[str],
+    candidates: tuple[review.Candidate, ...],
     approved: ApprovedLists,
     stream: events.EventStream,
     emit,
@@ -151,14 +245,6 @@ async def _run_line(
 
     say(f"{notice['mpn']} sits at {slot_id.upper()} on the {line_name}.", slot_id)
 
-    retiring = board.slots[slot_id].part
-    candidates = await review.candidates_for(
-        retiring=retiring,
-        resolve=_resolve_quietly,
-        notice_replacement=notice.get("replacement_mpn"),
-        approved=sorted(approved.parts or ()),
-        named=named,
-    )
     if not candidates:
         reason = "no candidate could be sourced to try"
         say(f"{line_name}: {reason}.", slot_id)
@@ -265,19 +351,77 @@ async def run_review(
         raise HTTPException(409, "that notice does not reach any product line you ship")
 
     approved = await store.approved_lists(user.org_id)
+    fitted_manufacturer = await store.manufacturer_of(user.org_id, notice["mpn"])
     stream = events.EventStream(f"review:{notice_id}")
+
+    # The company's own verified readings, read back. Without this every SOT-223 part falls
+    # back to the package table's single figure and to whatever the distributor's parametric
+    # blob says, so **NCP1117 clears the Gateway** — it has no published junction limit in
+    # the listing, and 159 °C against onsemi's 150 °C is the whole finding. Measured live:
+    # with the lookup absent the review proposed the manufacturer's own recommendation on
+    # all three boards, which is the answer this product exists to disprove.
+    async def facts_for(mpn: str) -> list[dict[str, Any]]:
+        return (await store.part_facts([mpn])).get(mpn, [])
 
     async def merged() -> AsyncIterator[dict[str, Any]]:
         queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
 
-        def emit(line_id: str, event: dict[str, Any]) -> None:
+        def emit(line_id: str | None, event: dict[str, Any]) -> None:
             queue.put_nowait({**event, "line_id": line_id})
+
+        # Discovery is the same for every product line — the same part is retired on all of
+        # them — so it happens once, before the columns start. Doing it per line would
+        # search the distributor three times for one answer.
+        #
+        # Resolved with the manufacturer the bill of materials records, never by part number
+        # alone: JLCPCB lists AMS1117-3.3 under three manufacturers, and a part already on a
+        # board is not ambiguous — the row says whose it is. Asking without it refuses the
+        # incumbent and the whole review returns nothing, which is exactly what happened.
+        retiring = await _resolve_quietly(notice["mpn"], fitted_manufacturer)
+        if retiring is None:
+            # Yielded, not queued: the loop below has not started, and a queued frame at
+            # this point is a frame nobody ever drains.
+            yield {
+                **stream.error(
+                    f"{notice['mpn']} could not be sourced, so nothing can be checked "
+                    f"against it.",
+                    recoverable=False,
+                ),
+                "line_id": None,
+            }
+            return
+
+        emit(None, stream.reasoning(None, f"{notice['mpn']} is going end of life."))
+        if notice.get("replacement_mpn"):
+            emit(None, stream.reasoning(
+                None, f"The notice recommends {notice['replacement_mpn']}. Trying that first."
+            ))
+        emit(None, stream.reasoning(
+            None,
+            f"Looking for anything else in {retiring.package or 'the same package'}: the "
+            f"approved manufacturer list first, then the distributor's catalogue.",
+        ))
+
+        candidates = await review.candidates_for(
+            retiring=retiring,
+            resolve=_resolve_quietly,
+            notice_replacement=notice.get("replacement_mpn"),
+            approved=sorted(approved.parts or ()),
+            search=_catalogue_search,
+            named=list(body.candidates),
+        )
+        emit(None, stream.reasoning(
+            None,
+            "Trying " + ", ".join(f"{c.part.mpn} ({c.origin})" for c in candidates) + "."
+            if candidates
+            else "Nothing could be sourced to try.",
+        ))
 
         async def worker(line: dict[str, Any]) -> None:
             try:
                 await _run_line(
                     store=store, user=user, notice=notice, line=line,
-                    named=list(body.candidates), approved=approved,
+                    candidates=candidates, approved=approved,
                     stream=stream, emit=emit,
                 )
             except Exception as error:  # one line failing must not take the others
@@ -304,6 +448,14 @@ async def run_review(
                 task.cancel()
 
     async def framed() -> AsyncIterator[str]:
+        lookup_token = normalize.set_dossier_lookup(facts_for)
+        try:
+            async for line in _framed(lookup_token):
+                yield line
+        finally:
+            normalize.reset_dossier_lookup(lookup_token)
+
+    async def _framed(_token: Any) -> AsyncIterator[str]:
         yield events.frame(
             stream.review_started(
                 notice_id,

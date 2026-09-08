@@ -231,3 +231,78 @@ def test_a_part_somebody_named_is_not_second_guessed_on_category():
 
 def test_a_part_the_distributor_has_never_heard_of_is_dropped_rather_than_carried():
     assert found(named=["NOT-A-REAL-PART"]) == ()
+
+
+def test_the_catalogue_is_searched_after_the_approved_list_and_before_anything_typed():
+    """The order is the argument. The manufacturer's answer, then what we already ship,
+    then what the distributor has, and a typed part last because nobody should have to."""
+    import asyncio
+
+    async def search(retiring):
+        assert retiring.mpn == AMS1117.mpn
+        return [LD1117]
+
+    candidates = asyncio.run(
+        review.candidates_for(
+            retiring=AMS1117,
+            resolve=catalogue,
+            notice_replacement=NCP1117.mpn,
+            approved=[TLV1117.mpn],
+            search=search,
+            named=[OUTPUT_CAPACITOR.mpn],
+        )
+    )
+
+    assert [c.part.mpn for c in candidates] == [
+        NCP1117.mpn, TLV1117.mpn, LD1117.mpn, OUTPUT_CAPACITOR.mpn
+    ]
+    assert candidates[2].origin == review.CATALOGUE_ORIGIN
+
+
+def test_the_catalogue_cannot_offer_a_part_of_another_kind():
+    """A search returns what a search returns. A capacitor is not a substitute for a
+    regulator however the query was worded."""
+    import asyncio
+
+    async def search(_retiring):
+        return [OUTPUT_CAPACITOR, LD1117]
+
+    candidates = asyncio.run(
+        review.candidates_for(retiring=AMS1117, resolve=catalogue, search=search)
+    )
+
+    assert [c.part.mpn for c in candidates] == [LD1117.mpn]
+
+
+def test_a_catalogue_hit_already_on_the_approved_list_keeps_the_cheaper_claim():
+    """Being on the approved list is the more useful thing to know about a part, and it is
+    the claim that arrived first."""
+    import asyncio
+
+    async def search(_retiring):
+        return [TLV1117]
+
+    candidates = asyncio.run(
+        review.candidates_for(
+            retiring=AMS1117, resolve=catalogue, approved=[TLV1117.mpn], search=search
+        )
+    )
+
+    assert [c.origin for c in candidates] == [review.APPROVED_ORIGIN]
+
+
+def test_a_qualitative_margin_is_not_reported_as_headroom():
+    """`availability` reports "lifecycle concern", which is a real margin and reads as
+    nonsense in a sentence about clearing checks. Seen live before it was caught."""
+    from continuity.engine.models import Verdict
+
+    made = review.Attempt(
+        candidate=NCP1117,
+        verdicts=(
+            Verdict(rule="availability", status="satisfied", detail="in stock",
+                    subject="u1", margin="lifecycle concern"),
+        ),
+    )
+
+    assert made.margin is None
+    assert "to spare" not in review.narrate(made)

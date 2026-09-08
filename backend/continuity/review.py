@@ -73,10 +73,20 @@ class Attempt:
 
     @property
     def margin(self) -> str | None:
+        """The headline margin, and only when there is a measured one.
+
+        Thermal first, because it is the one that decides these boards. The fallback is
+        restricted to margins that begin with a number: `availability` reports "lifecycle
+        concern", which is a real margin and reads as nonsense in the sentence this feeds —
+        *"clears every check, with lifecycle concern to spare"*. Seen live.
+        """
         for verdict in self.verdicts:
             if verdict.rule == "thermal_dissipation" and verdict.margin:
                 return verdict.margin
-        return next((v.margin for v in self.verdicts if v.margin), None)
+        for verdict in self.verdicts:
+            if verdict.margin and verdict.margin[:1].isdigit():
+                return verdict.margin
+        return None
 
 
 @dataclass(frozen=True)
@@ -198,6 +208,7 @@ class Candidate:
 
 NOTICE_ORIGIN = "recommended by the notice"
 APPROVED_ORIGIN = "already on the approved manufacturer list"
+CATALOGUE_ORIGIN = "found in the distributor's catalogue"
 NAMED_ORIGIN = "named by you"
 
 
@@ -207,40 +218,56 @@ async def candidates_for(
     resolve,
     notice_replacement: str | None = None,
     approved: Sequence[str] = (),
+    search=None,
     named: Sequence[str] = (),
 ) -> tuple[Candidate, ...]:
-    """What to try, in the order to try it.
+    """What to try, in the order to try it, and why each one is on the list.
 
-    The manufacturer's own recommendation first, because it is the answer the notice puts in
-    front of everybody and the one a reader will ask about if it is missing. Then the parts
-    this company has already qualified, because that is the cheap resolution. Then whatever
-    the caller named.
+    **The manufacturer's own recommendation first.** It is the answer the notice puts in
+    front of everybody, it is what a reader asks about if it is missing, and on a board it
+    does not suit, watching it fail is the point.
 
-    **The approved list is filtered by category and the other two are not.** A part somebody
-    typed, or one the manufacturer named, is a deliberate choice and refusing it because our
-    category strings disagree would be the tool overruling a person; the approved list is a
-    hundred parts of every kind, and offering the whole of it as substitutes for a regulator
-    is noise.
+    **Then the parts this company has already qualified**, because that is the cheap
+    resolution: roughly $1,281 against $15,656 to qualify one from scratch. A tool that
+    proposed a new part while an approved one would have done is a tool that costs its owner
+    twelve times more than it had to.
+
+    **Then the distributor's catalogue.** This is how a part nobody here has ever bought gets
+    considered at all, and it is the only leg that can produce the interesting answer — a
+    part that holds a board no approved part holds, which is then quality's decision rather
+    than engineering's.
+
+    **Anything a person named is tried last**, and is an override rather than part of the
+    flow: the point is that nobody should have to type a part number.
+
+    Only the approved list and the catalogue are filtered by category. A part the
+    manufacturer named, or one a person typed, is a deliberate choice, and refusing it
+    because our category strings disagree would be the tool overruling them.
 
     The part being retired is never a candidate to replace itself.
     """
     seen: set[str] = {retiring.mpn.casefold()}
     found: list[Candidate] = []
 
-    async def consider(mpn: str | None, origin: str, *, same_category: bool) -> None:
-        if not mpn or mpn.casefold() in seen:
-            return
-        seen.add(mpn.casefold())
-        part = await resolve(mpn)
-        if part is None:
+    def keep(part: PartSpec | None, origin: str, *, same_category: bool) -> None:
+        if part is None or part.mpn.casefold() in seen:
             return
         if same_category and (part.category or "") != (retiring.category or ""):
             return
+        seen.add(part.mpn.casefold())
         found.append(Candidate(part=part, origin=origin))
+
+    async def consider(mpn: str | None, origin: str, *, same_category: bool) -> None:
+        if not mpn or mpn.casefold() in seen:
+            return
+        keep(await resolve(mpn), origin, same_category=same_category)
 
     await consider(notice_replacement, NOTICE_ORIGIN, same_category=False)
     for mpn in approved:
         await consider(mpn, APPROVED_ORIGIN, same_category=True)
+    if search is not None:
+        for part in await search(retiring):
+            keep(part, CATALOGUE_ORIGIN, same_category=True)
     for mpn in named:
         await consider(mpn, NAMED_ORIGIN, same_category=False)
     return tuple(found)

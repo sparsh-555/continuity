@@ -174,7 +174,12 @@ def test_every_affected_product_line_is_checked_on_one_stream():
     assert [frame["seq"] for frame in frames] == sorted(frame["seq"] for frame in frames), (
         "one sequence space across every product line, or the client drops frames"
     )
-    assert all("line_id" in frame for frame in frames[1:]), "every frame says whose it is"
+    for frame in frames[1:]:
+        assert "line_id" in frame, "every frame says whose it is, or that it is nobody's"
+    assert any(frame.get("line_id") is None for frame in frames), (
+        "discovery happens once for the whole review, not once per product line"
+    )
+    assert any(frame.get("line_id") for frame in frames), "and the work is per line"
 
 
 def test_each_product_line_ends_once_and_says_what_it_found():
@@ -348,3 +353,22 @@ def test_the_review_needs_an_account():
                 return await http.post("/notices/whatever/review/run", json={"candidates": []})
 
     assert run(go()).status_code == 401
+
+
+def test_the_catalogue_is_searched_and_what_it_found_is_said():
+    """The leg that lets a part nobody here has ever bought be considered at all."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, notice_id):
+                return await frames_of(http, notice_id)
+
+    review_wide = [
+        frame["text"]
+        for frame in run(go())
+        if frame["type"] == "reasoning" and frame.get("line_id") is None
+    ]
+    said = " ".join(review_wide)
+
+    assert "the distributor's catalogue" in said
+    assert "Trying" in said, "the shortlist is named before any board is touched"
