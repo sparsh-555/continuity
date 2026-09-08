@@ -342,3 +342,54 @@ def test_a_part_the_board_does_not_carry_is_a_409():
 
     assert response.status_code == 409
     assert "does not carry" in response.json()["detail"]
+
+
+def any_bundle(folder: str) -> str:
+    """One of the other vendored projects, zipped the way an upload arrives."""
+    source = FIXTURE.parent / folder
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(source.iterdir()):
+            if path.is_file():
+                archive.write(path, f"{folder}/{path.name}")
+    return base64.b64encode(buffer.getvalue()).decode()
+
+
+@needs_kicad
+def test_a_board_full_of_copper_zones_reports_no_break_we_did_not_cause():
+    """Zones are derived geometry and go stale the moment a footprint moves.
+
+    A zone's fill is computed against the pads that were there when it was last filled.
+    Remove a footprint, add another, and pads that reach each other *through* copper read
+    as unconnected, so DRC reports a broken connection our change did not cause. KiCad's
+    own DRC dialog warns about this.
+
+    Found on OpenJBOD, which carries 687 copper zones. A same-package drop-in at U2
+    reported a missing connection at **J1, on a different net, at the other end of the
+    board**. ProPico has twenty zones and never showed it, which is the argument for
+    checking against boards somebody else drew.
+
+    Both boards are refilled now, not only the modified one, so the two DRC runs are
+    computed the same way.
+    """
+
+    async def go():
+        async with a_store():
+            async with a_line() as (http, line_id):
+                await http.put(
+                    f"/lines/{line_id}/board",
+                    json={"filename": "OpenJBOD.zip", "bundle": any_bundle("openjbod")},
+                )
+                return await http.post(
+                    f"/lines/{line_id}/board/consequence",
+                    json={"retiring": "AMS1117-3.3", "candidate": "NCP1117ST33T3G"},
+                )
+
+    response = run(go())
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["refdes"] == "U2", "this board puts its regulator somewhere else again"
+    assert body["package"] == {"from": "SOT-223", "to": "SOT-223"}
+    assert body["broke_connections"] is False, body["added"]
+    assert body["added"] == [], "a drop-in adds nothing"

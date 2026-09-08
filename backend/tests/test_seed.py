@@ -418,15 +418,32 @@ def test_attaching_a_design_does_not_replace_the_bill():
     assert len(bill) == 3, "the regulator, what it feeds, and the output capacitor"
 
 
-def test_the_other_lines_honestly_have_no_project():
-    """Not every product has its CAD in the system, and saying so is better than pretending."""
+def test_every_affected_line_has_its_own_board_and_no_two_are_the_same():
+    """Three real projects, not one file attached three times.
+
+    One file on three products claims they are the same board, which anybody can check by
+    opening two of them. These were found by searching GitHub for KiCad schematics carrying
+    an AMS1117-3.3, and each puts it at a different reference designator, which is what the
+    world looks like and what a uniform fixture was hiding.
+    """
 
     async def go():
         async with empty() as store:
             world = await seed_world.seed(store)
-            others = [
-                line_id for line_id, *_ in world["lines"] if line_id != world["board_line_id"]
-            ]
-            return [await store.board_for(line_id, world["org_id"]) for line_id in others]
+            boards = {}
+            for line_id, label, _ in world["lines"]:
+                board = await store.board_for(line_id, world["org_id"])
+                boards[label] = board
+            return boards
 
-    assert run(go()) == [None, None, None, None]
+    boards = run(go())
+
+    affected = {"Sensor node", "Gateway", "Cabinet controller"}
+    assert {name for name, board in boards.items() if board} == affected
+
+    projects = {boards[name]["project"] for name in affected}
+    assert len(projects) == 3, f"three different designs, got {projects}"
+
+    # The two that ship a part nobody is retiring have no project, which is an ordinary
+    # state for a company and better said than pretended.
+    assert boards["Bench supply"] is None and boards["Handheld meter"] is None

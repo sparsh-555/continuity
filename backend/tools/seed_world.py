@@ -116,11 +116,32 @@ def profile_for(line, *, ambient: int, ambient_source: str) -> dict:
     }
 
 
-PROPICO = Path(__file__).resolve().parent.parent / "fixtures" / "kicad" / "propico"
-PROPICO_BOM = PROPICO.parent / "propico_bom.json"
+KICAD_FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "kicad"
+PROPICO = KICAD_FIXTURES / "propico"
+PROPICO_BOM = KICAD_FIXTURES / "propico_bom.json"
+
+BOARDS = {
+    "Sensor node": ("propico", "ProPico", "ProPico.zip"),
+    "Gateway": ("ws2812", "WS2812Controller", "WS2812Controller.zip"),
+    "Cabinet controller": ("openjbod", "OpenJBOD-RP2040", "OpenJBOD-RP2040.zip"),
+}
+"""One real board per affected product line, each drawn by somebody else.
+
+Three different projects rather than one file attached three times, because attaching one
+file to three products claims they are the same board and anybody can check that by opening
+two of them. Each was found by searching GitHub for a KiCad schematic carrying an
+`AMS1117-3.3`, and each carries it at a different reference designator — U3, U1 and U2 —
+which is what the world looks like and what a uniform fixture was hiding.
+
+The fits are not forced. A JBOD is a disk enclosure, and OpenJBOD's controller carries
+Ethernet and a fan controller, which is what a cabinet controller does. The WS2812 board is
+an ESP-12F WiFi module on a 3.3 V rail, which is a gateway.
+
+Licences travel with them: ProPico MIT, WS2812Controller MIT, OpenJBOD CERN-OHL-P-2.0.
+"""
 
 BOARD_LINE = "Sensor node"
-"""The one product line that has a KiCad project attached.
+"""The product line whose board the run-through demonstrates.
 
 **A board is not a bill.** Continuity validates at block level — the regulator, what it
 feeds, and the output capacitor the stability rule needs — and the Singapore proposal draws
@@ -140,13 +161,14 @@ two of them.
 """
 
 
-def propico_bundle() -> bytes:
-    """The project, zipped exactly as an engineer would upload it."""
+def zipped(folder: str) -> bytes:
+    """One vendored project, zipped exactly as an engineer would upload it."""
+    source = KICAD_FIXTURES / folder
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted(PROPICO.iterdir()):
+        for path in sorted(source.iterdir()):
             if path.is_file():
-                archive.write(path, f"propico/{path.name}")
+                archive.write(path, f"{folder}/{path.name}")
     return buffer.getvalue()
 
 
@@ -230,16 +252,17 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
     board_line_id = None
     for line in AFFECTED:
         created = await store.create_line(engineer.id, org_id, line.label)
-        is_the_board = line.label == BOARD_LINE
-        if is_the_board:
+        if line.label == BOARD_LINE:
             board_line_id = created.id
+        if line.label in BOARDS:
+            folder, project_name, filename = BOARDS[line.label]
             await store.save_board(
                 line_id=created.id,
                 org_id=org_id,
                 user_id=engineer.id,
-                filename="ProPico.zip",
-                project="ProPico",
-                bundle=propico_bundle(),
+                filename=filename,
+                project=project_name,
+                bundle=zipped(folder),
             )
         await store.save_bom_rows(
             created.id, engineer.id, org_id, bom_for(AMS1117, line.load_part)

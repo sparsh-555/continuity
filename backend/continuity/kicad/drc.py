@@ -12,14 +12,20 @@ renders exactly like a board with nothing wrong.
 
 Real boards arrive with violations already on them — the upstream board used to verify this
 carries fifty-four of them and one unconnected item before anything is touched. So the
-question is never "how many", it is *what did this substitution add*. Findings are matched
-by rule and by the items they name, which are stable across runs of the same board, and the
-answer is the set that appeared.
+question is never "how many", it is *what did this substitution add*.
+
+Findings are matched by rule and by the items they name, **except for `unconnected_items`,
+which is matched by net.** KiCad names one representative pair per unconnected group and
+which pair it names varies between runs of the byte-identical board; the net does not. That
+had to be measured to be found, and until it was, a same-package drop-in intermittently
+looked as though it had broken a connection on a net it never touched. `Finding.key` carries
+the evidence.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +40,10 @@ class UnreadableReport(RuntimeError):
     """The report was not the shape this KiCad is documented to produce."""
 
 
+_NET = re.compile(r"\[([^\]]+)\]")
+"""How KiCad prints the net inside an item: `PTH pad 4 [/+5v] of J1`."""
+
+
 @dataclass(frozen=True)
 class Finding:
     """One thing KiCad objects to, and the items it objects about."""
@@ -45,8 +55,35 @@ class Finding:
 
     @property
     def key(self) -> tuple[str, tuple[str, ...]]:
-        """What makes this finding the same finding on another run of the same board."""
+        """What makes this finding the same finding on another run of the same board.
+
+        For most rules that is the items it names, which describe specific geometry.
+
+        **`unconnected_items` is different, and it had to be measured to find out.** KiCad
+        names one representative pair per unconnected group, and which pair it picks varies
+        between runs of the *byte-identical* board: three runs on OpenJBOD each reported the
+        same five groups, and two of them named different witness pads. Keyed on the pads,
+        a same-package drop-in looked as though it had broken a connection at the far end of
+        the board on a net it never touched, intermittently. What is stable is the **net**,
+        so that is the identity, and `_surplus` counts rather than set-subtracts so a second
+        break on a net that already had one is still a change.
+
+        Only this rule is exempted. Nothing else has been observed to vary, and widening it
+        without evidence would hide real changes.
+        """
+        if self.rule == "unconnected_items":
+            return (self.rule, self.nets)
         return (self.rule, self.items)
+
+    @property
+    def nets(self) -> tuple[str, ...]:
+        """The nets this finding is about, from the `[net]` KiCad prints in each item."""
+        found: list[str] = []
+        for item in self.items:
+            for net in _NET.findall(item):
+                if net not in found:
+                    found.append(net)
+        return tuple(sorted(found))
 
 
 @dataclass(frozen=True)

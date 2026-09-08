@@ -203,11 +203,19 @@ def consequence(
         workdir=project.root,
     )
 
+    # Both boards through the same filler, each in its own interpreter. `pcbnew` keeps
+    # global state and two boards in one process made the same input answer differently.
+    filled_before = f"kicad-filled-before-{refdes}.kicad_pcb"
+    filled_after = f"kicad-filled-after-{refdes}.kicad_pcb"
+    _run_script(runner, "refill_zones.py", [project.board_name, filled_before],
+                workdir=project.root)
+    _run_script(runner, "refill_zones.py", [after_board, filled_after], workdir=project.root)
+
     before = drc.run(
-        runner, workdir=project.root, board=project.board_name, out="kicad-drc-before.json"
+        runner, workdir=project.root, board=filled_before, out="kicad-drc-before.json"
     )
     after = drc.run(
-        runner, workdir=project.root, board=after_board, out="kicad-drc-after.json"
+        runner, workdir=project.root, board=filled_after, out="kicad-drc-after.json"
     )
 
     return Consequence(

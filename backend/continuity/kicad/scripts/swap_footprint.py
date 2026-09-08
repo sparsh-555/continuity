@@ -61,6 +61,8 @@ def main():
     board.Remove(old)
     board.Add(new)
     board.BuildConnectivity()
+    # Zones are recomputed by `refill_zones.py`, in its own process. One board per
+    # interpreter: loading two here made the same input give different answers.
     board.Save(out_path)
 
     with open(report_path, "w") as handle:

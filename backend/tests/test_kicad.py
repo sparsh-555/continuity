@@ -399,3 +399,69 @@ def test_a_reference_the_board_does_not_place_is_refused(bundle):
         )
 
     assert "U99" in str(refused.value)
+
+
+# ── KiCad names a different witness for the same defect ───────────────────────
+
+
+def test_the_same_unconnected_net_is_the_same_finding_however_kicad_names_it():
+    """Measured on OpenJBOD, 9 Sep: three DRC runs on a byte-identical board.
+
+    All three reported five unconnected groups and two of them named **different witness
+    pads for the same defects** — `pad 4 / pad 6 of J1` in one run, `pad 2 / pad 12 of J1`
+    in another. KiCad names one representative pair per unconnected group and which pair it
+    picks varies between runs.
+
+    Keyed on the pads, that made a same-package drop-in look as though it had broken a
+    connection at the far end of the board, on a net it never touched, **intermittently**.
+    A verdict that changes between runs of the same input is not a verdict.
+    """
+    before = drc.parse(a_report(unconnected_items=[
+        a_finding("unconnected_items", "PTH pad 4 [/+5v] of J1", "PTH pad 6 [/+5v] of J1"),
+        a_finding("unconnected_items", "Track [/+3.3v] on Back, length 37.1300 mm",
+                  "PTH pad 12 [/+3.3v] of J1"),
+    ]))
+    after = drc.parse(a_report(unconnected_items=[
+        a_finding("unconnected_items", "PTH pad 21 [/+5v] of J1", "PTH pad 22 [/+5v] of J1"),
+        a_finding("unconnected_items", "PTH pad 2 [/+3.3v] of J1", "PTH pad 12 [/+3.3v] of J1"),
+    ]))
+
+    assert drc.compare(before, after).added == (), "the same two defects, named differently"
+
+
+def test_a_genuinely_new_unconnected_net_is_still_reported():
+    """Ignoring the witness must not mean ignoring the defect."""
+    before = drc.parse(a_report(unconnected_items=[
+        a_finding("unconnected_items", "PTH pad 4 [/+5v] of J1", "PTH pad 6 [/+5v] of J1"),
+    ]))
+    after = drc.parse(a_report(unconnected_items=[
+        a_finding("unconnected_items", "PTH pad 21 [/+5v] of J1", "PTH pad 22 [/+5v] of J1"),
+        a_finding("unconnected_items", "Pad 2 [/SDA] of U7", "Pad 5 [/SDA] of U9"),
+    ]))
+
+    added = drc.compare(before, after).added
+    assert len(added) == 1 and "/SDA" in " ".join(added[0].items)
+
+
+def test_a_second_break_on_a_net_that_already_had_one_is_reported():
+    """Counted, not set-subtracted. Two groups where there was one is a change."""
+    before = drc.parse(a_report(unconnected_items=[
+        a_finding("unconnected_items", "PTH pad 4 [/+5v] of J1", "PTH pad 6 [/+5v] of J1"),
+    ]))
+    after = drc.parse(a_report(unconnected_items=[
+        a_finding("unconnected_items", "PTH pad 4 [/+5v] of J1", "PTH pad 6 [/+5v] of J1"),
+        a_finding("unconnected_items", "PTH pad 21 [/+5v] of J1", "PTH pad 22 [/+5v] of J1"),
+    ]))
+
+    assert len(drc.compare(before, after).added) == 1
+
+
+def test_a_clearance_finding_still_keys_on_the_items_it_names():
+    """Only `unconnected_items` has a varying witness. Nothing else measured does, and
+    widening the exemption without evidence would hide real changes."""
+    before = drc.parse(a_report())
+    after = drc.parse(a_report(violations=[
+        a_finding("clearance", "Pad 5 [/+3V3] of U3", "Zone [/+3V3]"),
+    ]))
+
+    assert len(drc.compare(before, after).added) == 1
