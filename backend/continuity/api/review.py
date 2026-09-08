@@ -493,3 +493,134 @@ async def run_review(
             yield events.frame(event)
 
     return StreamingResponse(framed(), media_type="text/event-stream", headers=SSE_HEADERS)
+
+
+# ── answering a decision ──────────────────────────────────────────────────────
+
+
+def next_revision(current: str | None) -> str | None:
+    """The revision after this one, when the pattern makes that obvious.
+
+    `Rev C` becomes `Rev D` and `12` becomes `13`. Anything else is left alone and the
+    revision does not move, because inventing a revision scheme for somebody's released
+    design is worse than not touching it — a configuration management system is downstream
+    of this and it owns the numbering.
+    """
+    if not current:
+        return None
+    stripped = current.rstrip()
+    if not stripped:
+        return None
+    tail = stripped[-1]
+    if tail.isalpha() and tail.upper() < "Z":
+        return stripped[:-1] + chr(ord(tail) + 1)
+    digits = ""
+    while stripped and stripped[-1].isdigit():
+        digits = stripped[-1] + digits
+        stripped = stripped[:-1]
+    if digits:
+        return f"{stripped}{int(digits) + 1}"
+    return None
+
+
+class Answer(BaseModel):
+    approve: bool
+    rationale: str = Field(default="", max_length=2000)
+    """Why, in the answerer's own words. Recorded with the approval, because a signature
+    with no reason is a signature nobody can audit."""
+
+
+@router.post("/decisions/{decision_id}")
+async def answer_decision(
+    decision_id: str, body: Answer, request: Request, user: User = Depends(current_user)
+) -> dict[str, Any]:
+    """Approve a substitution and apply it, or decline it.
+
+    **Authorisation is here, at the boundary.** The decision names the roles that may answer
+    it, and a person outside them is refused with a 403 rather than having their answer
+    quietly recorded — the whole point of routing a decision to a desk is that another desk
+    cannot sign it. 403 and not 404, because the caller can already see the decision.
+    """
+    store = store_of(request)
+    decision = await store.decision_for(decision_id, user.org_id)
+    if decision is None:
+        raise HTTPException(404, "no such decision")
+    if decision["state"] != "pending":
+        raise HTTPException(409, f"that decision was already {decision['state']}")
+
+    allowed = set(decision["roles"] or ())
+    if allowed and not allowed.intersection(user.roles):
+        raise HTTPException(
+            403,
+            f"this decision belongs to {' or '.join(sorted(allowed))}. "
+            f"You hold {', '.join(sorted(user.roles)) or 'no roles'}.",
+        )
+
+    if not body.approve:
+        await store.settle_decision(
+            decision_id, user.org_id, state="declined", by=user.id,
+            rationale=body.rationale or None,
+        )
+        return {"state": "declined", "line_id": decision["line_id"]}
+
+    part = await _resolve_quietly(decision["proposal"])
+    revision = next_revision(decision["revision"])
+    applied = await store.apply_substitution(
+        line_id=decision["line_id"],
+        org_id=user.org_id,
+        user_id=user.id,
+        refdes=decision["slot_id"],
+        mpn=decision["proposal"],
+        manufacturer=part.manufacturer if part else None,
+        footprint=part.package if part else None,
+        revision=revision,
+    )
+    if not applied:
+        raise HTTPException(
+            409,
+            f"{decision['slot_id'].upper()} is no longer on this product line's bill of "
+            f"materials, so there is nothing to substitute.",
+        )
+
+    await store.settle_decision(
+        decision_id, user.org_id, state="approved", by=user.id,
+        rationale=body.rationale or None,
+    )
+    await store.record_approval(
+        org_id=user.org_id,
+        decision_id=decision_id,
+        line_id=decision["line_id"],
+        user_id=user.id,
+        user_email=user.email,
+        roles=sorted(user.roles),
+        rule=decision["gate_rule"] or "substitution",
+        subject=decision["slot_id"],
+        mpn=decision["proposal"],
+        revision=revision or decision["revision"],
+        rationale=body.rationale or decision["detail"],
+    )
+    # The success half of memory, which has been missing since precedents were built. A
+    # rejection is scoped to the board it happened on; a success is evidence anywhere in the
+    # company that this part can do this job.
+    await store.record_precedents(
+        user.org_id,
+        decision["line_id"],
+        [
+            {
+                "signature": f"eol|{decision['retiring']}|{decision['slot_id']}",
+                "mpn": decision["proposal"],
+                "outcome": "worked",
+                "detail": (
+                    f"Approved for the {decision['line_name']} by {user.email}"
+                    + (f" — {body.rationale}" if body.rationale else "")
+                ),
+            }
+        ],
+    )
+    return {
+        "state": "approved",
+        "line_id": decision["line_id"],
+        "mpn": decision["proposal"],
+        "refdes": decision["slot_id"],
+        "revision": revision or decision["revision"],
+    }

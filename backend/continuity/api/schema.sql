@@ -452,3 +452,15 @@ CREATE TABLE IF NOT EXISTS decisions (
 CREATE INDEX IF NOT EXISTS decisions_org_idx ON decisions(org_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS decisions_line_idx ON decisions(line_id, state);
 CREATE INDEX IF NOT EXISTS decisions_notice_idx ON decisions(notice_id);
+
+-- Added 8 Sep 2026. An approval can now come from a substitution review rather than from a
+-- design run, so the thread it belonged to becomes optional and the decision it settled is
+-- recorded instead. Both are nullable and at least one is always set: an approval is
+-- evidence about a change, and the change is either a run or a decision.
+ALTER TABLE approvals ALTER COLUMN thread_id DROP NOT NULL;
+ALTER TABLE approvals ADD COLUMN IF NOT EXISTS decision_id text
+    REFERENCES decisions(id) ON DELETE SET NULL;
+ALTER TABLE approvals ADD COLUMN IF NOT EXISTS line_id text
+    REFERENCES product_lines(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS approvals_line_idx ON approvals(line_id, created_at DESC);

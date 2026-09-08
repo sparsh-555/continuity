@@ -1012,7 +1012,9 @@ class Store:
         self,
         *,
         org_id: str,
-        thread_id: str,
+        thread_id: str | None = None,
+        decision_id: str | None = None,
+        line_id: str | None = None,
         user_id: str | None,
         user_email: str,
         roles: Sequence[str],
@@ -1033,14 +1035,14 @@ class Store:
             await conn.execute(
                 """
                 INSERT INTO approvals (
-                    id, org_id, thread_id, user_id, user_email, roles,
+                    id, org_id, thread_id, decision_id, line_id, user_id, user_email, roles,
                     rule, subject, mpn, revision, rationale
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    approval_id, org_id, thread_id, user_id, user_email, list(roles),
-                    rule, subject, mpn, revision, rationale,
+                    approval_id, org_id, thread_id, decision_id, line_id, user_id,
+                    user_email, list(roles), rule, subject, mpn, revision, rationale,
                 ),
             )
         return approval_id
@@ -1514,3 +1516,57 @@ class Store:
             )
             row = await cursor.fetchone()
         return row[0] if row else None
+
+    async def apply_substitution(
+        self,
+        *,
+        line_id: str,
+        org_id: str,
+        user_id: str,
+        refdes: str,
+        mpn: str,
+        manufacturer: str | None,
+        footprint: str | None,
+        revision: str | None,
+    ) -> bool:
+        """Put the substitute on the product line, at the position the old part sat in.
+
+        One statement, scoped by organisation, so a line belonging to somebody else matches
+        nothing and writes nothing. The revision moves with it because the bill of materials
+        of a released design cannot change without the design changing — a board carrying a
+        different regulator under the same revision is a board nobody can trace.
+        """
+        async with self.pool.connection() as conn:
+            async with conn.transaction():
+                cursor = await conn.execute(
+                    """
+                    UPDATE line_parts SET mpn = %s, manufacturer = %s, footprint = %s
+                     WHERE line_id = %s AND org_id = %s AND refdes = %s
+                    """,
+                    (mpn, manufacturer, footprint, line_id, org_id, refdes),
+                )
+                if cursor.rowcount != 1:
+                    return False
+                await conn.execute(
+                    """
+                    UPDATE product_lines
+                       SET revision = COALESCE(%s, revision), updated_at = now()
+                     WHERE id = %s AND org_id = %s
+                    """,
+                    (revision, line_id, org_id),
+                )
+        return True
+
+    async def approvals_for_line(self, line_id: str, org_id: str) -> list[dict[str, Any]]:
+        """Who signed what on this product line. The audit trail an ECO process asks for."""
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT id, user_email, roles, rule, subject, mpn, revision, rationale,
+                       created_at
+                  FROM approvals WHERE line_id = %s AND org_id = %s
+              ORDER BY created_at DESC
+                """,
+                (line_id, org_id),
+            )
+            return await cursor.fetchall()

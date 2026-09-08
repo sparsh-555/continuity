@@ -98,7 +98,7 @@ def bom_for(regulator, load_part):
 
 
 @asynccontextmanager
-async def a_company(store, *, qualified=QUALIFIED):
+async def a_company(store, *, qualified=QUALIFIED, vendors=("JLCPCB",)):
     """Three products carrying the retired part, and the two standing lists."""
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=120.0
@@ -127,7 +127,8 @@ async def a_company(store, *, qualified=QUALIFIED):
         # A kept list that approves nobody rejects everybody, which is the whole point of
         # `None` meaning "no list" and an empty list meaning "nothing is approved". Leaving
         # this out made every candidate fail source approval, correctly.
-        await store.approve_vendor(me["org_id"], "JLCPCB", by=me["id"])
+        for vendor in vendors:
+            await store.approve_vendor(me["org_id"], vendor, by=me["id"])
         notice_id = await store.save_notice(me["org_id"], me["id"], _Notice(), source="test")
         yield http, me, notice_id
 
@@ -408,3 +409,160 @@ def test_a_distributor_that_cannot_be_reached_is_said_out_loud(monkeypatch):
     assert any(frame["type"] == "line_done" for frame in frames), (
         "the review still finishes on what it has"
     )
+
+
+# ── answering a decision ──────────────────────────────────────────────────────
+
+
+async def a_pending_decision(store, http, notice_id, org_id, **body):
+    await frames_of(http, notice_id, **body)
+    decisions = await store.decisions_for_notice(notice_id, org_id)
+    return {row["line_name"]: row for row in decisions}
+
+
+def test_approving_puts_the_part_on_the_product_line():
+    """The step the flow stopped at. A change request that never changes anything is a
+    document, not a tool."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                answered = await http.post(
+                    f"/decisions/{gateway['id']}",
+                    json={"approve": True, "rationale": "Same package, 35 °C of headroom."},
+                )
+                bom = (await http.get(f"/lines/{gateway['line_id']}/bom")).json()
+                line = (await http.get(f"/lines/{gateway['line_id']}")).json()
+                return gateway, answered.json(), bom, line
+
+    gateway, answered, bom, line = run(go())
+
+    assert answered["state"] == "approved"
+    fitted = {row["refdes"]: row["mpn"] for row in bom}
+    assert fitted["u1"] == gateway["proposal"], "the substitute is on the board"
+    assert line["revision"] == "Rev D", "a released design does not change under one revision"
+
+
+def test_approving_records_who_signed_it_and_why():
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                await http.post(
+                    f"/decisions/{gateway['id']}",
+                    json={"approve": True, "rationale": "Approved on the 2025 audit."},
+                )
+                return await store.approvals_for_line(gateway["line_id"], me["org_id"])
+
+    approvals = run(go())
+
+    assert len(approvals) == 1
+    assert approvals[0]["user_email"] == "run@example.com"
+    assert approvals[0]["rationale"] == "Approved on the 2025 audit."
+    assert approvals[0]["revision"] == "Rev D"
+
+
+def test_approving_writes_the_successful_precedent_that_was_never_written():
+    """Open since precedents were built: rejections were recorded and successes were not,
+    because a success needs the moment a substitution is *accepted* rather than proposed."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                await http.post(f"/decisions/{gateway['id']}", json={"approve": True})
+                return await store.worked_anywhere(
+                    me["org_id"], f"eol|{AMS1117.mpn}|u1"
+                )
+
+    worked = run(go())
+
+    assert [row["mpn"] for row in worked] == [TLV1117.mpn]
+
+
+def test_a_desk_that_does_not_own_the_decision_is_refused():
+    """The whole point of routing a decision. Who we buy from is procurement's alone, and
+    an engineer has no standing to approve a source however good the part is.
+
+    Qualification is deliberately not the case used here: `roles.py` addresses it to
+    engineering *and* quality, so an engineer can answer it — see DEFERRED on whether that
+    should need two signatures rather than either one.
+    """
+
+    async def go():
+        async with a_store() as store:
+            # A kept vendor list that approves nobody. Every part is then fine and from a
+            # source procurement has not signed off.
+            async with a_company(store, vendors=[]) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                assert gateway["gate_rule"] == "source_approval", "precondition"
+                assert gateway["roles"] == ["procurement"]
+                return await http.post(
+                    f"/decisions/{gateway['id']}", json={"approve": True}
+                )
+
+    response = run(go())
+
+    assert response.status_code == 403
+    assert "procurement" in response.json()["detail"]
+
+
+def test_a_decision_can_only_be_answered_once():
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                first = await http.post(f"/decisions/{gateway['id']}", json={"approve": True})
+                second = await http.post(f"/decisions/{gateway['id']}", json={"approve": True})
+                return first, second
+
+    first, second = run(go())
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert "already approved" in second.json()["detail"]
+
+
+def test_declining_changes_nothing_on_the_board():
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                answered = await http.post(
+                    f"/decisions/{gateway['id']}",
+                    json={"approve": False, "rationale": "Waiting for the second source."},
+                )
+                bom = (await http.get(f"/lines/{gateway['line_id']}/bom")).json()
+                return answered.json(), bom
+
+    answered, bom = run(go())
+
+    assert answered["state"] == "declined"
+    assert {row["refdes"]: row["mpn"] for row in bom}["u1"] == AMS1117.mpn
+
+
+def test_another_organisations_decision_is_not_found():
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=60.0
+            ) as other:
+                await other.post(
+                    "/auth/register",
+                    json={"email": "stranger@example.com", "password": "a-good-password"},
+                )
+                return await other.post(
+                    f"/decisions/{gateway['id']}", json={"approve": True}
+                )
+
+    assert run(go()).status_code == 404
