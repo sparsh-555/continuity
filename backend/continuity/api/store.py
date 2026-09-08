@@ -876,6 +876,49 @@ class Store:
             )
         return by_mpn
 
+    # ── where the mailbox poller got to ──────────────────────────────────────
+
+    async def mail_cursor(self, org_id: str) -> tuple[str, int] | None:
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute(
+                "SELECT validity, uid FROM mail_cursor WHERE org_id = %s", (org_id,)
+            )
+            row = await cursor.fetchone()
+            return (row[0], int(row[1])) if row else None
+
+    async def save_mail_cursor(self, org_id: str, *, validity: str, uid: int) -> None:
+        """Move the read position forward, never back.
+
+        `GREATEST` rather than a plain assignment: two pollers, or a poll that overlaps a
+        slow one, must not rewind the mailbox and re-read what has already been turned
+        into notices.
+        """
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO mail_cursor (org_id, validity, uid) VALUES (%s, %s, %s)
+                ON CONFLICT (org_id) DO UPDATE
+                   SET uid = CASE WHEN mail_cursor.validity = EXCLUDED.validity
+                                  THEN GREATEST(mail_cursor.uid, EXCLUDED.uid)
+                                  ELSE EXCLUDED.uid END,
+                       validity = EXCLUDED.validity,
+                       updated_at = now()
+                """,
+                (org_id, validity, uid),
+            )
+
+    async def only_organisation(self) -> str | None:
+        """The one organisation, when there is exactly one.
+
+        A mailbox belongs to a company and nothing in a message says which. Rather than
+        attribute a notice to whichever account happens to be first, this answers only
+        when the question has one answer, and `CONTINUITY_MAIL_ORG` settles it otherwise.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute("SELECT id FROM organisations LIMIT 2")
+            rows = await cursor.fetchall()
+            return rows[0][0] if len(rows) == 1 else None
+
     # ── the standing lists, and what was decided against them ────────────────
 
     async def approved_lists(self, org_id: str) -> ApprovedLists:

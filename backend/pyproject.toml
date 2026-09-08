@@ -24,6 +24,11 @@ dependencies = [
     # deliberately shares that one pool rather than opening a second stack.
     "langgraph-checkpoint-postgres>=3.0",
     "psycopg[binary,pool]>=3.2",
+    # Mail. A thin wrapper over the standard library's `imaplib` and `email` with no
+    # runtime dependencies of its own, taken rather than hand-rolled because the traps in
+    # reading a message are all in the parsing: RFC 2047 encoded headers, walking a
+    # multipart tree, base64 attachment decoding and charset guessing.
+    "imap-tools>=1.15,<2",
     # Auth.
     "argon2-cffi>=23.1",
     "email-validator>=2.1",

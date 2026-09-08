@@ -464,3 +464,19 @@ ALTER TABLE approvals ADD COLUMN IF NOT EXISTS line_id text
     REFERENCES product_lines(id) ON DELETE CASCADE;
 
 CREATE INDEX IF NOT EXISTS approvals_line_idx ON approvals(line_id, created_at DESC);
+
+-- Added 8 Sep 2026. Where the mailbox poller got to, per organisation.
+--
+-- A UID rather than the \Seen flag. Marking messages read is the obvious way to remember
+-- what has been handled and it breaks the moment anybody opens the mailbox in a browser,
+-- which is the first thing a person does when checking that their message arrived.
+--
+-- `validity` is the folder's UIDVALIDITY, stored beside the UID because the RFC lets a
+-- server renumber a folder and says every UID a client remembers means nothing when it
+-- does. Without it, a renumbered folder silently skips real mail.
+CREATE TABLE IF NOT EXISTS mail_cursor (
+    org_id     text PRIMARY KEY REFERENCES organisations(id) ON DELETE CASCADE,
+    validity   text NOT NULL,
+    uid        bigint NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);

@@ -150,6 +150,11 @@ function RequestCard({ request }: { request: ChangeRequest }) {
   )
 }
 
+const ARRIVALS_MS = 10_000
+/** How often to check for a notice that arrived by email rather than by upload. Ten
+ *  seconds is under the server's own fifteen, so a forwarded notice shows up within about
+ *  a poll of being read rather than a poll plus a refresh. */
+
 export default function NoticesRoute() {
   const [notices, setNotices] = useState<Notice[]>([])
   const [selected, setSelected] = useState<Notice | null>(null)
@@ -171,6 +176,22 @@ export default function NoticesRoute() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // A notice can now arrive without anybody in this browser doing anything, because the
+  // server polls a mailbox. The screen has to notice that on its own, or forwarding a
+  // change notice looks like nothing happened until somebody reloads the page.
+  //
+  // A poll rather than a stream: this is one small list, the server already has the
+  // endpoint, and an SSE connection held open for the whole session would be a third
+  // reader of a third stream for a list that changes a few times a day.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // Not while an upload is in flight. That path sets the received notice itself, and a
+      // refresh landing mid-upload would reorder the list under the panel being read.
+      if (!busy) void refresh()
+    }, ARRIVALS_MS)
+    return () => clearInterval(timer)
+  }, [busy, refresh])
 
   const upload = useCallback(
     async (file: File) => {

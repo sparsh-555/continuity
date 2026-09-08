@@ -798,6 +798,36 @@ URL, so the venue's network is not on the critical path. `CONTINUITY_MAIL_HOST`,
 **Test** a message with a PDF attachment becomes a stored notice with `source` recording the
 mailbox it came from, and a message with no notice in it is left alone rather than guessed at.
 
+**Built 8 Sep, waiting on a live mailbox.** `continuity/mail.py`, started from the app's
+lifespan when the three variables are set and silent when they are not.
+
+`deliveries` is the whole IMAP conversation and `collect` decides what becomes a notice, so
+everything worth getting wrong is tested without a server. `tools/check_mail.py` proves the
+credentials on their own, because "the mailbox will not let us in" and "we read the message
+wrongly" are different problems and only one of them is ours.
+
+Four decisions worth knowing:
+
+- **The read position is a stored UID, not the `\Seen` flag.** Marking messages read is the
+  obvious way to remember what has been handled and it breaks the moment anybody opens the
+  mailbox in a browser, which is the first thing a person does when checking that their
+  message arrived. `mail_cursor` holds the UID with the folder's `UIDVALIDITY`, because the
+  RFC lets a server renumber a folder and says every remembered UID means nothing when it
+  does. The cursor goes into `deliveries` rather than a bare UID, since only that function
+  can see the server's validity before choosing the search.
+- **`imap-tools`** rather than raw `imaplib`. Apache-2.0, no runtime dependencies of its own,
+  and the traps in reading a message are all in the parsing. It does parse with the compat32
+  policy, so `mail.parse` re-reads the bytes under `email.policy.default`; without that every
+  real message would have yielded no documents while every test passed.
+- **Attachments first, the body only when nothing readable was attached.** A PCN is usually a
+  PDF and sometimes pasted, and a signature logo is on almost every corporate message.
+- **A message with no notice is left alone.** Nothing stored, nothing deleted, nothing
+  guessed. The position still advances past it, and the loop does not poll at all while the
+  model is unavailable, so no message is passed over unread.
+
+Still to do once a mailbox exists: run `tools/check_mail.py`, forward `PCN-2026-114.pdf` to
+it, and watch the notices screen pick it up on its own.
+
 ## 23 · Memory, on the company's record — **done 8 Sep**
 
 **Files** `api/recall.py` (new), `api/store.py`, `routes/memory.tsx`

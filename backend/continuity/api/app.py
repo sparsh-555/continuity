@@ -23,6 +23,7 @@ import logging
 import os
 import time
 import uuid
+import contextlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, Mapping, Sequence
@@ -34,7 +35,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 from pydantic import BaseModel, Field, ValidationError
 
-from .. import env
+from .. import env, mail
 from ..engine.models import ApprovedLists, PartSpec, Slot
 from ..graph import nodes
 from ..graph.build import build
@@ -108,9 +109,26 @@ async def lifespan(app: FastAPI):
     app.state.store = store
     app.state.graph = build(checkpointer)
     log.info("persistence: postgres")
+
+    # The mailbox, when one is configured. A background task rather than a separate
+    # process, because the thing it produces is a row this app already knows how to serve,
+    # and a second process would need the same database URL, the same model key and its
+    # own deployment. Unconfigured, nothing starts and the upload path is unaffected.
+    watcher = None
+    if mail.configured():
+        watcher = asyncio.create_task(mail.watch(store), name="mail-watch")
+    else:
+        log.info("no mailbox configured: notices arrive by upload only")
+
     try:
         yield
     finally:
+        if watcher is not None:
+            watcher.cancel()
+            # Awaited rather than abandoned, so a cancelled poll closes its IMAP
+            # connection before the pool it might be writing through goes away.
+            with contextlib.suppress(asyncio.CancelledError):
+                await watcher
         await pool.close()
 
 
