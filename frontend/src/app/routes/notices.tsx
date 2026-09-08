@@ -187,7 +187,7 @@ export default function NoticesRoute() {
         bytes.forEach((byte) => {
           binary += String.fromCharCode(byte)
         })
-        const next = await receiveNotice(btoa(binary))
+        const next = await receiveNotice(btoa(binary), file.name)
         setReceived(next)
         setSelected(null)
         await refresh()

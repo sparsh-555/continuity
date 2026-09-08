@@ -24,6 +24,7 @@ import pytest
 
 from continuity.api.app import app
 from continuity.api.store import Store
+from continuity.notices import Notice
 from tools import seed_world
 from tools.eol_differential import AMS1117, LD1117, NCP1117, TLV1117
 
@@ -157,6 +158,100 @@ def test_reset_replaces_the_world_and_leaves_one_company():
     orgs, lines = run(go())
 
     assert orgs == 1, "signing up mints a company each, and the vacated ones must not pile up"
+    assert lines == 5, "one world, not two"
+
+
+def test_reset_survives_a_world_that_has_actually_been_used():
+    """Reset after a demo run, which is the only time anybody runs it.
+
+    An empty world resets cleanly, and `test_reset_replaces_the_world_and_leaves_one_company`
+    passed for weeks on that alone. The demo database did not: `decisions.decided_by` is
+    ON DELETE SET NULL while `decisions.line_id` cascades, so deleting the users made
+    PostgreSQL update a decision row whose product line the same statement had already
+    cascaded away, and that update re-checked `line_id` against a row that was gone.
+
+    **This test does not reproduce that failure, and saying so is the point.** Whether the
+    update or the cascade reaches a given row first depends on the order rows come off
+    disk, so the same shape raises `ForeignKeyViolation` on the demo database and passes
+    here. The failure was reproduced against a `pg_dump` copy of the demo world, and it
+    goes away there under `UPDATE decisions SET decided_by = NULL`. What this test holds
+    is the shape and the outcome: a used world resets, and nothing it owned survives.
+    """
+
+    async def go():
+        async with empty() as store:
+            world = await seed_world.seed(store)
+            line_id = world["lines"][0][0]
+            others = [row[0] for row in world["lines"][1:3]]
+            notice_id = await store.save_notice(
+                world["org_id"], world["engineer"].id,
+                Notice(mpn="AMS1117-3.3", mpn_line="Affected part: AMS1117-3.3"),
+                source="test",
+            )
+            # One decision per affected line, which is what a review produces. The demo
+            # leaves three, and one answered among several is what makes PostgreSQL
+            # update a row it is also cascading away.
+            for other in others:
+                await store.save_decision(
+                    org_id=world["org_id"], line_id=other, notice_id=notice_id,
+                    user_id=world["engineer"].id, slot_id="U3", retiring="AMS1117-3.3",
+                    proposal="NCP1117ST33T3G", gate_rule="part_qualification",
+                    roles=["engineering"], detail="Clears here.", document={},
+                )
+            decision_id = await store.save_decision(
+                org_id=world["org_id"],
+                line_id=line_id,
+                notice_id=notice_id,
+                user_id=world["engineer"].id,
+                slot_id="U3",
+                retiring="AMS1117-3.3",
+                proposal="TLV1117LV33DCYR",
+                gate_rule="part_qualification",
+                roles=["engineering"],
+                detail="35 °C of margin.",
+                document={},
+            )
+            # Answered by the other account. That is the shape the demo leaves behind, and
+            # it is what makes the deletion order matter: the line belongs to one user and
+            # the decision points at two.
+            await store.settle_decision(
+                decision_id, world["org_id"], state="approved",
+                by=world["engineer"].id, rationale="Fine here.",
+            )
+            # And the signature it produced, which points at both the decision and the
+            # line. This is what makes the deletion order matter rather than merely
+            # untidy: `approvals.decision_id` nulls when the decision goes, and
+            # `decisions.decided_by` nulls when the user goes, so PostgreSQL updates rows
+            # whose `line_id` has already been cascaded away underneath them.
+            async with store.pool.connection() as conn:
+                cursor = await conn.execute(
+                    "SELECT decided_by FROM decisions WHERE id = %s", (decision_id,)
+                )
+                assert (await cursor.fetchone())[0], "the decision has to be answered"
+            await store.record_approval(
+                org_id=world["org_id"],
+                decision_id=decision_id,
+                line_id=line_id,
+                user_id=world["engineer"].id,
+                user_email="engineer@northwind.example",
+                roles=["engineering"],
+                rule="part_qualification",
+                subject="U3",
+                mpn="TLV1117LV33DCYR",
+                revision="Rev D",
+                rationale="35 °C of margin.",
+            )
+            await seed_world.seed(store, reset=True)
+            async with store.pool.connection() as conn:
+                cursor = await conn.execute("SELECT count(*) FROM decisions")
+                (decisions,) = await cursor.fetchone()
+                cursor = await conn.execute("SELECT count(*) FROM product_lines")
+                (lines,) = await cursor.fetchone()
+            return decisions, lines
+
+    decisions, lines = run(go())
+
+    assert decisions == 0, "the old world's decisions go with it"
     assert lines == 5, "one world, not two"
 
 

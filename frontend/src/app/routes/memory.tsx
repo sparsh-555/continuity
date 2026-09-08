@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router'
 import { forceCollide } from 'd3-force'
 import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d'
 
-import { ApiError, getMemory, type MemoryFinding, type MemoryPart, type MemoryLine, type MemoryResponse } from '../lib/api'
+import { ApiError, getMemory, type MemoryEvent, type MemoryFinding, type MemoryPart, type MemoryLine, type MemoryResponse, type MemoryRetirement } from '../lib/api'
 
 type MemoryNode = {
   id: string
@@ -77,7 +77,7 @@ function makeGraph(response: MemoryResponse, previous: GraphData | null, animate
   const remember = (line_id: string, line_name: string) => {
     if (lineById.has(line_id)) return
     const known = response.lines.find((line) => line.id === line_id)
-    lineById.set(line_id, known ?? { id: line_id, name: line_name, boards: 0 })
+    lineById.set(line_id, known ?? { id: line_id, name: line_name, revision: null, parts: 0 })
   }
   response.parts.forEach((part) => {
     part.used_in.forEach(({ line_id, line_name }) => remember(line_id, line_name))
@@ -173,6 +173,52 @@ function FindingCard({ finding }: { finding: MemoryFinding }) {
   )
 }
 
+/** How each thing that happened to a part is labelled and coloured.
+ *
+ *  A rejection and an approval are opposite answers to the same question, so they must not
+ *  read the same at a glance. `awaiting` is neither: it is a question nobody has answered. */
+const EVENT_STYLE: Record<MemoryEvent['kind'], { label: string; tone: string }> = {
+  rejected: { label: 'RULED OUT', tone: 'border-error text-error' },
+  worked: { label: 'WORKED', tone: 'border-[#4ade80] text-[#4ade80]' },
+  approved: { label: 'APPROVED', tone: 'border-[#4ade80] text-[#4ade80]' },
+  declined: { label: 'DECLINED', tone: 'border-outline-variant text-on-surface-variant' },
+  awaiting: { label: 'WAITING ON A DESK', tone: 'border-tertiary-container text-tertiary-container' },
+  recommended: { label: 'RECOMMENDED', tone: 'border-primary-container text-primary-container' },
+}
+
+function EventCard({ event }: { event: MemoryEvent }) {
+  const style = EVENT_STYLE[event.kind] ?? EVENT_STYLE.recommended
+  return (
+    <article className={`border-l-2 pl-sm py-xs flex flex-col gap-[2px] ${style.tone.split(' ')[0]}`}>
+      <div className="flex items-baseline justify-between gap-sm">
+        <span className={`font-label-caps text-[10px] ${style.tone.split(' ')[1]}`}>{style.label}</span>
+        {event.line_name ? <span className="font-data-tabular text-[10px] text-outline truncate">{event.line_name}</span> : null}
+      </div>
+      {/* The sentence that decided it. A rejection with no sentence is a shrug, and this
+          screen exists so that the next notice does not have to re-litigate the answer. */}
+      {event.detail ? <p className="m-0 font-body-sm text-body-sm text-on-surface-variant leading-relaxed">{event.detail}</p> : null}
+      {event.rationale ? <p className="m-0 font-body-sm text-body-sm text-on-surface-variant leading-relaxed">{event.rationale}</p> : null}
+      {event.by ? <p className="m-0 font-data-tabular text-[10px] text-outline">{event.by}{event.roles?.length ? ` · ${event.roles.join(', ')}` : ''}</p> : null}
+      {event.roles?.length && !event.by ? <p className="m-0 font-data-tabular text-[10px] text-outline">{event.roles.join(' or ')} decides</p> : null}
+      {event.replaces ? <p className="m-0 font-data-tabular text-[10px] text-outline">replaces {event.replaces}</p> : null}
+      {event.for_mpn ? <p className="m-0 font-data-tabular text-[10px] text-outline">for {event.for_mpn}</p> : null}
+    </article>
+  )
+}
+
+/** What the manufacturer said, quoted. */
+function RetirementBanner({ retirement }: { retirement: MemoryRetirement }) {
+  return (
+    <div className="border border-error/50 bg-error-container/15 p-sm flex flex-col gap-xs">
+      <p className="m-0 font-label-caps text-[10px] text-error">RETIRED BY A CHANGE NOTICE</p>
+      {retirement.mpn_line ? <p className="m-0 font-body-sm text-body-sm text-on-surface italic">“{retirement.mpn_line}”</p> : null}
+      {retirement.effective_date_line ? <p className="m-0 font-body-sm text-body-sm text-on-surface-variant italic">“{retirement.effective_date_line}”</p> : null}
+      {retirement.replacement_mpn ? <p className="m-0 font-data-tabular text-data-tabular text-on-surface">recommends {retirement.replacement_mpn}</p> : null}
+      {retirement.source ? <p className="m-0 font-data-tabular text-[10px] text-outline">{retirement.source}</p> : null}
+    </div>
+  )
+}
+
 function PartPanel({ part, onLine }: { part: MemoryPart; onLine: (id: string) => void }) {
   return (
     <>
@@ -186,6 +232,7 @@ function PartPanel({ part, onLine }: { part: MemoryPart; onLine: (id: string) =>
         <p className="m-0 font-body-sm text-body-sm text-on-surface-variant">{part.manufacturer ?? 'Manufacturer unknown'}</p>
       </div>
       <div className="flex-1 overflow-y-auto p-lg flex flex-col gap-xl">
+        {part.retirement ? <RetirementBanner retirement={part.retirement} /> : null}
         <section className="flex flex-col gap-sm">
           <h3 className="m-0 font-label-caps text-label-caps text-outline uppercase">USED IN ({part.used_in.length})</h3>
           <div className="flex flex-col gap-xs">
@@ -193,14 +240,46 @@ function PartPanel({ part, onLine }: { part: MemoryPart; onLine: (id: string) =>
               <button className="text-left flex items-center gap-sm p-sm bg-surface-container border border-outline-variant hover:border-primary-container transition-colors min-w-0" key={line.line_id} onClick={() => onLine(line.line_id)} type="button" title={line.line_name}>
                 <span className="material-symbols-outlined text-[16px] text-outline">developer_board</span>
                 <span className="font-data-tabular text-data-tabular text-on-surface truncate">{line.line_name}</span>
+                {/* Which designator, because "somewhere on the gateway" is not an answer
+                    anybody can act on when the board carries two of the same regulator. */}
+                {line.refdes.length ? <span className="font-data-tabular text-[10px] text-outline shrink-0">{line.refdes.join(' ')}</span> : null}
               </button>
             ))}
+            {!part.used_in.length ? <p className="m-0 font-body-sm text-body-sm text-on-surface-variant">On no board today.</p> : null}
           </div>
         </section>
-        <section className="flex flex-col gap-sm">
-          <h3 className="m-0 font-label-caps text-label-caps text-outline uppercase">FINDINGS · {part.findings.length}</h3>
-          {part.findings.length ? part.findings.map((finding) => <FindingCard finding={finding} key={`${finding.thread_id}:${finding.rule}:${finding.slot}`} />) : <p className="m-0 font-body-sm text-body-sm text-on-surface-variant">No findings recorded.</p>}
-        </section>
+        {part.history.length ? (
+          <section className="flex flex-col gap-sm">
+            <h3 className="m-0 font-label-caps text-label-caps text-outline uppercase">WHAT WAS DECIDED · {part.history.length}</h3>
+            <div className="flex flex-col gap-sm">
+              {part.history.map((event, index) => <EventCard event={event} key={`${event.kind}:${event.line_id ?? ''}:${index}`} />)}
+            </div>
+          </section>
+        ) : null}
+        {part.facts.length ? (
+          <section className="flex flex-col gap-sm">
+            <h3 className="m-0 font-label-caps text-label-caps text-outline uppercase">VERIFIED FROM THE DATASHEET · {part.facts.length}</h3>
+            <div className="flex flex-col gap-xs">
+              {part.facts.map((fact) => (
+                <div className="flex flex-col gap-[2px]" key={fact.field}>
+                  <p className="m-0 font-data-tabular text-data-tabular text-on-surface">{fact.field.replace(/_/g, ' ')} · {fact.value}</p>
+                  {/* Quotation marks are a claim that these are the document's own words,
+                      so a reading whose line was never captured says that plainly instead
+                      of dressing its marker up as a citation. */}
+                  {fact.quote
+                    ? <p className="m-0 font-body-sm text-[11px] text-outline italic leading-snug">“{fact.quote}”</p>
+                    : <p className="m-0 font-label-caps text-[10px] text-outline">{fact.verified ? 'READ FROM THE DATASHEET, LINE NOT RECORDED' : 'NO SOURCE RECORDED'}</p>}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        {part.findings.length ? (
+          <section className="flex flex-col gap-sm">
+            <h3 className="m-0 font-label-caps text-label-caps text-outline uppercase">FINDINGS · {part.findings.length}</h3>
+            {part.findings.map((finding) => <FindingCard finding={finding} key={`${finding.thread_id}:${finding.rule}:${finding.slot}`} />)}
+          </section>
+        ) : null}
       </div>
     </>
   )
@@ -350,13 +429,19 @@ export default function MemoryRoute() {
     if (node.kind === 'part' && node.part) {
       const radius = partRadius(node.part) * (0.65 + progress * 0.35)
       context.fillStyle = '#f2a25c'; context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fill()
-      if (node.part.lifecycle === 'nrnd' || node.part.lifecycle === 'obsolete' || node.part.findings.length) {
-        context.strokeStyle = node.part.lifecycle === 'nrnd' || node.part.lifecycle === 'obsolete' ? '#ffb4ab' : '#f5d84a'
+      // A ring means the part is going away; a badge means somebody had to think about it.
+      // Both were once driven by design-run findings alone, so the parts this product is
+      // actually about — the retired one and the substitutes weighed against it — drew
+      // nothing at all.
+      const retired = node.part.lifecycle === 'nrnd' || node.part.lifecycle === 'obsolete'
+      const decided = node.part.history.length + node.part.findings.length
+      if (retired || decided) {
+        context.strokeStyle = retired ? '#ffb4ab' : '#f5d84a'
         context.lineWidth = 2 / globalScale; context.beginPath(); context.arc(x, y, radius + 3 / globalScale, 0, Math.PI * 2); context.stroke()
       }
-      if (node.part.findings.length && !(node.part.lifecycle === 'nrnd' || node.part.lifecycle === 'obsolete')) {
+      if (decided && !retired) {
         context.fillStyle = '#f5d84a'; context.beginPath(); context.arc(x + radius, y - radius, 6 / globalScale, 0, Math.PI * 2); context.fill()
-        context.fillStyle = '#001f24'; context.font = `${8 / globalScale}px JetBrains Mono`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(String(node.part.findings.length), x + radius, y - radius)
+        context.fillStyle = '#001f24'; context.font = `${8 / globalScale}px JetBrains Mono`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(String(decided), x + radius, y - radius)
       }
     } else {
       const side = 12; context.fillStyle = '#424a52'; context.fillRect(x - side / 2, y - side / 2, side, side)
@@ -393,12 +478,12 @@ export default function MemoryRoute() {
 
   if (loading) return <MemoryShell><div className="min-h-screen bg-background p-lg"><div className="h-12 border-b border-outline-variant bg-surface animate-pulse" /><div className="mt-md h-[calc(100vh-100px)] border border-outline-variant bg-surface-container-low animate-pulse" /></div></MemoryShell>
   if (error) return <MemoryShell><div className="min-h-screen bg-background text-on-background flex items-center justify-center p-lg"><div className="border border-error bg-error-container/20 p-lg max-w-md"><p className="m-0 font-headline-sm text-headline-sm text-error">{error === 'unauthenticated' ? 'SIGN IN REQUIRED' : 'MEMORY COULD NOT LOAD'}</p><p className="mt-sm text-on-surface-variant">{error === 'unauthenticated' ? 'Your session has expired.' : 'The server did not respond. Try again.'}</p>{error === 'unauthenticated' ? <Link className="font-label-caps text-label-caps text-primary-container" to="/login">SIGN IN →</Link> : <button className="font-label-caps text-label-caps text-primary-container" onClick={() => load().catch(() => undefined)} type="button">RETRY</button>}</div></div></MemoryShell>
-  if (!memory || memory.parts.length === 0) return <MemoryShell><div className="min-h-screen bg-background text-on-background flex flex-col"><MemoryHeader partCount={0} lineCount={0} query={query} onQuery={setQuery} /><main className="flex-1 flex items-center justify-center text-center"><div><h1 className="m-0 font-display-mono text-display-mono text-on-surface">NOTHING REMEMBERED YET</h1><p className="text-on-surface-variant">Design a board and this fills itself in.</p></div></main></div></MemoryShell>
+  if (!memory || memory.parts.length === 0) return <MemoryShell><div className="min-h-screen bg-background text-on-background flex flex-col"><MemoryHeader partCount={0} lineCount={0} query={query} onQuery={setQuery} /><main className="flex-1 flex items-center justify-center text-center"><div><h1 className="m-0 font-display-mono text-display-mono text-on-surface">NOTHING REMEMBERED YET</h1><p className="text-on-surface-variant">Add a product line and its bill of materials, and this fills itself in.</p></div></main></div></MemoryShell>
 
   const selectedLine = selected?.kind === 'line' ? selected.line : undefined
   const lineParts = selectedLine ? memory.parts.filter((part) => part.used_in.some((usage) => usage.line_id === selectedLine.id)) : []
   const lineFindings = selectedLine ? memory.parts.flatMap((part) => part.findings.filter((finding) => finding.line_id === selectedLine.id)) : []
-  return <MemoryShell><div className="h-screen bg-transparent text-on-background font-body-md flex flex-col overflow-hidden"><MemoryHeader partCount={memory.parts.length} lineCount={memory.lines.length} query={query} onQuery={setQuery} capped={memory.parts_capped ? memory.part_limit : undefined} /><main className="flex-1 min-h-0 relative overflow-hidden"><div className="absolute inset-0 bg-surface-container-lowest" data-tour="memory-graph" ref={graphHost} onMouseMove={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setTooltip({ x: event.clientX - rect.left, y: event.clientY - rect.top }) }}><ForceGraph2D backgroundColor="#080f11" graphData={graph} height={size.height} linkCanvasObject={linkCanvasObject} nodeCanvasObject={nodeCanvasObject} nodeCanvasObjectMode={() => 'replace'} nodePointerAreaPaint={nodePointerAreaPaint} onBackgroundClick={() => { setSelected(null); setHovered(null) }} onNodeClick={(node: MemoryNode) => setSelected(node)} onEngineStop={() => { if (!framed.current) { framed.current = true; graphRef.current?.zoomToFit(400, 60) } }} onNodeHover={(node: MemoryNode | null) => setHovered(node)} ref={graphRef} width={size.width} /></div>{query ? <div className="absolute top-md left-md z-10 w-72 border border-outline-variant bg-surface-container-high p-sm max-h-[45vh] overflow-auto">{searchParts.map((part) => <button className="block w-full text-left px-sm py-xs hover:bg-surface-container-highest font-data-tabular text-data-tabular text-on-surface" key={part.mpn} onClick={() => setSelected(graph.nodes.find((node) => node.id === `part:${part.mpn}`) ?? null)} type="button">{part.mpn}</button>)}{!searchParts.length ? <p className="m-0 px-sm py-xs text-body-sm text-on-surface-variant">No matching parts.</p> : null}</div> : null}{hovered?.part ? <div className="absolute pointer-events-none z-20 w-64 border border-outline-variant bg-surface-container-high p-sm shadow-lg" style={{ left: Math.min(tooltip.x + 14, Math.max(8, size.width - 270)), top: Math.min(tooltip.y + 14, Math.max(8, size.height - 100)) }}><p className="m-0 font-data-tabular text-data-tabular text-on-surface">{hovered.part.mpn}</p><p className="m-0 text-body-sm text-on-surface-variant truncate">{hovered.part.manufacturer ?? 'Manufacturer unknown'}</p><p className="m-0 mt-xs font-label-caps text-[10px] text-outline">USED IN {plural(hovered.part.used_in.length, 'BOARD')} · {plural(hovered.part.findings.length, 'FINDING')} · {lifecycleLabel(hovered.part.lifecycle)}</p></div> : null}{selected ? <aside className="absolute top-md bottom-md right-md w-[min(380px,calc(100%-32px))] bg-surface-container border border-outline-variant flex flex-col z-20 shadow-[-4px_4px_0px_rgba(0,0,0,1)]" data-tour="memory-detail"><button aria-label="Close details" className="absolute top-sm right-sm text-on-surface-variant hover:text-on-surface" onClick={() => setSelected(null)} type="button">×</button>{selected.kind === 'part' && selected.part ? <PartPanel onLine={(id) => setSelected(graph.nodes.find((node) => node.id === `line:${id}`) ?? null)} part={selected.part} /> : selectedLine ? <LinePanel findings={lineFindings} onPart={(part) => setSelected(graph.nodes.find((node) => node.id === `part:${part.mpn}`) ?? null)} parts={lineParts} line={selectedLine} /> : null}</aside> : null}</main></div></MemoryShell>
+  return <MemoryShell><div className="h-screen bg-transparent text-on-background font-body-md flex flex-col overflow-hidden"><MemoryHeader partCount={memory.parts.length} lineCount={memory.lines.length} query={query} onQuery={setQuery} capped={memory.parts_capped ? memory.part_limit : undefined} /><main className="flex-1 min-h-0 relative overflow-hidden"><div className="absolute inset-0 bg-surface-container-lowest" data-tour="memory-graph" ref={graphHost} onMouseMove={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setTooltip({ x: event.clientX - rect.left, y: event.clientY - rect.top }) }}><ForceGraph2D backgroundColor="#080f11" graphData={graph} height={size.height} linkCanvasObject={linkCanvasObject} nodeCanvasObject={nodeCanvasObject} nodeCanvasObjectMode={() => 'replace'} nodePointerAreaPaint={nodePointerAreaPaint} onBackgroundClick={() => { setSelected(null); setHovered(null) }} onNodeClick={(node: MemoryNode) => setSelected(node)} onEngineStop={() => { if (!framed.current) { framed.current = true; graphRef.current?.zoomToFit(400, 60) } }} onNodeHover={(node: MemoryNode | null) => setHovered(node)} ref={graphRef} width={size.width} /></div>{query ? <div className="absolute top-md left-md z-10 w-72 border border-outline-variant bg-surface-container-high p-sm max-h-[45vh] overflow-auto">{searchParts.map((part) => <button className="block w-full text-left px-sm py-xs hover:bg-surface-container-highest font-data-tabular text-data-tabular text-on-surface" key={part.mpn} onClick={() => setSelected(graph.nodes.find((node) => node.id === `part:${part.mpn}`) ?? null)} type="button">{part.mpn}</button>)}{!searchParts.length ? <p className="m-0 px-sm py-xs text-body-sm text-on-surface-variant">No matching parts.</p> : null}</div> : null}{hovered?.part ? <div className="absolute pointer-events-none z-20 w-64 border border-outline-variant bg-surface-container-high p-sm shadow-lg" style={{ left: Math.min(tooltip.x + 14, Math.max(8, size.width - 270)), top: Math.min(tooltip.y + 14, Math.max(8, size.height - 100)) }}><p className="m-0 font-data-tabular text-data-tabular text-on-surface">{hovered.part.mpn}</p><p className="m-0 text-body-sm text-on-surface-variant truncate">{hovered.part.manufacturer ?? 'Manufacturer unknown'}</p><p className="m-0 mt-xs font-label-caps text-[10px] text-outline">USED IN {plural(hovered.part.used_in.length, 'BOARD')} · {plural(hovered.part.history.length + hovered.part.findings.length, 'DECISION')} · {lifecycleLabel(hovered.part.lifecycle)}</p></div> : null}{selected ? <aside className="absolute top-md bottom-md right-md w-[min(380px,calc(100%-32px))] bg-surface-container border border-outline-variant flex flex-col z-20 shadow-[-4px_4px_0px_rgba(0,0,0,1)]" data-tour="memory-detail"><button aria-label="Close details" className="absolute top-sm right-sm text-on-surface-variant hover:text-on-surface" onClick={() => setSelected(null)} type="button">×</button>{selected.kind === 'part' && selected.part ? <PartPanel onLine={(id) => setSelected(graph.nodes.find((node) => node.id === `line:${id}`) ?? null)} part={selected.part} /> : selectedLine ? <LinePanel findings={lineFindings} onPart={(part) => setSelected(graph.nodes.find((node) => node.id === `part:${part.mpn}`) ?? null)} parts={lineParts} line={selectedLine} /> : null}</aside> : null}</main></div></MemoryShell>
 }
 
 function MemoryShell({ children }: { children: ReactNode }) {

@@ -561,8 +561,10 @@ def test_memory_includes_stable_facts_and_empty_lists_for_unknown_parts():
             return await store.memory_for_user(user.org_id, part_limit=100)
 
     parts = {part["mpn"]: part for part in run(go())["parts"]}
+    # `source` is split into what the reading is and what it quoted. "TI datasheet" is not
+    # written with the verified marker, so it stays as it is and claims no datasheet line.
     assert parts["TPS54331DR"]["facts"] == [
-        {"field": "theta_ja", "value": "62.0", "source": "TI datasheet"}
+        {"field": "theta_ja", "value": "62.0", "verified": False, "quote": "TI datasheet"}
     ]
     assert parts["SHT40"]["facts"] == []
 

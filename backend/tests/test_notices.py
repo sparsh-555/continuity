@@ -195,7 +195,10 @@ def test_a_posted_notice_names_the_products_that_carry_the_part(model):
 
                 posted = await http.post(
                     "/notices",
-                    json={"document": base64.b64encode(PCN.encode()).decode()},
+                    json={
+                        "document": base64.b64encode(PCN.encode()).decode(),
+                        "filename": "PCN-2026-114.pdf",
+                    },
                 )
                 return posted, (await http.get("/notices")).json()
 
@@ -209,7 +212,10 @@ def test_a_posted_notice_names_the_products_that_carry_the_part(model):
 
     assert len(listed) == 1
     assert listed[0]["mpn"] == "AMS1117-3.3"
-    assert listed[0]["source"] == "api", "how it arrived is the first thing anybody asks"
+    assert listed[0]["source"] == "PCN-2026-114.pdf", (
+        "how it arrived is the first thing anybody asks, and the document's own name is an "
+        "answer a person recognises where the literal string `api` was not"
+    )
 
 
 @pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
@@ -228,7 +234,10 @@ def test_a_notice_for_a_part_we_do_not_ship_says_so_rather_than_failing(model):
                 )
                 return await http.post(
                     "/notices",
-                    json={"document": base64.b64encode(PCN.encode()).decode()},
+                    json={
+                        "document": base64.b64encode(PCN.encode()).decode(),
+                        "filename": "PCN-2026-114.pdf",
+                    },
                 )
 
     response = run(go())
@@ -252,7 +261,10 @@ def test_an_unreadable_document_is_refused_with_a_reason(model):
                 )
                 return await http.post(
                     "/notices",
-                    json={"document": base64.b64encode(PCN.encode()).decode()},
+                    json={
+                        "document": base64.b64encode(PCN.encode()).decode(),
+                        "filename": "PCN-2026-114.pdf",
+                    },
                 )
 
     response = run(go())
@@ -408,7 +420,10 @@ def test_a_notice_yields_one_change_request_per_affected_line(model, monkeypatch
                 posted = (
                     await http.post(
                         "/notices",
-                        json={"document": base64.b64encode(PCN.encode()).decode()},
+                        json={
+                        "document": base64.b64encode(PCN.encode()).decode(),
+                        "filename": "PCN-2026-114.pdf",
+                    },
                     )
                 ).json()
 
@@ -477,7 +492,10 @@ def test_reviewing_a_notice_for_a_part_we_do_not_ship_is_refused_with_a_reason(m
                 posted = (
                     await http.post(
                         "/notices",
-                        json={"document": base64.b64encode(PCN.encode()).decode()},
+                        json={
+                        "document": base64.b64encode(PCN.encode()).decode(),
+                        "filename": "PCN-2026-114.pdf",
+                    },
                     )
                 ).json()
                 return await http.post(
@@ -526,7 +544,10 @@ def test_an_older_notice_can_still_be_reviewed(model):
                 first = (
                     await http.post(
                         "/notices",
-                        json={"document": base64.b64encode(PCN.encode()).decode()},
+                        json={
+                        "document": base64.b64encode(PCN.encode()).decode(),
+                        "filename": "PCN-2026-114.pdf",
+                    },
                     )
                 ).json()["id"]
 
@@ -624,7 +645,10 @@ def test_a_second_notice_does_not_re_propose_what_the_first_ruled_out(model, mon
                 notice = (
                     await http.post(
                         "/notices",
-                        json={"document": base64.b64encode(PCN.encode()).decode()},
+                        json={
+                        "document": base64.b64encode(PCN.encode()).decode(),
+                        "filename": "PCN-2026-114.pdf",
+                    },
                     )
                 ).json()
 

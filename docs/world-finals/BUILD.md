@@ -798,15 +798,39 @@ URL, so the venue's network is not on the critical path. `CONTINUITY_MAIL_HOST`,
 **Test** a message with a PDF attachment becomes a stored notice with `source` recording the
 mailbox it came from, and a message with no notice in it is left alone rather than guessed at.
 
-## 23 · Memory, on the company's record
+## 23 · Memory, on the company's record — **done 8 Sep**
 
-**Files** `api/store.py`, `routes/memory.tsx`
+**Files** `api/recall.py` (new), `api/store.py`, `routes/memory.tsx`
 
 **Done when** memory reads what the company actually has — the parts across every product
 line, the notices received, the change requests raised, the precedents on both sides and the
 approvals given — rather than only what a design run left behind.
 
 **Test** a seeded company with no design runs at all has a memory worth reading.
+
+The reads live in `store.memory_for_user` and the assembly in `api/recall.compose`, which is
+pure, so the shape of a memory is testable without a database. Each part carries every board
+it sits on **and the reference designator it sits at**, the notice that retired it in the
+document's own words, and one entry per thing that was decided about it: recommended,
+worked, ruled out, approved, or waiting on a desk.
+
+Three things the work turned up, all fixed:
+
+- An approved decision was remembered twice. Answering one writes the decision's own row
+  *and* an approval in the same request, so memory listed both and the screen read as one
+  board approving the same part twice. The approval is the fuller record because it names
+  the person, so a settled decision is now shown through it. A **declined** one is still
+  listed on its own, because a refusal writes no approval and nothing else remembers that
+  somebody said no.
+- Ten of eleven part facts appeared to cite a datasheet line reading *"source unavailable"*.
+  `part_facts.source` carries a marker and a quotation in one string; `recall.fact_from`
+  splits them, and the panel uses quotation marks only when there are words to quote.
+- A retired part cited its notice to `api`. The upload now records the document's filename.
+
+**Lifecycle comes from the notice's own date**, and the two answers differ in the way a buyer
+cares about: a last order date that has passed makes a part `obsolete`, and one still ahead
+makes it `nrnd`. A notice that withholds its date, as `PCN-2026-118` does, still gets `nrnd`.
+Nothing here overwrites a lifecycle a distributor stated.
 
 ## 24 · The walkthrough goes
 

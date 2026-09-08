@@ -364,7 +364,9 @@ export type Review = {
 export type MemoryLine = {
   id: string
   name: string
-  boards: number
+  revision: string | null
+  /** How many parts the line's bill of materials records. */
+  parts: number
 }
 
 export type MemoryFinding = {
@@ -379,12 +381,57 @@ export type MemoryFinding = {
   replacement_mpn: string | null
 }
 
+/** What a change notice said about a part, in the document's own words. */
+export type MemoryRetirement = {
+  mpn_line: string | null
+  manufacturer: string | null
+  effective_date: string | null
+  effective_date_line: string | null
+  replacement_mpn: string | null
+  replacement_line: string | null
+  reason: string | null
+  source: string | null
+  at: string | null
+}
+
+/** One thing that happened to this part: a board ruled it out, a desk signed for it, a
+ *  manufacturer recommended it, or a decision about it is still open. */
+export type MemoryEvent = {
+  kind: 'worked' | 'rejected' | 'approved' | 'recommended' | 'awaiting' | 'declined'
+  line_id?: string | null
+  line_name?: string | null
+  detail?: string | null
+  at?: string | null
+  by?: string
+  roles?: string[]
+  rule?: string | null
+  subject?: string | null
+  revision?: string | null
+  rationale?: string | null
+  signature?: string | null
+  replaces?: string | null
+  for_mpn?: string
+  source?: string | null
+}
+
+/** A stored part fact. `quote` is the document's own words when the reading captured
+ *  them, and `verified` says the reading outranks a distributor's listing either way. */
+export type MemoryFact = {
+  field: string
+  value: string
+  verified: boolean
+  quote: string | null
+}
+
 export type MemoryPart = {
   mpn: string
   manufacturer: string | null
   lifecycle: 'active' | 'nrnd' | 'obsolete' | 'unknown' | null
-  used_in: Array<{ line_id: string; line_name: string }>
+  used_in: Array<{ line_id: string; line_name: string; refdes: string[] }>
+  retirement: MemoryRetirement | null
+  history: MemoryEvent[]
   findings: MemoryFinding[]
+  facts: MemoryFact[]
 }
 
 export type MemoryResponse = {
@@ -475,10 +522,12 @@ export function listNotices() {
   return request<Notice[]>('/notices')
 }
 
-export function receiveNotice(documentBase64: string) {
+/** `filename` becomes the notice's recorded source, so memory can cite the document a
+ *  person actually recognises rather than the word `api`. */
+export function receiveNotice(documentBase64: string, filename?: string) {
   return request<ReceivedNotice>('/notices', {
     method: 'POST',
-    body: { document: documentBase64 },
+    body: { document: documentBase64, filename },
   })
 }
 

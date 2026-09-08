@@ -24,6 +24,7 @@ import hashlib
 import secrets
 import uuid
 from dataclasses import dataclass
+from functools import partial
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -33,6 +34,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Json
 from psycopg_pool import AsyncConnectionPool
 
+from . import recall
 from .findings import Finding
 from ..engine.models import ApprovedLists
 from ..parts.dossier import DOSSIER_FIELDS
@@ -736,21 +738,77 @@ class Store:
             return await cursor.fetchall()
 
     async def memory_for_user(self, org_id: str, *, part_limit: int) -> dict[str, Any]:
-        """The bounded line/part graph, with every read constrained at the boundary."""
+        """Everything this company knows about the parts it ships.
+
+        Rebuilt 8 Sep on the record rather than on design runs. It used to read
+        `threads.bom` and join every finding through `threads`, so a company that had
+        never opened the design side had an empty memory while carrying five product
+        lines, three change notices and a settled substitution.
+
+        The reads are ordered by how much each source knows about a part, because
+        `recall.compose` lets the first non-empty answer stand: a bill of materials states
+        the manufacturer the company actually buys, and a design run's parts list is a
+        weaker source for the same field.
+        """
         async with self.pool.connection() as conn:
-            lines_cursor = await conn.cursor(row_factory=dict_row).execute(
+            read = partial(self._rows, conn, org_id)
+            lines = await read(
                 """
-                SELECT p.id, p.name, COUNT(t.id)::integer AS boards
+                SELECT p.id, p.name, p.revision,
+                       COUNT(lp.refdes)::integer AS parts
                   FROM product_lines p
-             LEFT JOIN threads t ON t.line_id = p.id AND t.org_id = p.org_id
+             LEFT JOIN line_parts lp ON lp.line_id = p.id AND lp.org_id = p.org_id
                  WHERE p.org_id = %s
-              GROUP BY p.id, p.name
+              GROUP BY p.id, p.name, p.revision, p.updated_at
               ORDER BY p.updated_at DESC
-                """,
-                (org_id,),
+                """
             )
-            line_rows = await lines_cursor.fetchall()
-            bom_cursor = await conn.cursor(row_factory=dict_row).execute(
+            bom = await read(
+                """
+                SELECT lp.line_id, p.name AS line_name, lp.mpn, lp.manufacturer,
+                       array_agg(lp.refdes ORDER BY lp.refdes) AS refdes
+                  FROM line_parts lp
+                  JOIN product_lines p ON p.id = lp.line_id AND p.org_id = lp.org_id
+                 WHERE lp.org_id = %s AND lp.populated
+              GROUP BY lp.line_id, p.name, lp.mpn, lp.manufacturer
+                """
+            )
+            notices = await read(
+                """
+                SELECT mpn, mpn_line, manufacturer, effective_date, effective_date_line,
+                       replacement_mpn, replacement_line, reason, source, created_at
+                  FROM notices WHERE org_id = %s ORDER BY created_at DESC
+                """
+            )
+            precedents = await read(
+                """
+                SELECT pr.mpn, pr.line_id, l.name AS line_name, pr.outcome, pr.detail,
+                       pr.signature, pr.recorded_at
+                  FROM precedents pr
+                  JOIN product_lines l ON l.id = pr.line_id AND l.org_id = pr.org_id
+                 WHERE pr.org_id = %s ORDER BY pr.recorded_at DESC
+                """
+            )
+            approvals = await read(
+                """
+                SELECT a.mpn, a.line_id, l.name AS line_name, a.user_email, a.roles,
+                       a.rule, a.subject, a.revision, a.rationale, a.created_at
+                  FROM approvals a
+             LEFT JOIN product_lines l ON l.id = a.line_id AND l.org_id = a.org_id
+                 WHERE a.org_id = %s AND NULLIF(a.mpn, '') IS NOT NULL
+              ORDER BY a.created_at DESC
+                """
+            )
+            decisions = await read(
+                """
+                SELECT d.proposal, d.retiring, d.line_id, l.name AS line_name, d.state,
+                       d.roles, d.gate_rule, d.slot_id, d.detail, d.created_at
+                  FROM decisions d
+                  JOIN product_lines l ON l.id = d.line_id AND l.org_id = d.org_id
+                 WHERE d.org_id = %s ORDER BY d.created_at DESC
+                """
+            )
+            thread_parts = await read(
                 """
                 SELECT t.line_id, p.name AS line_name,
                        item->>'mpn' AS mpn, item->>'manufacturer' AS manufacturer,
@@ -759,11 +817,9 @@ class Store:
                   JOIN product_lines p ON p.id = t.line_id AND p.org_id = t.org_id
             CROSS JOIN LATERAL jsonb_array_elements(COALESCE(t.bom, '[]'::jsonb)) AS item
                  WHERE t.org_id = %s AND NULLIF(item->>'mpn', '') IS NOT NULL
-                """,
-                (org_id,),
+                """
             )
-            bom_rows = await bom_cursor.fetchall()
-            findings_cursor = await conn.cursor(row_factory=dict_row).execute(
+            findings = await read(
                 """
                 SELECT f.thread_id, f.line_id, p.name AS line_name, f.rule, f.slot,
                        f.mpn, f.manufacturer, f.lifecycle, f.verdict, f.outcome, f.action,
@@ -772,103 +828,54 @@ class Store:
                   JOIN threads t ON t.id = f.thread_id AND t.org_id = f.org_id
                   JOIN product_lines p ON p.id = f.line_id AND p.org_id = f.org_id
                  WHERE f.org_id = %s
-                """,
-                (org_id,),
+                """
             )
-            finding_rows = await findings_cursor.fetchall()
-            mpns = sorted(
-                {
-                    row["mpn"]
-                    for row in [*bom_rows, *finding_rows]
-                    if isinstance(row["mpn"], str) and row["mpn"]
-                }
+            mpns = recall.mpns_in(
+                bom, thread_parts, findings, notices, precedents, approvals,
+                decisions, fields=("mpn", "replacement_mpn", "proposal", "retiring"),
             )
-            fact_rows: list[dict[str, Any]] = []
-            if mpns:
-                facts_cursor = await conn.cursor(row_factory=dict_row).execute(
-                    """
-                    SELECT mpn, field, value, source
-                      FROM part_facts
-                     WHERE mpn = ANY(%s)
-                  ORDER BY mpn, field
-                    """,
-                    (mpns,),
-                )
-                fact_rows = await facts_cursor.fetchall()
+            facts = await self._facts_for(conn, mpns)
 
-        facts_by_mpn: dict[str, list[dict[str, Any]]] = {}
-        for row in fact_rows:
-            facts_by_mpn.setdefault(row["mpn"], []).append(
+        return recall.compose(
+            lines=lines,
+            bom=bom,
+            notices=notices,
+            precedents=precedents,
+            approvals=approvals,
+            decisions=decisions,
+            thread_parts=thread_parts,
+            findings=findings,
+            facts=facts,
+            part_limit=part_limit,
+        )
+
+    async def _rows(self, conn: Any, org_id: str, sql: str) -> list[dict[str, Any]]:
+        cursor = await conn.cursor(row_factory=dict_row).execute(sql, (org_id,))
+        return await cursor.fetchall()
+
+    async def _facts_for(self, conn: Any, mpns: Sequence[str]) -> dict[str, list[dict[str, Any]]]:
+        """Verified datasheet readings for every part memory is about to mention.
+
+        One read for all of them rather than one per part: memory shows up to
+        `PART_LIMIT` parts and a query each would be that many round trips for a screen
+        nobody is waiting on.
+        """
+        if not mpns:
+            return {}
+        cursor = await conn.cursor(row_factory=dict_row).execute(
+            """
+            SELECT mpn, field, value, source FROM part_facts
+             WHERE mpn = ANY(%s) ORDER BY mpn, field
+            """,
+            (list(mpns),),
+        )
+        by_mpn: dict[str, list[dict[str, Any]]] = {}
+        for row in await cursor.fetchall():
+            by_mpn.setdefault(row["mpn"], []).append(
                 {"field": row["field"], "value": row["value"], "source": row["source"]}
             )
-        parts: dict[str, dict[str, Any]] = {}
-        for row in bom_rows:
-            part = parts.setdefault(
-                row["mpn"],
-                {
-                    "mpn": row["mpn"],
-                    "manufacturer": row["manufacturer"],
-                    "lifecycle": row["lifecycle"],
-                    "used_in": {},
-                    "findings": [],
-                    "facts": facts_by_mpn.get(row["mpn"], []),
-                },
-            )
-            if part["manufacturer"] is None:
-                part["manufacturer"] = row["manufacturer"]
-            if part["lifecycle"] is None:
-                part["lifecycle"] = row["lifecycle"]
-            part["used_in"][row["line_id"]] = {
-                "line_id": row["line_id"],
-                "line_name": row["line_name"],
-            }
-        for row in finding_rows:
-            part = parts.setdefault(
-                row["mpn"],
-                {
-                    "mpn": row["mpn"],
-                    "manufacturer": row["manufacturer"],
-                    "lifecycle": row["lifecycle"],
-                    "used_in": {},
-                    "findings": [],
-                    "facts": facts_by_mpn.get(row["mpn"], []),
-                },
-            )
-            if part["manufacturer"] is None:
-                part["manufacturer"] = row["manufacturer"]
-            if part["lifecycle"] is None:
-                part["lifecycle"] = row["lifecycle"]
-            part["findings"].append(
-                {
-                    "thread_id": row["thread_id"],
-                    "line_id": row["line_id"],
-                    "line_name": row["line_name"],
-                    "rule": row["rule"],
-                    "slot": row["slot"],
-                    "verdict": row["verdict"],
-                    "outcome": row["outcome"],
-                    "action": row["action"],
-                    "replacement_mpn": row["replacement_mpn"],
-                }
-            )
+        return by_mpn
 
-        ordered = sorted(
-            parts.values(),
-            key=lambda part: (-bool(part["findings"]), -len(part["used_in"]), part["mpn"]),
-        )
-        capped = len(ordered) > part_limit
-        return {
-            "lines": line_rows,
-            "parts": [
-                {
-                    **part,
-                    "used_in": sorted(part["used_in"].values(), key=lambda edge: edge["line_name"]),
-                }
-                for part in ordered[:part_limit]
-            ],
-            "parts_capped": capped,
-            "part_limit": part_limit,
-        }
     # ── the standing lists, and what was decided against them ────────────────
 
     async def approved_lists(self, org_id: str) -> ApprovedLists:

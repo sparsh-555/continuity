@@ -78,8 +78,17 @@ database changes meaning because this arrived.
 """
 
 
+NO_SOURCE = "source unavailable"
+"""What stands in when a reading has no quotable line.
+
+Named rather than repeated, because anything that has to tell a quotation apart from this
+marker would otherwise be matching a sentence by hand. `api/recall.fact_from` does exactly
+that, and got it wrong on screen for as long as the string lived in two places.
+"""
+
+
 def verified_source(source: str | None) -> str:
-    return f"{VERIFIED_PREFIX}{source or 'source unavailable'}"
+    return f"{VERIFIED_PREFIX}{source or NO_SOURCE}"
 
 
 def is_verified(source: str | None) -> bool:
@@ -151,7 +160,7 @@ def value_from_text(field: str, value: str) -> Any | None:
 
 def provenance(source: str | None) -> str:
     """Make a carried-forward fact visibly distinct from this run's live payload."""
-    return f"{DOSSIER_PROVENANCE_PREFIX} ({source or 'source unavailable'})"
+    return f"{DOSSIER_PROVENANCE_PREFIX} ({source or NO_SOURCE})"
 
 
 def original_source(value: str | None) -> str | None:

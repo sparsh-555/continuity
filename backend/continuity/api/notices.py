@@ -51,6 +51,14 @@ class NoticeRequest(BaseModel):
     """The notice itself, base64. A PDF or plain text — mail carries both, and refusing the
     second would fail on a real message for a reason unrelated to the notice."""
 
+    filename: str | None = Field(default=None, max_length=200)
+    """What the document was called, when the sender knows.
+
+    Recorded as the notice's source so that "where did this come from" has an answer a
+    person recognises. It used to be stored as the literal string `api`, which is true and
+    tells a reader nothing: memory showed a retired part cited to `api`.
+    """
+
 
 @router.post("", status_code=201)
 async def receive(
@@ -76,7 +84,9 @@ async def receive(
             "backed by a line of the document itself.",
         )
 
-    notice_id = await store.save_notice(user.org_id, user.id, notice, source="api")
+    notice_id = await store.save_notice(
+        user.org_id, user.id, notice, source=body.filename or "uploaded"
+    )
     exposed = await store.lines_exposed_to(user.org_id, notice.mpn)
 
     return {

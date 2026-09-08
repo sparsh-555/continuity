@@ -135,11 +135,27 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
             )
         async with store.pool.connection() as conn:
             async with conn.transaction():
-                # People first, then the company. `users.org_id` has no cascade — on purpose,
-                # since deleting a company should not silently delete its staff in
-                # production — so removing the organisation while anybody still belongs to
-                # it is refused by the foreign key. Their lines, threads and decisions
-                # cascade off the users.
+                # The work first, then the people, then the company.
+                #
+                # This used to delete the users and let everything cascade off them, which
+                # worked for as long as the demo world had never been used. It stopped the
+                # moment a decision was answered: `decisions.decided_by` is ON DELETE SET
+                # NULL while `decisions.line_id` cascades, so deleting a user made
+                # PostgreSQL *update* a decision row whose product line the same statement
+                # had already cascaded away, and the update re-checked `line_id` against a
+                # row that was gone. Whether it fires depends on the order the rows come
+                # off disk, so it survived a fresh test database and broke on the demo
+                # one, twice, after a run that ended in an approval.
+                #
+                # Deleting the lines while their owners still exist removes the decisions
+                # outright rather than nulling columns on them, and the ordering question
+                # does not arise. `users.org_id` has no cascade on purpose, since deleting
+                # a company should not silently delete its staff in production, so the
+                # organisation still has to go last.
+                await conn.execute(
+                    "DELETE FROM product_lines WHERE org_id = %s", (existing.org_id,)
+                )
+                await conn.execute("DELETE FROM notices WHERE org_id = %s", (existing.org_id,))
                 await conn.execute("DELETE FROM users WHERE org_id = %s", (existing.org_id,))
                 await conn.execute(
                     "DELETE FROM organisations WHERE id = %s", (existing.org_id,)
