@@ -1,0 +1,179 @@
+"""One substitution, on one board, with the desk that owns the answer named.
+
+The board already exists, so there is no planner here. The run is: put the candidate where
+the retired part sits, re-check the **whole** board, and read what the engine says. Same
+rules, same coverage labels, same evidence as everywhere else.
+
+## The part that is new
+
+`change.py` chose a proposal from the candidates that clear every rule. That leaves the most
+interesting answer on the floor: a part that is electrically perfect and **not on the
+approved list** is not *unviable*, it is *somebody else's decision*. On the seeded Gateway
+that part is LD1117S33TR, which holds the board with 1.5 °C to spare and has never been
+qualified, while the manufacturer's own recommendation runs 9 °C over its junction limit.
+
+So a candidate lands in one of three states:
+
+  **clear** — nothing failed. Engineering signs it, because a change to a released design is
+  approved before it is implemented, never after.
+  **gated** — the only failures are the rules a department owns: qualification is quality's,
+  source approval is procurement's. The part works. The answer is not engineering's.
+  **blocked** — something physical failed. No signature makes 159 °C into 150 °C.
+
+That is the whole of Scenario B's question in three lines: design validates, procurement
+checks availability, production confirms assembly, and the tool routes rather than decides.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Mapping, Sequence
+
+from .engine import rules
+from .engine.models import Board, PartSpec, Verdict
+from .matrix import substitute
+from .roles import decision_roles
+
+GATE_RULES = ("part_qualification", "source_approval")
+"""Rules a department owns rather than physics. A failure here is a decision, not a wall."""
+
+
+@dataclass(frozen=True)
+class Attempt:
+    """One candidate placed on this board, and everything the engine said about it."""
+
+    candidate: PartSpec
+    verdicts: tuple[Verdict, ...]
+
+    @property
+    def mpn(self) -> str:
+        return self.candidate.mpn
+
+    @property
+    def blocking(self) -> tuple[Verdict, ...]:
+        """Failed, and not waived. What the graph would route on."""
+        return tuple(rules.blocking(list(self.verdicts)))
+
+    @property
+    def gates(self) -> tuple[Verdict, ...]:
+        return tuple(v for v in self.blocking if v.rule in GATE_RULES)
+
+    @property
+    def physical(self) -> tuple[Verdict, ...]:
+        """Failures no signature can clear."""
+        return tuple(v for v in self.blocking if v.rule not in GATE_RULES)
+
+    @property
+    def clear(self) -> bool:
+        return not self.blocking
+
+    @property
+    def gated(self) -> bool:
+        return bool(self.gates) and not self.physical
+
+    @property
+    def margin(self) -> str | None:
+        for verdict in self.verdicts:
+            if verdict.rule == "thermal_dissipation" and verdict.margin:
+                return verdict.margin
+        return next((v.margin for v in self.verdicts if v.margin), None)
+
+
+@dataclass(frozen=True)
+class Proposal:
+    """What this board should do, and who has to say so."""
+
+    mpn: str
+    roles: tuple[str, ...]
+    detail: str
+
+    gate_rule: str | None = None
+    """The department rule standing between the part and the board, when there is one.
+
+    `None` means nothing failed and the approval is the ordinary one every released design
+    needs. A rule here means the part works and the decision belongs to another desk."""
+
+    @property
+    def conditional(self) -> bool:
+        return self.gate_rule is not None
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """The end of one line's run."""
+
+    line_id: str
+    line_name: str
+    slot_id: str
+    retiring: str
+    attempts: tuple[Attempt, ...]
+    proposal: Proposal | None
+
+    @property
+    def viable(self) -> bool:
+        return self.proposal is not None
+
+
+def attempt(board: Board, slot_id: str, candidate: PartSpec) -> Attempt:
+    """Place the candidate and re-check the whole board.
+
+    The whole board, not the slot: a regulator moves the rail it makes, and a substitution
+    that only re-checked its own position would clear a part that browns out everything
+    downstream of it.
+    """
+    substituted = substitute(board, slot_id, candidate)
+    placed = substituted.slots[slot_id]
+    # Read the part back off the board rather than trusting what was handed in, exactly as
+    # the matrix does: the attempt reports what was actually evaluated.
+    return Attempt(candidate=placed.part, verdicts=tuple(rules.evaluate(substituted)))
+
+
+def choose(attempts: Sequence[Attempt], *, excluded: Mapping[str, str] | None = None) -> Proposal | None:
+    """The board's answer, in the caller's order of preference.
+
+    Order matters and is the caller's: a part already on the approved list resolves for
+    about a twelfth of what qualifying one from scratch costs, so "try the cheap answer
+    first" is a real input rather than a tie break.
+
+    A part this board already ruled out is never proposed again, whatever it scores. That is
+    the whole point of remembering a rejection.
+    """
+    ruled_out = dict(excluded or {})
+    usable = [a for a in attempts if a.mpn not in ruled_out]
+
+    for candidate in usable:
+        if candidate.clear:
+            margin = f", with {candidate.margin} to spare" if candidate.margin else ""
+            return Proposal(
+                mpn=candidate.mpn,
+                roles=("engineering",),
+                detail=f"Clears every check on this board{margin}.",
+            )
+
+    for candidate in usable:
+        if candidate.gated:
+            gate = candidate.gates[0]
+            return Proposal(
+                mpn=candidate.mpn,
+                roles=tuple(decision_roles(gate)),
+                gate_rule=gate.rule,
+                detail=gate.detail,
+            )
+
+    return None
+
+
+def narrate(attempt_made: Attempt) -> str:
+    """One sentence about one candidate, in the engine's own words.
+
+    Deterministic, like every other sentence this product puts on screen. The verdict's
+    `detail` is written by the rule that produced it and carries its arithmetic, so quoting
+    it is both the shortest and the most defensible thing to say.
+    """
+    if attempt_made.clear:
+        margin = f" — {attempt_made.margin} to spare" if attempt_made.margin else ""
+        return f"{attempt_made.mpn} clears every check on this board{margin}."
+    first = attempt_made.blocking[0]
+    if attempt_made.gated:
+        return f"{attempt_made.mpn} is electrically fine here. {first.detail}"
+    return f"{attempt_made.mpn} — {first.detail}"
