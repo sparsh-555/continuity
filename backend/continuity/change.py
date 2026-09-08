@@ -29,7 +29,7 @@ from typing import Any, Mapping, Sequence
 
 from .engine.models import Verdict
 from .matrix import Cell, Matrix
-from .roles import decision_roles
+from .roles import DEFAULT_DECISION_ROLES, decision_roles
 
 QUALIFIED_PART_COST = 1_281.0
 """Typical cost of resolving an end-of-life with a part already on the approved list.
@@ -286,15 +286,27 @@ def for_line(
             annual_volume,
             qualified=chosen is not None and chosen.candidate.mpn.upper() in approved,
         ),
-        approvals_required=tuple(
-            dict.fromkeys(
-                role
-                for v in verdicts
-                if v.status == "failed"
-                for role in decision_roles(v)
-            )
-        ),
+        approvals_required=_approvals_for(chosen, verdicts),
     )
+
+
+def _approvals_for(chosen: Cell | None, verdicts: Sequence[Verdict]) -> tuple[str, ...]:
+    """Who has to sign this request.
+
+    Every desk that owns a failing rule — and **engineering when nothing failed at all**,
+    because a change to a released design is approved before it is implemented rather than
+    after. A request proposing a part and claiming nobody needs to sign it is not a lighter
+    process, it is an unauthorised change. A request with no proposal asks for nothing and
+    needs nobody: it is a finding, not a change.
+    """
+    owed = tuple(
+        dict.fromkeys(
+            role for v in verdicts if v.status == "failed" for role in decision_roles(v)
+        )
+    )
+    if owed or chosen is None:
+        return owed
+    return DEFAULT_DECISION_ROLES
 
 
 def for_every_line(

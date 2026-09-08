@@ -145,11 +145,37 @@ def test_the_unit_delta_is_measured_against_the_part_fitted_today():
 # ── who has to sign ───────────────────────────────────────────────────────────
 
 
-def test_a_clean_proposal_asks_nobody_to_approve_anything():
-    """A request that manufactured an approver would waste somebody's afternoon."""
+def test_a_clean_proposal_still_needs_engineering_to_sign_it():
+    """**Changed 8 Sep.** This asserted that a request with nothing failing asks nobody to
+    approve anything, on the reasoning that manufacturing an approver wastes an afternoon.
+
+    That is the wrong reading of the framing this product adopted. A change to a released
+    design is approved before it is implemented, never after — SCENARIO-B quotes the most
+    common audit finding in the field on exactly this — and a request proposing a part while
+    claiming nobody needs to sign it is not a lighter process, it is an unauthorised change.
+    Engineering is not an invented approver; it is the design authority.
+
+    The concern that produced the old test still holds and is still tested below: a request
+    with *no* proposal asks for nothing and needs nobody.
+    """
     [request] = [r for r in requests(prefer=[LD1117.mpn]) if r.line_id == "A"]
 
     assert request.viable
+    assert request.approvals_required == ("engineering",)
+
+
+def test_a_request_with_no_proposal_asks_nobody_for_anything():
+    """The half of the old reasoning that still holds: a finding is not a change, and a
+    request that manufactured an approver for one would waste somebody's afternoon."""
+    matrix = evaluate_matrix(
+        [(LINES[1].id, LINES[1].label, make_board(LINES[1], AMS1117))],
+        [AMS1117, NCP1117],
+        SLOT,
+    )
+
+    request = change.for_line(matrix, "B", notice_mpn=AMS1117.mpn)
+
+    assert not request.viable
     assert request.approvals_required == ()
 
 

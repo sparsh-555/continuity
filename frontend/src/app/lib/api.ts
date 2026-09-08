@@ -122,6 +122,61 @@ export type MatrixResponse = {
   cells: MatrixCell[]
 }
 
+/** One frame of a review stream. Every frame carries the product line it belongs to, or
+ *  `null` where it belongs to the whole review — discovery happens once, not once per
+ *  board. */
+export type ReviewFrame =
+  | {
+      type: 'review_started'
+      seq: number
+      line_id: null
+      notice_id: string
+      mpn: string
+      lines: Array<{ line_id: string; name: string }>
+    }
+  | { type: 'reasoning'; seq: number; line_id: string | null; slot: string | null; text: string }
+  | { type: 'candidate'; seq: number; line_id: string; slot: string; part: { mpn: string } }
+  | {
+      type: 'check'
+      seq: number
+      line_id: string
+      rule: string
+      status: EventStatus
+      detail: string
+      margin: string | null
+    }
+  | {
+      type: 'question'
+      seq: number
+      line_id: string
+      question_id: string
+      text: string
+      suggestions: string[]
+      roles: string[]
+    }
+  | {
+      type: 'line_done'
+      seq: number
+      line_id: string
+      line_name: string
+      /** Null when nothing offered clears this product line, which is the finding. */
+      proposal: string | null
+      /** The decision waiting for a desk, when there is one to make. */
+      decision_id: string | null
+      reason: string
+      conditional: boolean
+      roles: string[]
+    }
+  | { type: 'error'; seq: number; line_id: string | null; message: string; recoverable: boolean }
+
+export type DecisionAnswer = {
+  state: 'approved' | 'declined'
+  line_id: string
+  mpn?: string
+  refdes?: string
+  revision?: string | null
+}
+
 export type LinePart = {
   refdes: string
   mpn: string
@@ -440,6 +495,13 @@ export function reviewNotice(
 
 export function listChangeRequests(noticeId: string) {
   return request<ChangeRequest[]>(`/notices/${encodeURIComponent(noticeId)}/review`)
+}
+
+export function answerDecision(decisionId: string, approve: boolean, rationale = '') {
+  return request<DecisionAnswer>(`/decisions/${encodeURIComponent(decisionId)}`, {
+    method: 'POST',
+    body: { approve, rationale },
+  })
 }
 
 export function getLineOverview(lineId: string) {

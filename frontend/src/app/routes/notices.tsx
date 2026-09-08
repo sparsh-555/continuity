@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { BoardConsequence } from '../board/BoardConsequence'
+import { ReviewColumns } from '../review/ReviewColumns'
 import { Page } from '../shell/Page'
 import {
   ApiError,
   listChangeRequests,
   listNotices,
   receiveNotice,
-  reviewNotice,
   type ChangeRequest,
   type Notice,
   type ReceivedNotice,
@@ -157,7 +157,6 @@ export default function NoticesRoute() {
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [skipped, setSkipped] = useState<string[]>([])
   const [candidates, setCandidates] = useState('')
-  const [volume, setVolume] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -208,43 +207,6 @@ export default function NoticesRoute() {
     [refresh],
   )
 
-  const review = useCallback(async () => {
-    const noticeId = received?.id ?? selected?.id
-    const wanted = candidates
-      .split(/[,\n]/)
-      .map((mpn) => mpn.trim())
-      .filter(Boolean)
-
-    if (!noticeId || wanted.length === 0) {
-      setError('Choose a notice and name at least one candidate part.')
-      return
-    }
-
-    setBusy(true)
-    setError(null)
-    try {
-      const outcome = await reviewNotice(noticeId, wanted, volume ? Number(volume) : null)
-      setRequests(outcome.requests)
-      // A candidate that was never checked has to be said out loud. Without this the
-      // reader sees "no viable part" with no idea that one of the three they named was
-      // excluded before it was ever evaluated — which is the document lying by omission.
-      setSkipped([
-        ...outcome.unresolved.map((mpn) => `${mpn} — not found at the distributor.`),
-        ...Object.values(outcome.ambiguous),
-      ])
-    } catch (caught) {
-      setRequests([])
-      setSkipped([])
-      setError(
-        caught instanceof ApiError && caught.status === 409
-          ? 'That notice does not reach any product line with an operating profile stored.'
-          : 'That review could not be run.',
-      )
-    } finally {
-      setBusy(false)
-    }
-  }, [candidates, received, selected, volume])
-
   const open = useCallback(async (notice: Notice) => {
     setSelected(notice)
     setReceived(null)
@@ -263,7 +225,9 @@ export default function NoticesRoute() {
     <Page
       actions={
         <label className="font-data-tabular text-[11px] text-primary-container border border-primary-container rounded px-md py-1 cursor-pointer hover:bg-surface-variant transition-colors">
-          RECEIVE A NOTICE
+          {/* Reading a notice is a model call against a PDF and takes a few seconds. A
+              button that looks inert for that long reads as a button that did nothing. */}
+          {busy ? 'READING…' : 'RECEIVE A NOTICE'}
           <input
             accept=".pdf,.txt,text/plain,application/pdf"
             className="hidden"
@@ -323,38 +287,20 @@ export default function NoticesRoute() {
             </p>
           ) : null}
 
-          <div className="flex flex-wrap items-end gap-md pt-sm">
-            <label className="flex flex-col gap-1 flex-1 min-w-[260px]">
-              <span className="font-data-tabular text-[10px] text-on-surface-variant">
-                CANDIDATE PARTS
-              </span>
-              <input
-                className="input-field px-sm h-8 w-full font-data-tabular text-[11px]"
-                onChange={(event) => setCandidates(event.target.value)}
-                placeholder={active.replacement_mpn ?? 'MPN, MPN'}
-                value={candidates}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-data-tabular text-[10px] text-on-surface-variant">
-                ANNUAL VOLUME
-              </span>
-              <input
-                className="input-field px-sm h-8 w-32 font-data-tabular text-[11px]"
-                onChange={(event) => setVolume(event.target.value.replace(/\D/g, ''))}
-                placeholder="optional"
-                value={volume}
-              />
-            </label>
-            <button
-              className="h-8 px-md border border-primary-container rounded font-data-tabular text-[11px] text-primary-container hover:bg-surface-variant transition-colors disabled:opacity-40"
-              disabled={busy}
-              onClick={review}
-              type="button"
-            >
-              {busy ? 'CHECKING…' : 'REVIEW EVERY AFFECTED LINE'}
-            </button>
-          </div>
+          {/* The candidates are found, not typed: the notice's own recommendation, then
+              the approved list, then the distributor's catalogue. This box is an override
+              for a part somebody wants tried anyway, and it is deliberately not the way in. */}
+          <details className="pt-sm">
+            <summary className="font-data-tabular text-[10px] text-on-surface-variant cursor-pointer">
+              TRY A PARTICULAR PART TOO
+            </summary>
+            <input
+              className="input-field px-sm h-8 w-full max-w-[420px] mt-1 font-data-tabular text-[11px]"
+              onChange={(event) => setCandidates(event.target.value)}
+              placeholder="MPN, MPN"
+              value={candidates}
+            />
+          </details>
         </section>
       ) : (
         <p className="font-data-tabular text-[11px] text-on-surface-variant">
@@ -375,6 +321,17 @@ export default function NoticesRoute() {
             </p>
           ))}
         </section>
+      ) : null}
+
+      {active && (received?.id ?? selected?.id) ? (
+        <ReviewColumns
+          candidates={candidates
+            .split(/[,\n]/)
+            .map((mpn) => mpn.trim())
+            .filter(Boolean)}
+          noticeId={(received?.id ?? selected?.id) as string}
+          onApplied={() => void refresh()}
+        />
       ) : null}
 
       {requests.length > 0 ? (

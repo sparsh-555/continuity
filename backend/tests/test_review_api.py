@@ -566,3 +566,49 @@ def test_another_organisations_decision_is_not_found():
                 )
 
     assert run(go()).status_code == 404
+
+
+def test_the_run_writes_the_change_request_it_produced():
+    """The packet is the deliverable. It used to be produced by a second pass over work the
+    run had already done, and a run that stops at a decision would leave nothing to sign."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                await frames_of(http, notice_id, annual_volume=20_000)
+                return (await http.get(f"/notices/{notice_id}/review")).json()
+
+    requests = run(go())
+
+    assert {request["line_name"] for request in requests} == {
+        "Sensor node", "Gateway", "Cabinet controller"
+    }
+    gateway = next(r for r in requests if r["line_name"] == "Gateway")
+    assert gateway["baseline_mpn"] == AMS1117.mpn, "what is fitted today"
+    assert gateway["proposal"], "and what to do about it"
+    assert any(
+        alternative["rejected_because"] and "150" in alternative["rejected_because"]
+        for alternative in gateway["alternatives"]
+    ), "the sentence that killed the manufacturer's own recommendation"
+    assert gateway["cost"]["annual_volume"] == 20_000
+    assert gateway["approvals_required"], "and who has to sign it"
+
+
+def test_the_applied_part_keeps_the_manufacturer_it_was_evaluated_as():
+    """Applying used to resolve the proposal by part number alone, which is ambiguous —
+    two manufacturers list TLV1117LV33DCYR — so the substitute landed on the bill with no
+    manufacturer at all. The part that was evaluated is the part being applied."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                await http.post(f"/decisions/{gateway['id']}", json={"approve": True})
+                return (await http.get(f"/lines/{gateway['line_id']}/bom")).json()
+
+    bom = run(go())
+    fitted = {row["refdes"]: row for row in bom}
+
+    assert fitted["u1"]["manufacturer"], "a bill row with no manufacturer is a row nobody can buy"
+    assert fitted["u1"]["footprint"], "and production needs the land pattern"

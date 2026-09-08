@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -35,8 +35,9 @@ from pydantic import BaseModel, Field
 
 from dataclasses import replace as replace_fields
 
-from .. import review
+from .. import change, review
 from ..engine.models import ApprovedLists, PartSpec
+from ..matrix import Cell, Matrix
 from ..graph import sourcing
 from ..parts import normalize
 from ..profile import OperatingProfile, board_from
@@ -75,6 +76,9 @@ flow rather than a gesture."""
 
 class ReviewRun(BaseModel):
     candidates: list[str] = Field(default_factory=list, max_length=20)
+    annual_volume: int | None = Field(default=None, ge=0, le=100_000_000)
+    """Units a year, for the recurring half of the cost. Absent rather than assumed: an
+    invented volume makes a plausible number out of nothing."""
     """Extra parts to try, named by a person. The notice's own recommendation and the
     approved list are found without being asked for."""
 
@@ -207,6 +211,33 @@ async def _board_for(store: Any, line: dict[str, Any], org_id: str):
     return board, None
 
 
+def _as_matrix(
+    line_id: str,
+    line_name: str,
+    slot_id: str,
+    attempts: Sequence[review.Attempt],
+    incumbent: review.Attempt | None,
+) -> Matrix:
+    """The attempts, in the shape `change.for_line` already knows how to read.
+
+    An adapter rather than a second implementation: the change request's rules about which
+    candidate is proposed, which rejections are shown and what a cost is measured against
+    were settled in `change.py` and tested there, and a review that computed its own would
+    be a second answer to a question that has one.
+    """
+    cells = [
+        Cell(
+            line_id=line_id,
+            line_name=line_name,
+            candidate=made.candidate,
+            verdicts=made.verdicts,
+            incumbent_mpn=None if made is incumbent else (incumbent.mpn if incumbent else None),
+        )
+        for made in ([incumbent] if incumbent else []) + list(attempts)
+    ]
+    return Matrix(slot=slot_id, cells=tuple(cells))
+
+
 def _slot_of(board, mpn: str) -> str | None:
     for slot_id, slot in board.slots.items():
         if slot.part is not None and slot.part.mpn.casefold() == mpn.casefold():
@@ -222,6 +253,7 @@ async def _run_line(
     line: dict[str, Any],
     candidates: tuple[review.Candidate, ...],
     approved: ApprovedLists,
+    annual_volume: int | None,
     stream: events.EventStream,
     emit,
 ) -> None:
@@ -258,6 +290,11 @@ async def _run_line(
         return
 
     rejected = await store.rejected_on(user.org_id, line_id)
+    revision = line.get("revision")
+    # The board as it stands today, so the request can say what is fitted and what its
+    # evidence looks like. Substituting a part for itself sets no baseline, which is what
+    # makes this the incumbent row rather than a proposed change.
+    incumbent = review.attempt(board, slot_id, board.slots[slot_id].part)
 
     attempts = []
     for candidate in candidates:
@@ -300,7 +337,11 @@ async def _run_line(
             "attempts": [
                 {
                     "mpn": made.mpn,
+                    # Carried so applying the decision does not have to resolve the part
+                    # again by number alone — which is ambiguous, and wrote a bill of
+                    # materials row with no manufacturer at all the first time it ran.
                     "manufacturer": made.candidate.manufacturer,
+                    "package": made.candidate.package,
                     "clear": made.clear,
                     "gated": made.gated,
                     "narration": review.narrate(made),
@@ -318,6 +359,26 @@ async def _run_line(
             ],
         },
     )
+
+    # The packet, written by the run that produced it. A change request is the deliverable
+    # this whole flow exists to hand somebody — proposal, every rejection with the sentence
+    # that killed it, evidence, the cost split, the desks that must sign — and it used to be
+    # produced by a second pass over work the run had already done.
+    try:
+        request = change.for_line(
+            _as_matrix(line_id, line_name, slot_id, attempts, incumbent),
+            line_id,
+            notice_mpn=notice["mpn"],
+            notice_id=notice["id"],
+            revision=revision,
+            annual_volume=annual_volume,
+            approved_mpns=sorted(approved.parts or ()),
+            prefer=[proposal.mpn],
+            excluded=rejected,
+        )
+        await store.save_change_requests(user.org_id, user.id, notice["id"], [request])
+    except (KeyError, ValueError) as error:  # noqa: BLE001
+        log.warning("could not write the change request for %s: %s", line_name, error)
 
     emit(
         line_id,
@@ -378,14 +439,25 @@ async def run_review(
         # them — so it happens once, before the columns start. Doing it per line would
         # search the distributor three times for one answer.
         #
+        # **Yielded, not queued.** The queue below is only drained once the workers exist,
+        # so a frame put there during discovery does not reach the client until discovery
+        # has finished — which is forty seconds of three columns saying CHECKING with
+        # nothing above them. Measured on screen.
+        def aloud(text: str) -> dict[str, Any]:
+            return {**stream.reasoning(None, text), "line_id": None}
+
         # Resolved with the manufacturer the bill of materials records, never by part number
         # alone: JLCPCB lists AMS1117-3.3 under three manufacturers, and a part already on a
         # board is not ambiguous — the row says whose it is. Asking without it refuses the
         # incumbent and the whole review returns nothing, which is exactly what happened.
+        yield aloud(f"{notice['mpn']} is going end of life.")
+        if notice.get("replacement_mpn"):
+            yield aloud(
+                f"The notice recommends {notice['replacement_mpn']}. Trying that first."
+            )
+
         retiring = await _resolve_quietly(notice["mpn"], fitted_manufacturer)
         if retiring is None:
-            # Yielded, not queued: the loop below has not started, and a queued frame at
-            # this point is a frame nobody ever drains.
             yield {
                 **stream.error(
                     f"{notice['mpn']} could not be sourced, so nothing can be checked "
@@ -396,31 +468,21 @@ async def run_review(
             }
             return
 
-        emit(None, stream.reasoning(None, f"{notice['mpn']} is going end of life."))
-        if notice.get("replacement_mpn"):
-            emit(None, stream.reasoning(
-                None, f"The notice recommends {notice['replacement_mpn']}. Trying that first."
-            ))
-        emit(None, stream.reasoning(
-            None,
+        yield aloud(
             f"Looking for anything else in {retiring.package or 'the same package'}: the "
-            f"approved manufacturer list first, then the distributor's catalogue.",
-        ))
+            f"approved manufacturer list first, then the distributor's catalogue."
+        )
 
-        searched = _catalogue_search
+        unreachable: list[str] = []
 
         async def search_or_say(part: PartSpec) -> list[PartSpec]:
             try:
-                return await searched(part)
-            except CatalogueUnreachable as unreachable:
+                return await _catalogue_search(part)
+            except CatalogueUnreachable as error:
                 # The run continues on what it has. It does not pretend the catalogue was
                 # empty: "we could not look" and "there was nothing there" are different
                 # answers, and only one of them is worth retrying.
-                emit(None, stream.reasoning(
-                    None,
-                    "The distributor could not be searched, so only the notice's "
-                    f"recommendation and the approved list were tried. ({unreachable})",
-                ))
+                unreachable.append(str(error))
                 return []
 
         candidates = await review.candidates_for(
@@ -431,23 +493,31 @@ async def run_review(
             search=search_or_say,
             named=list(body.candidates),
         )
-        emit(None, stream.reasoning(
-            None,
+        for reason in unreachable:
+            yield aloud(
+                "The distributor could not be searched, so only the notice's "
+                f"recommendation and the approved list were tried. ({reason})"
+            )
+        yield aloud(
             "Trying " + ", ".join(f"{c.part.mpn} ({c.origin})" for c in candidates) + "."
             if candidates
-            else "Nothing could be sourced to try.",
-        ))
+            else "Nothing could be sourced to try."
+        )
 
         async def worker(line: dict[str, Any]) -> None:
             try:
                 await _run_line(
                     store=store, user=user, notice=notice, line=line,
                     candidates=candidates, approved=approved,
+                    annual_volume=body.annual_volume,
                     stream=stream, emit=emit,
                 )
             except Exception as error:  # one line failing must not take the others
                 log.exception("review failed for %s", line["line_id"])
-                emit(line["line_id"], stream.error(f"{type(error).__name__}: {error}", recoverable=True))
+                emit(
+                    line["line_id"],
+                    stream.error(f"{type(error).__name__}: {error}", recoverable=True),
+                )
                 emit(line["line_id"], stream.line_done(
                     line["name"], proposal=None, decision_id=None,
                     reason="this product line could not be checked",
@@ -563,7 +633,18 @@ async def answer_decision(
         )
         return {"state": "declined", "line_id": decision["line_id"]}
 
-    part = await _resolve_quietly(decision["proposal"])
+    # Out of the run's own record rather than resolved again. The part that was evaluated
+    # is the part being applied, and asking the distributor for it by number alone is
+    # ambiguous — three manufacturers list AMS1117-3.3, two list TLV1117LV33DCYR — which is
+    # how the first applied substitution landed on a bill with no manufacturer on it.
+    evaluated = next(
+        (
+            attempt
+            for attempt in (decision["document"].get("attempts") or [])
+            if attempt.get("mpn") == decision["proposal"]
+        ),
+        {},
+    )
     revision = next_revision(decision["revision"])
     applied = await store.apply_substitution(
         line_id=decision["line_id"],
@@ -571,8 +652,8 @@ async def answer_decision(
         user_id=user.id,
         refdes=decision["slot_id"],
         mpn=decision["proposal"],
-        manufacturer=part.manufacturer if part else None,
-        footprint=part.package if part else None,
+        manufacturer=evaluated.get("manufacturer"),
+        footprint=evaluated.get("package"),
         revision=revision,
     )
     if not applied:
