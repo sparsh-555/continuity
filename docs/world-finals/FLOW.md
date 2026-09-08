@@ -205,6 +205,36 @@ the first applied substitution landed on a bill with no manufacturer.
 Declining writes the refusal and leaves the board carrying the retired part, which is a real
 answer and is remembered as one.
 
+## 7a · What is on the bill, and why it is three parts
+
+Asked on 9 Sep after a real board was attached and its forty-one rows were briefly imported.
+Writing it down because it is easy to re-derive wrongly.
+
+**A product line's bill is the regulator, the load, and the output capacitor.** That is not a
+limitation, it is the exact set an LDO substitution depends on: the part being replaced, the
+load that sets its current, and the capacitor that sets its stability. `SPEC.md` specifies the
+third one deliberately — `capacitor_requirements` is *"the first thing a hardware engineer
+attacks on an LDO substitution"*, because the four regulator datasheets disagree. AMS1117 asks
+for 22 µF solid tantalum, TLV1117LV requires 1.0 µF ceramic X5R or X7R and is stable with no
+ESR, and the other two characterise at 10 µF.
+
+**Nothing else on a real board is affected by swapping a regulator.** The decoupling around an
+MCU sits on the same rail without being part of the regulator's operating conditions. Importing
+it puts thirty-eight parts in front of rules that each report evidence missing, which is scope
+creep wearing honesty as a costume. The Singapore proposal drew this boundary first: *"the
+boundary is drawn at block-level validation … synthesis requires pin-level connectivity, a
+substantially larger data problem."*
+
+**The passives are checked, by the tool that is authoritative about them.** The board
+consequence runs KiCad's own design rule check before and after, and DRC looks at clearances
+and connections against every object on the board. So the split is: **we check the three parts
+the electrical substitution depends on, and KiCad checks the whole board for what a new
+footprint does to it.** Neither side guesses, and neither claims the other's ground.
+
+**A board therefore never needs its bill imported.** `api/boards._consequence` reads the
+board's own bill out of the file when it runs, so the project is self-describing and the two
+records are about different things at different levels of detail.
+
 ## 8 · The board consequence
 
 `continuity/kicad/` — for a product line with a KiCad project attached, the substitute is
