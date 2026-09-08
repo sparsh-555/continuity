@@ -919,6 +919,13 @@ class Store:
             rows = await cursor.fetchall()
             return rows[0][0] if len(rows) == 1 else None
 
+    async def organisation_of(self, email: str) -> str | None:
+        """The company a person belongs to, by their address."""
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute("SELECT org_id FROM users WHERE email = %s", (email,))
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
     # ── the standing lists, and what was decided against them ────────────────
 
     async def approved_lists(self, org_id: str) -> ApprovedLists:

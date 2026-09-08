@@ -271,6 +271,29 @@ async def poll_once(store: Any, org_id: str) -> list[str]:
     return await collect(store, org_id, delivered, validity=validity)
 
 
+async def whose_mailbox(store: Any) -> str | None:
+    """Which company a message in this mailbox is about.
+
+    `CONTINUITY_MAIL_ORG` accepts **a person's email address** as well as an organisation
+    id, and the address is the one worth using: an organisation id is minted fresh every
+    time the demo world is reseeded, so a `.env` holding one points at a company that no
+    longer exists after the first reset, and it fails by finding no product lines rather
+    than by saying anything.
+
+    With nothing set, the answer is the only company there is, and no answer at all when
+    there is more than one.
+    """
+    named = os.environ.get("CONTINUITY_MAIL_ORG")
+    if not named:
+        return await store.only_organisation()
+    if "@" in named:
+        org_id = await store.organisation_of(named)
+        if not org_id:
+            log.warning("CONTINUITY_MAIL_ORG names %s, who has no account here", named)
+        return org_id
+    return named
+
+
 async def watch(store: Any, *, every: float = POLL_SECONDS) -> None:
     """Poll the mailbox for as long as the app is running.
 
@@ -283,7 +306,7 @@ async def watch(store: Any, *, every: float = POLL_SECONDS) -> None:
 
     from . import llm
 
-    org_id = os.environ.get("CONTINUITY_MAIL_ORG") or await store.only_organisation()
+    org_id = await whose_mailbox(store)
     if not org_id:
         log.warning(
             "the mailbox is configured but there is more than one organisation and "

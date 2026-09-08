@@ -417,3 +417,42 @@ def test_one_company_is_answered_and_two_are_not():
     alone, first_id, ambiguous = asyncio.run(go())
     assert alone == first_id
     assert ambiguous is None, "with two companies the mailbox cannot say whose notice it is"
+
+
+# ── whose notice is it ───────────────────────────────────────────────────────
+
+
+class _Companies:
+    def __init__(self, only=None, by_email=None):
+        self._only = only
+        self._by_email = by_email or {}
+
+    async def only_organisation(self):
+        return self._only
+
+    async def organisation_of(self, email):
+        return self._by_email.get(email)
+
+
+def test_with_one_company_the_mailbox_needs_no_setting(monkeypatch):
+    monkeypatch.delenv("CONTINUITY_MAIL_ORG", raising=False)
+    assert asyncio.run(mail.whose_mailbox(_Companies(only="org-1"))) == "org-1"
+
+
+def test_an_address_is_resolved_to_the_company_that_person_belongs_to(monkeypatch):
+    """The setting takes an address on purpose. An organisation id is minted fresh by every
+    reseed, so a `.env` holding one points at a company that stopped existing after the
+    first reset, and it fails by quietly finding no product lines."""
+    monkeypatch.setenv("CONTINUITY_MAIL_ORG", "engineer@northwind.example")
+    companies = _Companies(by_email={"engineer@northwind.example": "org-7"})
+    assert asyncio.run(mail.whose_mailbox(companies)) == "org-7"
+
+
+def test_an_address_nobody_holds_is_refused_rather_than_guessed(monkeypatch):
+    monkeypatch.setenv("CONTINUITY_MAIL_ORG", "nobody@example.com")
+    assert asyncio.run(mail.whose_mailbox(_Companies(only="org-1"))) is None
+
+
+def test_an_organisation_id_is_still_accepted(monkeypatch):
+    monkeypatch.setenv("CONTINUITY_MAIL_ORG", "563595ec3fb4")
+    assert asyncio.run(mail.whose_mailbox(_Companies())) == "563595ec3fb4"
