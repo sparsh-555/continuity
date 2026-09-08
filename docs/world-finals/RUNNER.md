@@ -391,11 +391,27 @@ cd backend
 PYTHONPATH=. ../.venv/bin/python tools/seed_world.py postgresql:///continuity_demo --reset
 ```
 
-Then delete the notice from the mailbox, or the poller will not re-read it: its read position
-lives in `mail_cursor`, which the reset clears, so a message still sitting in the inbox is
-read again on the next poll. That is usually what you want. It is also why the demo database
-can end up with two `AMS1117-3.3` notices, one mailed and one uploaded, each recording how it
-arrived.
+**Then deal with the mailbox, because the reset alone leaves the demo already spoiled.**
+
+`mail_cursor` cascades off the organisation, so a reset wipes the read position. The message
+from the last run-through is still in the inbox, the poller sees a mailbox it has never read,
+and within fifteen seconds the notice is back. You sign in to a fresh world that has already
+received its change notice, and step 4 has nothing left to show.
+
+Two ways to fix it, and the second is better:
+
+```bash
+# Either: throw away what was auto-read, and leave the cursor where it is.
+psql postgresql:///continuity_demo -c "DELETE FROM notices"
+
+# Or: delete the message from the mailbox first, then reseed. Nothing to re-read.
+```
+
+Either way, forward a **new** message for step 4. It gets the next UID and is read live, which
+is the thing being demonstrated.
+
+This is also why the demo database can end up with two `AMS1117-3.3` notices, one mailed and
+one uploaded, each recording how it arrived. That is correct rather than a duplicate.
 
 **`--reset` used to fail on any world that had been used.** It was fixed on 8 September, and
 the cause is in [DEFERRED.md](DEFERRED.md) under the seed. If it ever fails again with a
