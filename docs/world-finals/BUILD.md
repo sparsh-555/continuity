@@ -892,6 +892,126 @@ finals demo rather than an onboarding funnel.
 
 ---
 
+# Phase 7 · The second flow pass, 9 Sep
+
+Sparsh ran the app end to end for the second time. Every finding is one symptom of the same
+mistake as Phase 5, made again in a smaller way: **the product line page was built beside the
+design workspace instead of being it.** A second screen that renders a graph and a bill of
+materials worse than the screen that already renders a graph and a bill of materials.
+
+The decision, taken 9 Sep: **Plan A.** `/lines/:id` becomes the workspace. `/design/:lineId`
+survives and is reached from the product's own menu, so the Singapore design run and the 900
+tests behind it keep working.
+
+The beat this serves, in his words: all product lines functional, show how a line is added,
+say an important part is going end of life and send the email on stage, Continuity announces
+it, then go to the product and show the graph with the retired part in red.
+
+## 25 · The product line page is the workspace
+
+**Files** `routes/line.tsx`, `design/` components, `routes/lines.tsx`
+
+**Done when** `/lines/:id` renders with the workspace's own components rather than a second
+implementation of them: the component graph, the trace panel beside it, the bill of materials.
+The notice banner carries **REVIEW THIS LINE** and the review runs *on this page*, so the
+question and **APPROVE AND APPLY** arrive in the trace panel where a person is already looking.
+
+**Note** this is cheaper than it looks. `api/review.py` already emits the workspace's own
+event vocabulary — `stream.reasoning`, `stream.candidate`, `stream.check`, `stream.question`
+— plus `review_started` and `line_done`. The panel that renders a design run can render a
+review with little more than a source change.
+
+**Note** the row menu on `/lines` gains **DESIGN RUNS**, opening `/design/:lineId`. Clicking
+the row still opens the product. The design flow is reachable, and it is no longer the thing
+you get by accident.
+
+**Test** a seeded line with no thread renders the graph, the trace panel and the bill, and a
+review started from the banner finishes without leaving the page.
+
+## 26 · The seeded world ships with its boards attached
+
+**Files** `tools/seed_world.py`
+
+**Done when** the five seeded product lines already have their KiCad projects, so the demo
+does not open by zipping a fixture and uploading it. A company that ships five products has
+five projects; making that a demo step was an accident of item 16 landing before item 18 and
+nobody joining them.
+
+**Test** a freshly seeded line reports its board without anything being uploaded, and the
+board consequence runs on it.
+
+## 27 · The graph means something
+
+**Files** `continuity/linegraph.py`, `api/lines.py`, `design/ComponentGraph.tsx`
+
+**Done when** the graph tells the story in three acts, and each colour is a different kind of
+claim so that none of them is unearned:
+
+- **Green before anything happens** — the engine checked this line under its own stored
+  conditions and it passes. Computed, not asserted. `matrix.build_matrix` already does exactly
+  this check and nothing calls it for a line's own incumbent parts.
+- **Red at the retired part** — a *fact from the notice*, not a compatibility verdict. It
+  needs nothing computed and claims nothing the notice does not say.
+- **Grey while a review runs** — true, because the board is genuinely being re-checked.
+- **Green again on approval** — the verdict the review actually produced.
+
+**Note** today every slot comes back `unchecked` from `linegraph.py`, and the graph's legend
+knows only Valid, Conflict and Pending, so `unchecked` falls through to the pending grey. The
+result is a screen that says nothing works about products that ship today.
+
+**Test** a seeded line with no notice against it renders every slot valid, and the same line
+under a notice renders the retired slot in conflict and the rest valid.
+
+## 28 · The notice announces itself
+
+**Files** `shell/`, `routes/lines.tsx`
+
+**Done when** a notice arriving by email raises a notification wherever the user is, naming
+the part and how many products it reaches, and the affected rows on `/lines` change to show
+it without a reload. Tasteful: one line, dismissible, not a modal.
+
+**Note** this is the moment the demo turns on. He sends the mail on stage and the app has to
+react while he is talking, or the beat dies waiting for somebody to press refresh.
+
+**Test** a notice stored while `/lines` is open changes the affected rows and raises the
+notification without a navigation.
+
+## 29 · `/notices` becomes `/changes`, and stops being a page for uploading
+
+**Files** `routes/notices.tsx` → `routes/changes.tsx`, `main.tsx`, `shell/`
+
+**Done when** the page is a list of what has arrived and what it affects, the upload is the
+fallback it actually is rather than the page's headline, and a received notice is **selected
+by default** so the review is reachable without knowing to click a 10px chip.
+
+**Note** the bug this fixes: a mailed notice arrives, the page shows it as an unselected chip,
+and the copy reads *"Receive a change notice to begin"* — which is false, and is why the
+review looked missing. The banner on a product line navigated here with nothing selected,
+which made it worse.
+
+**Note** the name. A change notice arrives, a change request is produced, a change is applied.
+One word carries the whole vocabulary, and `/notices` describes only the first third.
+
+## 30 · Three lanes, not three columns
+
+**Files** `review/ReviewColumns.tsx` → `review/ReviewLanes.tsx`
+
+**Done when** the company-wide run renders as one row per affected product line rather than
+side-by-side columns of streaming text.
+
+**Note** the reasoning, since the current shape was a deliberate choice and is being reversed.
+What has to land is *simultaneity* and then *disagreement*. Nobody reads three traces at once,
+and three narrow columns of 10px monospace on a projector is noise. One legible row each —
+the product, what it is trying now, its state — makes the parallelism obvious, and the three
+verdicts read down a column, which is the comparison worth pointing at. Any lane expands in
+place for the product worth going deep on. It also survives five affected lines, where five
+columns would not.
+
+**Test** three lanes advance together on one stream and end in three readable verdicts, and
+expanding one shows its full trace without collapsing the others.
+
+---
+
 # Phase 6 · Presentation
 
 Not written yet, and not covered anywhere in these documents.
