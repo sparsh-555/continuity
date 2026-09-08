@@ -4,7 +4,7 @@ import { PcbBackground } from './PcbBackground'
 
 export function AppFrame() {
   const location = useLocation()
-  const isDesignWorkspace = location.pathname === '/design' || location.pathname.startsWith('/design/') || location.pathname === '/walkthrough'
+  const isDesignWorkspace = location.pathname === '/design' || location.pathname.startsWith('/design/')
 
   return (
     // The workspace is locked to the viewport, and `AppShell` locks it with `100dvh`.

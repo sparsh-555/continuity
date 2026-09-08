@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 import httpx
 import pytest
 
-from continuity.api.app import _replay, _run, _run_bom, app
+from continuity.api.app import _run, _run_bom, app
 from continuity.api.events import EventStream
 from continuity.api.memory import Finding, FindingRecorder
 from continuity.api.store import Store
@@ -201,47 +201,6 @@ def test_the_design_stream_persists_its_recorded_findings():
     findings = asyncio.run(go())
     assert findings is not None
     assert findings[0].mpn == "SHT40"
-
-
-def test_the_walkthrough_replay_persists_its_recorded_findings(monkeypatch):
-    frames = [
-        {"type": "selection", "slot": "sensor", "part": {"mpn": "SHT40"}},
-        {"type": "conflict", "rule": "availability", "involved": ["sensor"], "message": "No stock."},
-        {"type": "bom", "rows": []},
-        {"type": "done", "summary": {"slots": 1, "placed": 1, "conflicts_resolved": 0, "elapsed_s": 0}},
-    ]
-    monkeypatch.setattr("continuity.api.app.walkthrough_frames", lambda: frames)
-
-    async def go():
-        store = _RecordingStore()
-        assert [item async for item in _replay("walkthrough-findings", store)]
-        return store.findings
-
-    findings = asyncio.run(go())
-    assert findings is not None
-    assert findings[0].mpn == "SHT40"
-
-
-def test_replay_translates_legacy_check_statuses_without_inventing_a_margin(monkeypatch):
-    """Recorded checks predate five-status vocabulary and have no measured margin."""
-    frames = [
-        {"type": "check", "slot": "sensor", "rule": "availability", "status": "pass", "detail": "In stock."},
-        {"type": "check", "slot": "sensor", "rule": "availability", "status": "warn", "detail": "Stock unavailable."},
-        {"type": "check", "slot": "sensor", "rule": "availability", "status": "fail", "detail": "No stock."},
-    ]
-    monkeypatch.setattr("continuity.api.app.walkthrough_frames", lambda: frames)
-
-    async def go():
-        return [json.loads(item.removeprefix("data: ")) async for item in _replay("legacy-statuses", _RecordingStore())]
-
-    replayed = asyncio.run(go())
-
-    assert [frame["status"] for frame in replayed] == [
-        "satisfied",
-        "evidence_missing",
-        "failed",
-    ]
-    assert all("margin" not in frame for frame in replayed)
 
 
 def test_the_bom_validation_stream_persists_its_recorded_findings(monkeypatch):

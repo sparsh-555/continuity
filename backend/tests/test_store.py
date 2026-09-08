@@ -351,36 +351,6 @@ def test_lines_list_for_their_owner_only():
     assert [p.name for p in others] == ["Their board"]
 
 
-def test_the_walkthrough_line_is_not_listed_on_the_dashboard():
-    """It is scaffolding the help button owns, not a line the user made.
-
-    Listing it put a delete affordance on a row `/design/demo` replays into.
-    """
-
-    async def go():
-        async with fresh() as store:
-            user = await a_user(store)
-            await store.create_line(user.id, user.org_id, "My board")
-            await store.ensure_walkthrough(user.id, user.org_id, "a recorded prompt")
-            return await store.lines_for_user(user.org_id)
-
-    assert [p.name for p in run(go())] == ["My board"]
-
-
-def test_the_walkthrough_thread_survives_being_hidden():
-    """Hiding it from the list must not hide it from the tour."""
-
-    async def go():
-        async with fresh() as store:
-            user = await a_user(store)
-            await store.ensure_walkthrough(user.id, user.org_id, "a recorded prompt")
-            return await store.walkthrough_thread_for_user(user.id)
-
-    thread = run(go())
-    assert thread is not None
-    assert thread.prompt == "a recorded prompt"
-
-
 def test_a_line_is_invisible_to_another_user():
     async def go():
         async with fresh() as store:

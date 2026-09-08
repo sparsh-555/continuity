@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { forceCollide } from 'd3-force'
 import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d'
 
 import { ApiError, getMemory, type MemoryFinding, type MemoryPart, type MemoryLine, type MemoryResponse } from '../lib/api'
-import { Walkthrough } from '../design/Walkthrough'
-import { useAuth } from '../hooks/useAuth'
 
 type MemoryNode = {
   id: string
@@ -232,10 +230,6 @@ function LinePanel({ line, parts, findings, onPart }: { line: MemoryLine; parts:
 }
 
 export default function MemoryRoute() {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const { refresh } = useAuth()
-  const walkthrough = Boolean((location.state as { walkthrough?: boolean } | null)?.walkthrough)
   // The library's own methods type. An earlier hand-written module shim declared a
   // looser one, which typechecked and hid this mismatch entirely.
   const graphRef = useRef<ForceGraphMethods<MemoryNode, MemoryLink> | undefined>(undefined)
@@ -255,7 +249,7 @@ export default function MemoryRoute() {
   const [size, setSize] = useState({ width: 1, height: 1 })
 
   useEffect(() => {
-    if (!walkthrough || selected || !memory) {
+    if (selected || !memory) {
       return
     }
 
@@ -264,7 +258,7 @@ export default function MemoryRoute() {
     if (node) {
       setSelected(node)
     }
-  }, [graph.nodes, memory, selected, walkthrough])
+  }, [graph.nodes, memory, selected])
 
   const load = useCallback(async (arrival = false) => {
     try {
@@ -404,7 +398,7 @@ export default function MemoryRoute() {
   const selectedLine = selected?.kind === 'line' ? selected.line : undefined
   const lineParts = selectedLine ? memory.parts.filter((part) => part.used_in.some((usage) => usage.line_id === selectedLine.id)) : []
   const lineFindings = selectedLine ? memory.parts.flatMap((part) => part.findings.filter((finding) => finding.line_id === selectedLine.id)) : []
-  return <MemoryShell><div className="h-screen bg-transparent text-on-background font-body-md flex flex-col overflow-hidden"><MemoryHeader partCount={memory.parts.length} lineCount={memory.lines.length} query={query} onQuery={setQuery} capped={memory.parts_capped ? memory.part_limit : undefined} /><main className="flex-1 min-h-0 relative overflow-hidden"><div className="absolute inset-0 bg-surface-container-lowest" data-tour="memory-graph" ref={graphHost} onMouseMove={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setTooltip({ x: event.clientX - rect.left, y: event.clientY - rect.top }) }}><ForceGraph2D backgroundColor="#080f11" graphData={graph} height={size.height} linkCanvasObject={linkCanvasObject} nodeCanvasObject={nodeCanvasObject} nodeCanvasObjectMode={() => 'replace'} nodePointerAreaPaint={nodePointerAreaPaint} onBackgroundClick={() => { setSelected(null); setHovered(null) }} onNodeClick={(node: MemoryNode) => setSelected(node)} onEngineStop={() => { if (!framed.current) { framed.current = true; graphRef.current?.zoomToFit(400, 60) } }} onNodeHover={(node: MemoryNode | null) => setHovered(node)} ref={graphRef} width={size.width} /></div>{query ? <div className="absolute top-md left-md z-10 w-72 border border-outline-variant bg-surface-container-high p-sm max-h-[45vh] overflow-auto">{searchParts.map((part) => <button className="block w-full text-left px-sm py-xs hover:bg-surface-container-highest font-data-tabular text-data-tabular text-on-surface" key={part.mpn} onClick={() => setSelected(graph.nodes.find((node) => node.id === `part:${part.mpn}`) ?? null)} type="button">{part.mpn}</button>)}{!searchParts.length ? <p className="m-0 px-sm py-xs text-body-sm text-on-surface-variant">No matching parts.</p> : null}</div> : null}{hovered?.part ? <div className="absolute pointer-events-none z-20 w-64 border border-outline-variant bg-surface-container-high p-sm shadow-lg" style={{ left: Math.min(tooltip.x + 14, Math.max(8, size.width - 270)), top: Math.min(tooltip.y + 14, Math.max(8, size.height - 100)) }}><p className="m-0 font-data-tabular text-data-tabular text-on-surface">{hovered.part.mpn}</p><p className="m-0 text-body-sm text-on-surface-variant truncate">{hovered.part.manufacturer ?? 'Manufacturer unknown'}</p><p className="m-0 mt-xs font-label-caps text-[10px] text-outline">USED IN {plural(hovered.part.used_in.length, 'BOARD')} · {plural(hovered.part.findings.length, 'FINDING')} · {lifecycleLabel(hovered.part.lifecycle)}</p></div> : null}{selected ? <aside className="absolute top-md bottom-md right-md w-[min(380px,calc(100%-32px))] bg-surface-container border border-outline-variant flex flex-col z-20 shadow-[-4px_4px_0px_rgba(0,0,0,1)]" data-tour="memory-detail"><button aria-label="Close details" className="absolute top-sm right-sm text-on-surface-variant hover:text-on-surface" onClick={() => setSelected(null)} type="button">×</button>{selected.kind === 'part' && selected.part ? <PartPanel onLine={(id) => setSelected(graph.nodes.find((node) => node.id === `line:${id}`) ?? null)} part={selected.part} /> : selectedLine ? <LinePanel findings={lineFindings} onPart={(part) => setSelected(graph.nodes.find((node) => node.id === `part:${part.mpn}`) ?? null)} parts={lineParts} line={selectedLine} /> : null}</aside> : null}</main></div>{walkthrough ? <Walkthrough initialStep={6} onFinish={async () => { await refresh(); navigate('/lines', { replace: true }) }} /> : null}</MemoryShell>
+  return <MemoryShell><div className="h-screen bg-transparent text-on-background font-body-md flex flex-col overflow-hidden"><MemoryHeader partCount={memory.parts.length} lineCount={memory.lines.length} query={query} onQuery={setQuery} capped={memory.parts_capped ? memory.part_limit : undefined} /><main className="flex-1 min-h-0 relative overflow-hidden"><div className="absolute inset-0 bg-surface-container-lowest" data-tour="memory-graph" ref={graphHost} onMouseMove={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setTooltip({ x: event.clientX - rect.left, y: event.clientY - rect.top }) }}><ForceGraph2D backgroundColor="#080f11" graphData={graph} height={size.height} linkCanvasObject={linkCanvasObject} nodeCanvasObject={nodeCanvasObject} nodeCanvasObjectMode={() => 'replace'} nodePointerAreaPaint={nodePointerAreaPaint} onBackgroundClick={() => { setSelected(null); setHovered(null) }} onNodeClick={(node: MemoryNode) => setSelected(node)} onEngineStop={() => { if (!framed.current) { framed.current = true; graphRef.current?.zoomToFit(400, 60) } }} onNodeHover={(node: MemoryNode | null) => setHovered(node)} ref={graphRef} width={size.width} /></div>{query ? <div className="absolute top-md left-md z-10 w-72 border border-outline-variant bg-surface-container-high p-sm max-h-[45vh] overflow-auto">{searchParts.map((part) => <button className="block w-full text-left px-sm py-xs hover:bg-surface-container-highest font-data-tabular text-data-tabular text-on-surface" key={part.mpn} onClick={() => setSelected(graph.nodes.find((node) => node.id === `part:${part.mpn}`) ?? null)} type="button">{part.mpn}</button>)}{!searchParts.length ? <p className="m-0 px-sm py-xs text-body-sm text-on-surface-variant">No matching parts.</p> : null}</div> : null}{hovered?.part ? <div className="absolute pointer-events-none z-20 w-64 border border-outline-variant bg-surface-container-high p-sm shadow-lg" style={{ left: Math.min(tooltip.x + 14, Math.max(8, size.width - 270)), top: Math.min(tooltip.y + 14, Math.max(8, size.height - 100)) }}><p className="m-0 font-data-tabular text-data-tabular text-on-surface">{hovered.part.mpn}</p><p className="m-0 text-body-sm text-on-surface-variant truncate">{hovered.part.manufacturer ?? 'Manufacturer unknown'}</p><p className="m-0 mt-xs font-label-caps text-[10px] text-outline">USED IN {plural(hovered.part.used_in.length, 'BOARD')} · {plural(hovered.part.findings.length, 'FINDING')} · {lifecycleLabel(hovered.part.lifecycle)}</p></div> : null}{selected ? <aside className="absolute top-md bottom-md right-md w-[min(380px,calc(100%-32px))] bg-surface-container border border-outline-variant flex flex-col z-20 shadow-[-4px_4px_0px_rgba(0,0,0,1)]" data-tour="memory-detail"><button aria-label="Close details" className="absolute top-sm right-sm text-on-surface-variant hover:text-on-surface" onClick={() => setSelected(null)} type="button">×</button>{selected.kind === 'part' && selected.part ? <PartPanel onLine={(id) => setSelected(graph.nodes.find((node) => node.id === `line:${id}`) ?? null)} part={selected.part} /> : selectedLine ? <LinePanel findings={lineFindings} onPart={(part) => setSelected(graph.nodes.find((node) => node.id === `part:${part.mpn}`) ?? null)} parts={lineParts} line={selectedLine} /> : null}</aside> : null}</main></div></MemoryShell>
 }
 
 function MemoryShell({ children }: { children: ReactNode }) {

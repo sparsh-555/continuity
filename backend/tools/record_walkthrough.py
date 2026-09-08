@@ -1,17 +1,21 @@
-"""Record the onboarding walkthrough.
+"""Record the run the landing page animates.
 
     ../.venv/bin/python tools/record_walkthrough.py
 
-Writes `continuity/api/walkthrough.jsonl`: the frames a new account is shown once, before
-it has run anything of its own.
+Writes `continuity/api/walkthrough.jsonl`, which Vite bundles into the client.
+
+**The onboarding tour this was built for is gone**, deleted 8 Sep: it taught a story the
+product no longer tells, and a finals demo does not open with a guided tour of itself. The
+recording outlived it because the landing page replays these frames as its hero animation,
+and because a recorded run against real part data is a better thing to animate than an
+invented one.
 
 ## Why this run and not a live one
 
-The walkthrough has to contain a **conflict and its repair**, because that is the part of
-the product worth understanding — a board that passes every check teaches the interface
-and nothing else. It also has to be identical every time, since it is the first thing
-anybody sees and a live run would put the distributor and the model on the critical path
-of a first impression.
+The recording has to contain a **conflict and its repair**, because that is the part of
+the product worth watching — a board that passes every check animates nothing. It also has
+to be identical every time, and a live run would put the distributor and the model on the
+critical path of a page load.
 
 The recording is driven through the same HTTP route as any other run, against the offline
 catalogue: real manufacturer part numbers, real specs, engine-computed verdicts. Nothing

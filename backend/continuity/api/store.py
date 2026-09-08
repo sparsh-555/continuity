@@ -154,7 +154,10 @@ def _fold(email: str) -> str:
     return email.strip().lower()
 
 
-WALKTHROUGH_LINE_NAME = "Welcome to Continuity"
+LEGACY_WALKTHROUGH_LINE_NAME = "Welcome to Continuity"
+"""The name the replayed tour's line was created under, before the tour was removed.
+
+Kept only so the filter below reads as something rather than as a magic column."""
 SCRATCH_LINE_NAME = "Scratch designs"
 
 
@@ -392,34 +395,29 @@ class Store:
     # ── lines ─────────────────────────────────────────────────────────────
 
     async def create_line(
-        self, user_id: str, org_id: str, name: str, *, is_walkthrough: bool = False
+        self, user_id: str, org_id: str, name: str
     ) -> Line:
         """Both ids: `user_id` is who made it, `org_id` is who may see it."""
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                INSERT INTO product_lines (id, user_id, org_id, name, is_walkthrough)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO product_lines (id, user_id, org_id, name)
+                VALUES (%s, %s, %s, %s)
                 RETURNING id, user_id, org_id, name, created_at, updated_at, revision, profile
                 """,
-                (new_id(), user_id, org_id, name, is_walkthrough),
+                (new_id(), user_id, org_id, name),
             )
             row = await cursor.fetchone()
         return Line(**row)
 
     async def lines_for_user(self, org_id: str) -> list[Line]:
-        """The organisation's lines. **The walkthrough is not one of them.**
+        """The organisation's lines.
 
-        `is_walkthrough` marks scaffolding, not user data: `ensure_walkthrough` creates it,
-        `/design/demo` replays into it, and the help button in the rail is how anyone
-        reaches it. Listing it beside real work offered a delete affordance on a row the
-        product depends on — and deleting it is exactly what was done while tidying the
-        demo account before a live pitch.
-
-        Nothing breaks when it goes: `ensure_walkthrough` recreates the line and thread
-        from ids derived off the user, so the tour still works after a delete. But a
-        dashboard whose first row is a tour the user has already finished is also just
-        noise, and hiding it is what makes a fresh account's dashboard honestly empty.
+        **`NOT is_walkthrough` outlives the walkthrough itself.** The replayed tour is gone
+        — it taught a story the product no longer tells — and nothing writes that column any
+        more, but an account created before it went still carries a "Welcome to Continuity"
+        row. The filter keeps those hidden; dropping the column would be a migration against
+        production data for a change nobody would see.
         """
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
@@ -536,65 +534,6 @@ class Store:
             )
 
         return line_id
-
-    async def ensure_walkthrough(self, user_id: str, org_id: str, prompt: str) -> str:
-        """The account's one walkthrough thread, creating it if it is not there yet.
-
-        Returns the thread id. **Safe to call concurrently**, which it has to be: React
-        re-runs effects in development, so two requests arrive within a millisecond of
-        each other and a find-then-create loses the race with itself — every new account
-        ended up with two "Welcome to Continuity" lines, the first abandoned mid-stream.
-
-        Both ids are derived from the user id rather than random, so the two callers
-        compute the *same* rows and `ON CONFLICT DO NOTHING` settles it without a lock.
-        """
-        line_id = _derived_id(user_id, "walkthrough-line")
-        thread_id = _derived_id(user_id, "walkthrough-thread")
-
-        async with self.pool.connection() as conn:
-            await conn.execute(
-                """
-                INSERT INTO product_lines (id, user_id, org_id, name, is_walkthrough)
-                VALUES (%s, %s, %s, %s, true) ON CONFLICT (id) DO NOTHING
-                """,
-                (line_id, user_id, org_id, WALKTHROUGH_LINE_NAME),
-            )
-            await conn.execute(
-                """
-                INSERT INTO threads (id, line_id, user_id, org_id, prompt)
-                VALUES (%s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
-                """,
-                (thread_id, line_id, user_id, org_id, prompt),
-            )
-
-        return thread_id
-
-    async def walkthrough_thread_for_user(self, user_id: str) -> Thread | None:
-        """The walkthrough this *person* has already been given, if any.
-
-        `user_id`, deliberately, where its neighbours moved to `org_id`: everyone is shown
-        the tour once, and finding a colleague's would hand a new starter a finished
-        walkthrough and skip the only run the product explains itself with.
-
-        `/design/demo` is reached more than once — React re-runs effects in development,
-        and a refresh mid-tour would do it too — so it looks here first and replays into
-        the thread it already made rather than creating another.
-        """
-        async with self.pool.connection() as conn:
-            cursor = await conn.cursor(row_factory=dict_row).execute(
-                """
-                SELECT t.id, t.line_id, t.user_id, t.org_id, t.prompt, t.status,
-                       t.last_seq, t.bom, t.summary
-                  FROM threads t
-                  JOIN product_lines p ON p.id = t.line_id
-                 WHERE t.user_id = %s AND p.is_walkthrough
-                 ORDER BY t.created_at
-                 LIMIT 1
-                """,
-                (user_id,),
-            )
-            row = await cursor.fetchone()
-        return None if row is None else Thread(**row)
 
     async def rename_line(self, line_id: str, org_id: str, name: str) -> bool:
         async with self.pool.connection() as conn:

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 
-import { ApiError, type PublicUser } from '../lib/api'
+import { ApiError } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
 import { Wordmark } from '../shell/Wordmark'
 
@@ -12,8 +12,12 @@ type AuthCardProps = {
 }
 
 /** One rule for where a signed-in user goes, used by both the guard and the submit. */
-function landingRouteFor(user: PublicUser) {
-  return user.onboarded ? '/lines' : '/walkthrough'
+function landingRouteFor() {
+  // Everybody lands on the product lines. The tour that used to play here taught a
+  // story the product no longer tells — you describe what you ship, and Continuity
+  // watches it for end-of-life parts — and `onboarded` is now only a record of when an
+  // account was created.
+  return '/lines'
 }
 
 function getErrorMessage(error: unknown) {
@@ -55,10 +59,9 @@ function AuthCard({ mode }: AuthCardProps) {
   // Where a signed-in visitor to /login or /signup belongs. This has to agree with the
   // redirect after a successful submit, because it *races* it: signing in populates the
   // auth context, this component re-renders, and this guard navigates before the explicit
-  // one below gets to. Hard-coding /lines here silently swallowed every new account's
-  // walkthrough.
+  // one below gets to.
   if (user) {
-    return <Navigate replace to={landingRouteFor(user)} />
+    return <Navigate replace to={landingRouteFor()} />
   }
 
   const isSignIn = mode === 'signin'
@@ -76,11 +79,13 @@ function AuthCard({ mode }: AuthCardProps) {
     setErrorMessage(null)
 
     try {
-      const nextUser = isSignIn
-        ? await signIn(email, password)
-        : await signUp(email, password)
+      if (isSignIn) {
+        await signIn(email, password)
+      } else {
+        await signUp(email, password)
+      }
 
-      navigate(landingRouteFor(nextUser), { replace: true })
+      navigate(landingRouteFor(), { replace: true })
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {

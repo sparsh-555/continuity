@@ -4,7 +4,7 @@ import { SideRail } from './SideRail'
 
 export function AppShell() {
   const location = useLocation()
-  const isWorkspace = location.pathname === '/design' || location.pathname.startsWith('/design/') || location.pathname === '/walkthrough'
+  const isWorkspace = location.pathname === '/design' || location.pathname.startsWith('/design/')
 
   return (
     <div className={isWorkspace ? 'h-[100dvh] overflow-hidden bg-background text-on-background' : 'min-h-screen bg-transparent text-on-background'}>

@@ -298,89 +298,6 @@ def test_a_paused_run_is_recorded_as_awaiting():
 # ── onboarding ────────────────────────────────────────────────────────────────
 
 
-def test_the_walkthrough_runs_once_and_marks_the_account():
-    async def go():
-        async with a_store():
-            async with signed_in() as http:
-                before = (await http.get("/auth/me")).json()["onboarded"]
-                frames = await frames_of(http, "/design/demo", {})
-                after = (await http.get("/auth/me")).json()["onboarded"]
-                return before, frames, after
-
-    before, frames, after = run(go())
-    assert before is False
-    assert after is True
-    assert frames[-1]["type"] == "done"
-    assert any(f["type"] == "plan" for f in frames)
-    # The walkthrough exists to show the engine refusing to certify something. A run
-    # that passes every check teaches the interface and nothing about the product.
-    assert any(f["type"] == "conflict" for f in frames)
-    assert any(f["type"] == "repair" for f in frames)
-    assert [f["seq"] for f in frames] == list(range(len(frames))), "renumbered onto this thread"
-    assert len({f["thread_id"] for f in frames}) == 1
-
-
-async def walkthrough_line_count(store, user_id: str) -> int:
-    """Walkthrough lines are hidden from `/lines`, so count them directly.
-
-    These tests are about idempotency — one line, never two — which is a different
-    question from whether the dashboard lists it.
-    """
-    async with store.pool.connection() as conn:
-        cursor = await conn.execute(
-            "SELECT count(*) FROM product_lines WHERE user_id = %s AND is_walkthrough",
-            (user_id,),
-        )
-        row = await cursor.fetchone()
-    return row[0]
-
-
-def test_the_walkthrough_line_is_created_but_hidden_from_the_dashboard():
-    """It exists so `/design/demo` has somewhere to replay into, and the help button owns it.
-
-    Listing it beside real work offered a delete affordance on scaffolding the product
-    depends on.
-    """
-
-    async def go():
-        async with a_store() as store:
-            async with signed_in() as http:
-                await frames_of(http, "/design/demo", {})
-                me = (await http.get("/auth/me")).json()
-                listed = (await http.get("/lines")).json()
-                return listed, await walkthrough_line_count(store, me["id"])
-
-    listed, hidden = run(go())
-    assert listed == [], "the walkthrough must not appear on the dashboard"
-    assert hidden == 1, "but it must still exist"
-
-
-def test_the_walkthrough_is_idempotent():
-    """Called twice, it replays into the same thread rather than making a second line.
-
-    Not a nicety. React re-runs effects in development, so the route calls this twice on
-    every mount, and the create-or-409 version handed each new account two "Welcome to
-    Continuity" lines — the first abandoned mid-stream and stuck on RUNNING for ever.
-    """
-
-    async def go():
-        async with a_store() as store:
-            async with signed_in() as http:
-                first = await frames_of(http, "/design/demo", {})
-                second = await frames_of(http, "/design/demo", {})
-                me = (await http.get("/auth/me")).json()
-                return first, second, await walkthrough_line_count(store, me["id"])
-
-    first, second, lines = run(go())
-    assert lines == 1, "a second call must not create a second line"
-    assert first[0]["thread_id"] == second[0]["thread_id"]
-    assert [f["seq"] for f in second] == list(range(len(second))), "a replay renumbers from 0"
-    assert second[-1]["type"] == "done"
-
-
-# ── what the engine reported, carried through to the dashboard ────────────────
-
-
 def test_a_finished_run_records_the_engines_own_summary():
     async def go():
         async with a_store() as store:
@@ -397,23 +314,6 @@ def test_a_finished_run_records_the_engines_own_summary():
     stored, emitted = run(go())
     assert stored == emitted, "stored verbatim, never recomputed"
     assert stored["slots"] == stored["placed"], "the demo board is complete"
-
-
-def test_the_walkthrough_records_the_conflicts_it_resolved():
-    """The dashboard's whole reason for having this: the walkthrough is not a clean run."""
-
-    async def go():
-        async with a_store() as store:
-            async with signed_in() as http:
-                await frames_of(http, "/design/demo", {})
-                me = (await http.get("/auth/me")).json()
-                thread = await store.walkthrough_thread_for_user(me["id"])
-                assert thread is not None
-                return thread.summary
-
-    summary = run(go())
-    assert summary["conflicts_resolved"] == 3
-    assert summary["slots"] == summary["placed"] == 4
 
 
 def test_the_threads_endpoint_exposes_the_summary():
@@ -674,27 +574,6 @@ def test_continue_reenters_with_none_and_keeps_the_persisted_sequence():
     assert frames[0]["seq"] == 42
 
 
-def test_two_concurrent_walkthrough_requests_make_one_line():
-    """React re-runs effects in development, so both requests land within a millisecond.
-
-    A find-then-create loses that race with itself: every new account got two "Welcome to
-    Continuity" lines, the first abandoned mid-stream and stuck showing RUNNING.
-    """
-
-    async def go():
-        async with a_store() as store:
-            async with signed_in() as http:
-                await asyncio.gather(
-                    frames_of(http, "/design/demo", {}),
-                    frames_of(http, "/design/demo", {}),
-                )
-                me = (await http.get("/auth/me")).json()
-                return await walkthrough_line_count(store, me["id"])
-
-    assert run(go()) == 1
-
-
-# ── who may answer an open decision ───────────────────────────────────────────
 
 
 @asynccontextmanager

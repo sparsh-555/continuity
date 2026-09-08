@@ -12,7 +12,6 @@ import LinesRoute from './app/routes/lines'
 import MatrixRoute from './app/routes/matrix'
 import MemoryRoute from './app/routes/memory'
 import NoticesRoute from './app/routes/notices'
-import WalkthroughRoute from './app/routes/walkthrough'
 import { AppFrame } from './app/shell/AppFrame'
 import { AppShell } from './app/shell/AppShell'
 import './index.css'
@@ -49,14 +48,6 @@ const router = createBrowserRouter([
             element: (
               <RequireAuth>
                 <LineRoute />
-              </RequireAuth>
-            ),
-          },
-          {
-            path: '/walkthrough',
-            element: (
-              <RequireAuth>
-                <WalkthroughRoute />
               </RequireAuth>
             ),
           },

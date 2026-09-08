@@ -104,7 +104,6 @@ export function SideRail() {
             </div>
           ) : null}
         </div>
-        <RailButton active={location.pathname === '/walkthrough'} icon="help" label="Help and walkthrough" onClick={() => navigate('/walkthrough')} />
       </div>
     </nav>
   )

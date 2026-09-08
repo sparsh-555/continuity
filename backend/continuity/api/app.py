@@ -599,36 +599,6 @@ def _bom_only_board(
     }
 
 
-@app.post("/design/demo")
-async def walkthrough(request: Request) -> StreamingResponse:
-    """The first run a new account sees: a stored one, replayed.
-
-    Deterministic on purpose. This is the first thing anybody encounters, and a live run
-    here would put the distributor and the model on the critical path of a first
-    impression. The frames are a capture of a real run against real part data, renumbered
-    onto a fresh thread, and the UI's own pacing is what makes it read as work happening.
-
-    **Idempotent per account**, and it has to be. React re-runs effects in development, a
-    refresh mid-tour would call it again, and two requests arriving together both read
-    `onboarded_at IS NULL` before either commits. When that was a 409-or-create, a new
-    account reliably got *two* "Welcome to Continuity" lines, the first abandoned
-    mid-stream and left showing RUNNING for ever.
-
-    So it looks for the walkthrough this account already has and replays into that thread.
-    Nothing is rewritten by a second call: the frames are a fixed recording and the thread
-    row is the same one.
-    """
-    store = auth.store_of(request)
-    user = await auth.current_user(request)
-
-    thread_id = await store.ensure_walkthrough(user.id, user.org_id, walkthrough_prompt())
-    await store.mark_onboarded(user.id)
-
-    return StreamingResponse(
-        _replay(thread_id, store), media_type="text/event-stream", headers=SSE_HEADERS
-    )
-
-
 @app.get("/export/{thread_id}.csv")
 async def export(thread_id: str, request: Request) -> PlainTextResponse:
     store = request.app.state.store
@@ -659,70 +629,6 @@ async def export(thread_id: str, request: Request) -> PlainTextResponse:
         headers={"Content-Disposition": f'attachment; filename="continuity-{thread_id}.csv"'},
     )
 
-
-
-WALKTHROUGH = Path(__file__).with_name("walkthrough.jsonl")
-WALKTHROUGH_NAME = "Welcome to Continuity"
-"""The line the walkthrough leaves behind, and the name it appears under."""
-
-
-def walkthrough_frames() -> list[dict[str, Any]]:
-    """The recorded run. Read from disk each time — it is a few KB and never hot."""
-    if not WALKTHROUGH.exists():
-        raise HTTPException(503, "no walkthrough has been recorded for this build")
-    return [json.loads(line) for line in WALKTHROUGH.read_text().splitlines() if line.strip()]
-
-
-def walkthrough_prompt() -> str:
-    """The brief the recording was made from, so the thread row records what was asked."""
-    for event in walkthrough_frames():
-        if event.get("type") == "prompt":
-            return event["text"]
-    return "Recorded walkthrough"
-
-
-async def _replay(thread_id: str, store: Store) -> AsyncIterator[str]:
-    """Stream the recorded frames onto a fresh thread.
-
-    Renumbering is not cosmetic. `seq` and `thread_id` are the two fields the client uses
-    to decide what to keep and where to put it, so replaying a recording verbatim would
-    hand it another thread's identity and a counter unrelated to this one.
-    """
-    # A fresh counter per replay: each call serves a new client whose high-water mark
-    # starts below zero, and the frames are a fixed recording rather than a
-    # continuation of anything.
-    stream = STREAMS[thread_id] = events.EventStream(thread_id)
-    rows: list[dict[str, Any]] | None = None
-    recorded_summary: dict[str, Any] | None = None
-    recorder = FindingRecorder()
-    trace: list[dict[str, Any]] = []
-
-    for event in walkthrough_frames():
-        if event.get("type") == "prompt":
-            continue
-        stream.last_seq += 1
-        frame = {**event, "seq": stream.last_seq, "thread_id": thread_id}
-        frame = events.with_current_labels(frame)
-        if frame.get("type") == "bom":
-            rows = frame["rows"]
-        if frame.get("type") == "done":
-            recorded_summary = frame.get("summary")
-        if frame.get("type") != "bom":
-            trace.append(frame)
-        recorder.feed(frame)
-        yield events.frame(frame)
-
-    if rows is not None:
-        BOMS[thread_id] = rows
-        await store.save_bom(thread_id, rows)
-    if recorded_summary is not None:
-        await store.save_summary(thread_id, recorded_summary)
-        await store.save_findings(thread_id, recorder.findings())
-    await _save_trace(store, thread_id, trace)
-    await store.save_progress(thread_id, stream.last_seq, "done")
-
-
-# ── the stream ────────────────────────────────────────────────────────────────
 
 
 async def _run(
