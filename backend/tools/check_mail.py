@@ -71,9 +71,40 @@ def main() -> int:
         status, unseen = mailbox.search(None, "UNSEEN")
         if status == "OK":
             print(f"{len(unseen[0].split())} of them are unread.")
+        _warn_about_quarantined(mailbox)
     finally:
         mailbox.logout()
     return 0
+
+
+SPAM_FOLDERS = ("[Gmail]/Spam", "Junk", "Spam", "INBOX.Spam")
+"""Where providers put what they have judged hostile. Gmail's name is the odd one."""
+
+
+def _warn_about_quarantined(mailbox: imaplib.IMAP4_SSL) -> None:
+    """Say so when a notice is sitting in the spam folder.
+
+    The poller reads INBOX and should keep doing so: acting on a document the provider has
+    already judged hostile is not a thing to do in a system that files engineering change
+    requests. But a notice filed as spam looks exactly like the product ignoring the email,
+    and finding that out took five commands the first time it happened.
+
+    The trigger is real and repeatable. A change notice forwarded to a new mailbox arrives
+    with an attachment, no sending history and often no subject, which is close to a
+    textbook spam signature.
+    """
+    for folder in SPAM_FOLDERS:
+        status, counts = mailbox.select(f'"{folder}"', readonly=True)
+        if status != "OK":
+            continue
+        held = int(counts[0]) if counts and counts[0] else 0
+        if held:
+            print()
+            print(f"WARNING: {held} message(s) are in {folder}, which is not read.")
+            print("If one of them is a change notice, tell the provider not to filter the")
+            print("sender. In Gmail: Settings, Filters and blocked addresses, Create a new")
+            print("filter, From = the address you send from, Never send it to Spam.")
+        return
 
 
 if __name__ == "__main__":
