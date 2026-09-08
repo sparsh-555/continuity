@@ -25,6 +25,17 @@ cd backend && ../.venv/bin/python -c "from continuity import llm; print(llm.avai
 `True` means real parsing. **`False` is not a crash**, which is exactly why it is worth
 checking: the app keeps running and every field that needs a model comes back unchecked.
 
+**There is nothing to paste.** The key lives in `backend/.env`, which is gitignored, and
+`continuity/env.py` walks upward from wherever the process starts, so it is found whether you
+launch from the repository root or from `backend/`. Local Postgres authenticates by user
+rather than by password, which is why every database URL here is `postgresql:///name` with no
+credentials in it. The KiCad image is public and needs no Docker login. The only credentials
+you type anywhere are the two demo accounts in §2.
+
+If the key ever has to be replaced, put the new one in `backend/.env` as
+`CONTINUITY_LLM_API_KEY=…` and set `CONTINUITY_LLM_BASE_URL=https://api.deepseek.com`
+beside it. Do not echo it into a terminal on the way there: scrollback outlives the command.
+
 **For the board view**, Docker Desktop must be running and the pinned image pulled:
 
 ```bash
