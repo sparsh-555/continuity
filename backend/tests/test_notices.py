@@ -419,6 +419,12 @@ def test_a_notice_yields_one_change_request_per_affected_line(model, monkeypatch
                         "annual_volume": 20_000,
                     },
                 )
+                # Reviewed twice, which is what a person does when they think of another
+                # candidate. Every document is kept; the listing returns the current one.
+                await http.post(
+                    f"/notices/{posted['id']}/review",
+                    json={"candidates": [NCP1117.mpn], "annual_volume": 20_000},
+                )
                 listed = (await http.get(f"/notices/{posted['id']}/review")).json()
                 return reviewed, listed
 
@@ -428,7 +434,10 @@ def test_a_notice_yields_one_change_request_per_affected_line(model, monkeypatch
     requests = reviewed.json()["requests"]
 
     assert len(requests) == 3, "three affected lines, three requests"
-    assert len(listed) == 3, "and they were persisted"
+    assert len(listed) == 3, (
+        "and the listing carries the current request per line, not one per review — "
+        "two documents for one product line is a document that contradicts itself"
+    )
 
     by_line = {r["line_name"]: r for r in requests}
     assert set(by_line) == {"Sensor node", "Gateway", "Cabinet controller"}

@@ -110,6 +110,65 @@ export type MatrixResponse = {
   cells: MatrixCell[]
 }
 
+export type LineBoard = {
+  filename: string
+  project: string
+  bytes: number
+  uploaded_at: string
+}
+
+export type BoardStatus = {
+  board: LineBoard | null
+  /** Whether this instance has a KiCad to read the project with. A stored board with no
+   *  KiCad is not an error: the file is kept and the reading happens as soon as one is
+   *  configured. */
+  kicad: boolean
+}
+
+export type BoardUploaded = {
+  project: string
+  filename: string
+  bytes: number
+  kicad: boolean
+  /** Whether the project's bill of materials replaced the line's. Never true when the line
+   *  already had one and the caller did not ask. */
+  adopted: boolean
+  mpn_field?: string
+}
+
+export type BoardFinding = {
+  rule: string
+  description: string
+  severity: string
+  items: string[]
+}
+
+export type BoardConsequence = {
+  refdes: string
+  retiring: string
+  candidate: string
+  package: { from: string; to: string }
+  footprint: { from: string; to: string }
+  /** Where the substitute's pin functions were read from. */
+  pinout_source: string
+  wiring: {
+    wired: Record<string, string>
+    /** Pads the substitute has that no net was carried to — an enable pin, a no-connect. */
+    unwired_pads: string[]
+    /** Roles the old part used that the substitute has no pin for. The loudest case. */
+    stranded: string[]
+  }
+  broke_connections: boolean
+  /** The page the pictures were drawn on, in millimetres, so a crop means something. */
+  page: { width: number; height: number }
+  added: BoardFinding[]
+  counts: Record<string, { before: number; after: number }>
+  /** An SVG viewBox in board millimetres, so both pictures crop to the same rectangle. */
+  crop: string
+  before_svg: string
+  after_svg: string
+}
+
 export type Notice = {
   id: string
   mpn: string
@@ -233,7 +292,7 @@ export class ApiError extends Error {
 }
 
 type RequestOptions = {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
 }
 
@@ -248,7 +307,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   })
 
   if (!response.ok) {
-    throw new ApiError(response.status)
+    // The server's own sentence, when it wrote one. Several of these are the whole
+    // answer — no pin functions are on file for this part, this board does not carry
+    // that one — and a status code alone would throw the actionable half away.
+    let detail: string | undefined
+    try {
+      const body = (await response.json()) as { detail?: unknown }
+      if (typeof body.detail === 'string') detail = body.detail
+    } catch {
+      // A response with no JSON body is ordinary. The status still travels.
+    }
+    throw new ApiError(response.status, detail)
   }
 
   if (response.status === 204) {
@@ -313,6 +382,24 @@ export function reviewNotice(
 
 export function listChangeRequests(noticeId: string) {
   return request<ChangeRequest[]>(`/notices/${encodeURIComponent(noticeId)}/review`)
+}
+
+export function getBoard(lineId: string) {
+  return request<BoardStatus>(`/lines/${encodeURIComponent(lineId)}/board`)
+}
+
+export function putBoard(lineId: string, filename: string, bundleBase64: string, adopt?: boolean) {
+  return request<BoardUploaded>(`/lines/${encodeURIComponent(lineId)}/board`, {
+    method: 'PUT',
+    body: { filename, bundle: bundleBase64, adopt: adopt ?? null },
+  })
+}
+
+export function boardConsequence(lineId: string, retiring: string, candidate: string) {
+  return request<BoardConsequence>(
+    `/lines/${encodeURIComponent(lineId)}/board/consequence`,
+    { method: 'POST', body: { retiring, candidate } },
+  )
 }
 
 export function listLines() {

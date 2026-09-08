@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { BoardConsequence } from '../board/BoardConsequence'
 import {
   ApiError,
   listChangeRequests,
@@ -103,6 +104,12 @@ function RequestCard({ request }: { request: ChangeRequest }) {
           </p>
         ) : null}
       </section>
+
+      <BoardConsequence
+        candidate={request.proposal}
+        lineId={request.line_id}
+        retiring={request.notice_mpn}
+      />
 
       <section className="flex flex-wrap gap-lg border-t border-outline-variant pt-md">
         <div className={request.proposal ? '' : 'hidden'}>

@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router'
 import { Modal } from '../design/Modal'
 import { useNewLine } from '../hooks/useNewLine'
 import {
+  ApiError,
   deleteLine,
   listLineThreads,
   listLines,
+  putBoard,
   updateLine,
   type Line,
   type LineThread,
@@ -184,6 +186,11 @@ export default function LinesRoute() {
 
   const [deleteLineTarget, setDeleteLineTarget] = useState<Line | null>(null)
 
+  const boardInputRef = useRef<HTMLInputElement | null>(null)
+  const boardLineRef = useRef<Line | null>(null)
+  const [boardMessage, setBoardMessage] = useState<string | null>(null)
+  const [attaching, setAttaching] = useState(false)
+
   useEffect(() => {
     if (!renameLine) {
       return
@@ -251,6 +258,43 @@ export default function LinesRoute() {
       active = false
     }
   }, [reloadCount])
+
+  /** Attach a KiCad project to a line, and say what came out of it.
+   *
+   *  The bill of materials is read out of the design rather than typed, so a line that had
+   *  none adopts the one KiCad found. A line that already had one keeps it: overwriting a
+   *  bill somebody entered is not a thing to do because a file was dropped on it. */
+  const attachBoard = useCallback(async (line: Line, file: File) => {
+    setAttaching(true)
+    setBoardMessage(null)
+    try {
+      const bundle = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onerror = () => reject(reader.error)
+        // readAsDataURL gives base64 already encoded, without walking a megabyte of bytes
+        // through string concatenation on the main thread.
+        reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+        reader.readAsDataURL(file)
+      })
+      const outcome = await putBoard(line.id, file.name, bundle)
+      setBoardMessage(
+        outcome.adopted
+          ? `${outcome.project} attached to ${line.name}. Its bill of materials is now the line's, read from the ${outcome.mpn_field} field.`
+          : outcome.kicad
+            ? `${outcome.project} attached to ${line.name}. The line already had a bill of materials, so it was kept.`
+            : `${outcome.project} attached to ${line.name}. This instance has no KiCad, so nothing was read out of it yet.`,
+      )
+      setReloadCount((count) => count + 1)
+    } catch (caught) {
+      setBoardMessage(
+        caught instanceof ApiError
+          ? (caught.message ?? 'That project could not be attached.')
+          : 'That project could not be attached.',
+      )
+    } finally {
+      setAttaching(false)
+    }
+  }, [])
 
   const openRenameModal = useCallback((line: Line) => {
     setRenameLine(line)
@@ -340,6 +384,26 @@ export default function LinesRoute() {
         </header>
 
         <main className="min-h-[calc(100vh-48px)] max-w-[1200px] mx-auto px-lg py-xl flex flex-col gap-lg">
+          {/* One picker for the whole page: the row's menu says which line it is for. */}
+          <input
+            accept=".zip,application/zip"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              const line = boardLineRef.current
+              if (file && line) void attachBoard(line, file)
+              event.target.value = ''
+            }}
+            ref={boardInputRef}
+            type="file"
+          />
+
+          {attaching || boardMessage ? (
+            <p className="font-data-tabular text-body-sm text-on-surface-variant">
+              {attaching ? 'Reading the project…' : boardMessage}
+            </p>
+          ) : null}
+
           <div className="flex items-center justify-between border-b border-outline-variant pb-sm">
             <h1 className="font-label-caps text-label-caps tracking-[0.1em] uppercase text-on-surface">
               PRODUCT LINES
@@ -439,6 +503,17 @@ export default function LinesRoute() {
                               type="button"
                             >
                               Rename
+                            </button>
+                            <button
+                              className="w-full text-left px-sm py-xs font-body-sm text-body-sm text-on-surface hover:bg-surface-container-highest"
+                              onClick={() => {
+                                boardLineRef.current = line
+                                setOpenMenuLineId(null)
+                                boardInputRef.current?.click()
+                              }}
+                              type="button"
+                            >
+                              Attach board
                             </button>
                             <button
                               className="w-full text-left px-sm py-xs font-body-sm text-body-sm text-error hover:bg-surface-container-highest"

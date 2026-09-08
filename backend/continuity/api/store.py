@@ -275,6 +275,7 @@ class Store:
                  + (SELECT count(*) FROM precedents WHERE org_id = %(org)s)
                  + (SELECT count(*) FROM approved_parts WHERE org_id = %(org)s)
                  + (SELECT count(*) FROM approved_vendors WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM line_boards WHERE org_id = %(org)s)
             """,
             {"org": org_id},
         )
@@ -1132,11 +1133,21 @@ class Store:
         where = "org_id = %s" + (" AND notice_id = %s" if notice_id else "")
         params: tuple[Any, ...] = (org_id, notice_id) if notice_id else (org_id,)
         async with self.pool.connection() as conn:
+            # The latest request per line, not every one ever written. Reviewing a notice
+            # twice — a candidate added, a volume corrected — writes a second document for
+            # each line, and every one of them is kept, because a change request is a
+            # record of what was decided and on what basis. What a reader needs back is the
+            # current answer for each product line; two of them for one line is a document
+            # that contradicts itself. Found on screen, with a notice reviewed twice.
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 f"""
-                SELECT id, notice_id, line_id, proposal, document, created_at
-                  FROM change_requests WHERE {where}
-                 ORDER BY created_at DESC LIMIT %s
+                SELECT * FROM (
+                    SELECT DISTINCT ON (notice_id, line_id)
+                           id, notice_id, line_id, proposal, document, created_at
+                      FROM change_requests WHERE {where}
+                  ORDER BY notice_id, line_id, created_at DESC
+                ) latest
+                ORDER BY created_at DESC LIMIT %s
                 """,
                 (*params, limit),
             )
@@ -1258,3 +1269,81 @@ class Store:
                 {"field": row["field"], "value": row["value"], "source": row["source"]}
             )
         return facts
+
+    # ── the board a line is built from ────────────────────────────────────────
+
+    async def save_board(
+        self,
+        *,
+        line_id: str,
+        org_id: str,
+        user_id: str | None,
+        filename: str,
+        project: str,
+        bundle: bytes,
+    ) -> None:
+        """Store the uploaded project, replacing whatever the line had before.
+
+        Scoped in the statement rather than checked first: a line belonging to another
+        organisation matches nothing and writes nothing, which is the same shape every
+        other write here has.
+        """
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO line_boards (line_id, org_id, user_id, filename, project, bundle)
+                SELECT %(line)s, %(org)s, %(user)s, %(filename)s, %(project)s, %(bundle)s
+                  FROM product_lines
+                 WHERE id = %(line)s AND org_id = %(org)s
+                ON CONFLICT (line_id) DO UPDATE
+                   SET org_id = EXCLUDED.org_id,
+                       user_id = EXCLUDED.user_id,
+                       filename = EXCLUDED.filename,
+                       project = EXCLUDED.project,
+                       bundle = EXCLUDED.bundle,
+                       uploaded_at = now()
+                """,
+                {
+                    "line": line_id,
+                    "org": org_id,
+                    "user": user_id,
+                    "filename": filename,
+                    "project": project,
+                    "bundle": bundle,
+                },
+            )
+
+    async def board_for(self, line_id: str, org_id: str) -> dict[str, Any] | None:
+        """What is known about a line's board, without carrying the file itself.
+
+        The bundle is a megabyte or so and a dashboard only ever wants the name and the
+        date, so it is fetched separately by whoever actually needs to run KiCad on it.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT line_id, filename, project, uploaded_at, octet_length(bundle) AS bytes
+                  FROM line_boards
+                 WHERE line_id = %s AND org_id = %s
+                """,
+                (line_id, org_id),
+            )
+            return await cursor.fetchone()
+
+    async def board_bundle(self, line_id: str, org_id: str) -> tuple[str, bytes] | None:
+        """The uploaded file, exactly as it arrived."""
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute(
+                "SELECT filename, bundle FROM line_boards WHERE line_id = %s AND org_id = %s",
+                (line_id, org_id),
+            )
+            row = await cursor.fetchone()
+        return (row[0], bytes(row[1])) if row else None
+
+    async def delete_board(self, line_id: str, org_id: str) -> bool:
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute(
+                "DELETE FROM line_boards WHERE line_id = %s AND org_id = %s",
+                (line_id, org_id),
+            )
+            return cursor.rowcount > 0

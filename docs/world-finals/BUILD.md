@@ -670,6 +670,51 @@ KiCad 9 with removal planned for 11; the replacement IPC API needs a running GUI
 
 **Test** a known project yields the expected BOM rows and a rendered board.
 
+`continuity/kicad/` — a runner, a bundle, a bill of materials, a footprint swap, the design
+rule check and the render — with `api/boards.py`, `line_boards`, and a **THE BOARD** section
+on every change request. Under test in `tests/test_kicad.py` and `tests/test_boards.py`,
+which split at exactly the line that matters: everything that *decides* something runs with
+no container at all, and the layer that shells out runs against KiCad itself. The research
+that had to happen first is [tasks/ITEM-18.md](tasks/ITEM-18.md).
+
+**Pinned to `kicad/kicad:9.0` in a container**, and it is checked before anything is
+written. The tag is amd64 only, whatever Docker Hub's page claims, so Apple silicon needs
+`--platform linux/amd64` and emulation does the rest.
+
+**The verification is on somebody else's board.** `fixtures/kicad/propico` is
+[ProPico](https://github.com/diminDDL/ProPico), MIT, drawn in KiCad 7 by somebody who never
+heard of us, carrying a real AMS1117-3.3 in SOT-223 at U3. An ingestion path tested only
+against a file we wrote proves nothing about the one a customer sends.
+
+**KiCad answers, we report.** The substitute is placed where the retired part sits, its nets
+carried pad by pad *by function*, and the same design rule check runs before and after. On
+this board NCP1117 in SOT-223 adds nothing — the pads it lands on are already there — and a
+SOT-23-5 in the same position takes unconnected items from 1 to 4 and adds four shorting
+items and three clearance violations, each naming both ends with coordinates. That is the
+decision no parametric search reaches: the cheaper part costs a layout revision on this
+board and none on that one.
+
+**The delta is the finding, never the count.** The upstream board arrives with fifty-four
+violations and one unconnected item before anything is touched.
+
+**Three things this refuses to do.** It does not route. It does not infer a pinout from a
+package, so `catalogue.py` is a table of datasheet readings and **LD1117S33TR is absent from
+it** — ST publishes its pin connections as a figure, and a figure is not extractable text.
+And it does not wire a pad it was given no net for: a SOT-23-5's enable and no-connect stay
+bare and are named on screen.
+
+**Two corrections against what was assumed.** The plan had a normalisation pass to bring an
+older board up to the pinned version before writing to it; `pcbnew` parses the 7 file and
+writes 9 on save, and the swap against the untouched upstream file gives the identical DRC
+answer, so there is no pass. And the render needs `--page-size-mode 1`: fitted to the board,
+the SVG's coordinates have no fixed relationship to the design, and the before and after
+cannot be cropped to the same rectangle.
+
+**Found in the browser, fixed here.** A notice reviewed twice listed every product line
+twice, because the listing returned every request ever written rather than the current one
+per line. Every document is still kept — a change request is a record — but two of them for
+one line is a document that contradicts itself.
+
 ---
 
 # Phase 5 · Presentation

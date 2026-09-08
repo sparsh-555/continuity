@@ -40,7 +40,7 @@ from ..graph import nodes
 from ..graph.build import build
 from ..planner import topology
 from ..parts import datasheet, dossier, normalize
-from . import auth, bom, events, exposure, memory, lines, spa
+from . import auth, boards, bom, events, exposure, memory, lines, spa
 from . import matrix as matrix_api
 from . import notices as notices_api
 from .memory import FindingRecorder
@@ -150,6 +150,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(memory.router)
 app.include_router(lines.router)
+app.include_router(boards.router)
 app.include_router(exposure.router)
 app.include_router(matrix_api.router)
 app.include_router(notices_api.router)

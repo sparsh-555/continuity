@@ -393,3 +393,26 @@ CREATE TABLE IF NOT EXISTS precedents (
 );
 
 CREATE INDEX IF NOT EXISTS precedents_lookup_idx ON precedents(org_id, signature, outcome);
+
+-- Added 8 Sep 2026. The design a product line is actually built from.
+--
+-- One board per line, which is what a product line *is*: a revision of one design. A second
+-- upload replaces the first rather than accumulating, because two boards for one line would
+-- leave every later question — which one carries U3, which one gets rendered — with two
+-- answers and no way to choose.
+--
+-- The bundle is stored whole, as bytes, rather than unpacked into rows. Nothing here queries
+-- into a KiCad project: every fact this system takes from one comes back out of KiCad itself,
+-- so what has to survive is the file exactly as it was uploaded. Anything less and a render
+-- months later would be of a board we reassembled rather than the board they gave us.
+CREATE TABLE IF NOT EXISTS line_boards (
+    line_id     text PRIMARY KEY REFERENCES product_lines(id) ON DELETE CASCADE,
+    org_id      text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    user_id     text REFERENCES users(id) ON DELETE SET NULL,
+    filename    text NOT NULL,
+    project     text NOT NULL,
+    bundle      bytea NOT NULL,
+    uploaded_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS line_boards_org_idx ON line_boards(org_id);
