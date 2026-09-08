@@ -120,6 +120,14 @@ class Line:
     what it did first: rendering "187 parts" cost one request and one whole BOM per line
     on screen. The count is what the dashboard needs; the BOM is what the line page needs."""
 
+    exposed_count: int = 0
+    """How many change notices reach a part this line has fitted.
+
+    Also counted beside the row, and for a stronger reason than the parts were: this is the
+    only thing on a dashboard of shipping products that is *about to change*, so it decides
+    what the row says. The dashboard used to caption every product with whether somebody had
+    designed it from a brief inside our tool, which is not a fact about the product."""
+
 
 @dataclass(frozen=True)
 class Thread:
@@ -417,7 +425,13 @@ class Store:
                 """
                 SELECT id, user_id, org_id, name, created_at, updated_at, revision, profile,
                        (SELECT count(*) FROM line_parts lp
-                        WHERE lp.line_id = product_lines.id AND lp.populated) AS part_count
+                        WHERE lp.line_id = product_lines.id AND lp.populated) AS part_count,
+                       (SELECT count(DISTINCT n.id)
+                          FROM notices n
+                          JOIN line_parts lp ON lp.mpn = n.mpn AND lp.org_id = n.org_id
+                                            AND lp.populated
+                         WHERE n.org_id = product_lines.org_id
+                           AND lp.line_id = product_lines.id) AS exposed_count
                   FROM product_lines WHERE org_id = %s AND NOT is_walkthrough
                  ORDER BY updated_at DESC
                 """,
@@ -1347,3 +1361,45 @@ class Store:
                 (line_id, org_id),
             )
             return cursor.rowcount > 0
+
+    async def notices_reaching_line(self, line_id: str, org_id: str) -> list[dict[str, Any]]:
+        """Every notice this product line carries a part for, newest first.
+
+        The inverse of `lines_exposed_to`, and the question a product line's own page asks:
+        not *what does this notice reach* but *what is coming for this product*. Joined on
+        the fitted bill rather than on the whole document, because a part that is not
+        populated is not on the board.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT n.id, n.mpn, n.manufacturer, n.effective_date, n.replacement_mpn,
+                       n.reason, n.source, n.created_at,
+                       array_agg(lp.refdes ORDER BY lp.refdes) AS refdes
+                  FROM notices n
+                  JOIN line_parts lp
+                    ON lp.mpn = n.mpn AND lp.org_id = n.org_id AND lp.populated
+                 WHERE n.org_id = %s AND lp.line_id = %s
+              GROUP BY n.id, n.mpn, n.manufacturer, n.effective_date, n.replacement_mpn,
+                       n.reason, n.source, n.created_at
+              ORDER BY n.created_at DESC
+                """,
+                (org_id, line_id),
+            )
+            return await cursor.fetchall()
+
+    async def change_requests_for_line(self, line_id: str, org_id: str) -> list[dict[str, Any]]:
+        """The current change request per notice for this line. See `change_requests_for_org`
+        for why the latest rather than every one ever written."""
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT DISTINCT ON (notice_id)
+                       id, notice_id, line_id, proposal, document, created_at
+                  FROM change_requests
+                 WHERE line_id = %s AND org_id = %s
+              ORDER BY notice_id, created_at DESC
+                """,
+                (line_id, org_id),
+            )
+            return await cursor.fetchall()

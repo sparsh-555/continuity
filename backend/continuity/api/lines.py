@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from .auth import current_user, store_of
 from .store import Line, Thread, User
+from ..linegraph import graph_from
 from ..profile import OperatingProfile
 
 router = APIRouter(prefix="/lines", tags=["lines"])
@@ -34,6 +35,7 @@ class LineView(BaseModel):
     revision: str | None = None
     profile: dict[str, Any] | None = None
     part_count: int = 0
+    exposed_count: int = 0
 
 
 class BomRow(BaseModel):
@@ -91,6 +93,7 @@ def _view(line: Line) -> LineView:
         revision=line.revision,
         profile=line.profile,
         part_count=line.part_count,
+        exposed_count=line.exposed_count,
     )
 
 
@@ -122,6 +125,70 @@ async def get_line(
     if line is None:
         raise HTTPException(404, "no such line")
     return _view(line)
+
+
+@router.get("/{line_id}/overview")
+async def overview(
+    line_id: str, request: Request, user: User = Depends(current_user)
+) -> dict[str, Any]:
+    """Everything a product line is, in one call.
+
+    One request rather than five because this is one page with one loading state, and
+    because the five would otherwise be issued from a component each and arrive in an
+    order nothing controls. Nothing here reaches a distributor: every field is stored, so
+    the page renders offline and instantly.
+    """
+    store = store_of(request)
+    line = await store.line_for_user(line_id, user.org_id)
+    if line is None:
+        raise HTTPException(404, "no such line")
+
+    parts = await store.bom_for_line(line_id, user.org_id)
+    board = await store.board_for(line_id, user.org_id)
+    notices = await store.notices_reaching_line(line_id, user.org_id)
+    requests = await store.change_requests_for_line(line_id, user.org_id)
+
+    return {
+        "line": _view(line).model_dump(),
+        "parts": parts,
+        "graph": graph_from(line.profile, parts).to_json(),
+        "board": (
+            {
+                "filename": board["filename"],
+                "project": board["project"],
+                "bytes": board["bytes"],
+                "uploaded_at": board["uploaded_at"].isoformat(),
+            }
+            if board
+            else None
+        ),
+        "notices": [
+            {
+                "id": notice["id"],
+                "mpn": notice["mpn"],
+                "manufacturer": notice["manufacturer"],
+                "effective_date": (
+                    notice["effective_date"].isoformat() if notice["effective_date"] else None
+                ),
+                "replacement_mpn": notice["replacement_mpn"],
+                "reason": notice["reason"],
+                "source": notice["source"],
+                "created_at": notice["created_at"].isoformat(),
+                "refdes": list(notice["refdes"]),
+            }
+            for notice in notices
+        ],
+        "requests": [
+            {
+                "id": row["id"],
+                "notice_id": row["notice_id"],
+                "proposal": row["proposal"],
+                "created_at": row["created_at"].isoformat(),
+                "document": row["document"],
+            }
+            for row in requests
+        ],
+    }
 
 
 @router.get("/{line_id}/threads")

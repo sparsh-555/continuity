@@ -1,4 +1,4 @@
-type NodeStatus = 'pending' | 'searching' | 'pass' | 'conflict'
+type NodeStatus = 'pending' | 'searching' | 'pass' | 'conflict' | 'unchecked'
 
 type ConflictVariant = 'entry' | 'repeat' | 'warmup'
 

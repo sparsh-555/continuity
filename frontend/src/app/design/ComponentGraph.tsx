@@ -1,4 +1,4 @@
-import type { Alternative, ConflictEvent, RepairAction, Slot, SupplyNode } from '../lib/types'
+import type { Alternative, ConflictEvent, GraphSlot, RepairAction, SupplyNode } from '../lib/types'
 import { ComponentNode } from './ComponentNode'
 import type { PositionedNode } from './ComponentGraph.shared'
 import {
@@ -32,7 +32,7 @@ type ActiveRepair = {
 } | null
 
 type ComponentGraphProps = {
-  slots: Slot[]
+  slots: GraphSlot[]
   animateEdges: boolean
   revealedSlotIds: ReadonlySet<string>
   animatedSlotIds: ReadonlySet<string>
@@ -52,15 +52,17 @@ type ComponentGraphProps = {
   supply?: SupplyNode | null
 }
 
-function nodeMpn(slot: Slot) {
-  if ((slot.status === 'pass' || slot.status === 'conflict') && slot.part?.mpn) {
+function nodeMpn(slot: GraphSlot) {
+  // `unchecked` is a part that is fitted and shipping, so its number is the most useful
+  // thing on the node. Only the states where nothing has been chosen yet stay blank.
+  if (slot.status !== 'pending' && slot.status !== 'searching' && slot.part?.mpn) {
     return slot.part.mpn
   }
 
   return undefined
 }
 
-function nodeSubtitle(slot: Slot) {
+function nodeSubtitle(slot: GraphSlot) {
   if (slot.status === 'searching') {
     return slot.part?.category ?? 'Evaluating candidates'
   }
@@ -69,7 +71,7 @@ function nodeSubtitle(slot: Slot) {
     return 'Pending'
   }
 
-  return slot.part?.category
+  return slot.part?.category ?? slot.part?.package ?? undefined
 }
 
 /**
@@ -90,7 +92,7 @@ function edgeOrigin(fromNode: PositionedNode | undefined, toNode: PositionedNode
   return busX === null ? null : { x: busX, y: toNode.cy, leftToRight: true }
 }
 
-function availabilityBadge(slot: Slot, conflict: SessionConflict) {
+function availabilityBadge(slot: GraphSlot, conflict: SessionConflict) {
   if (!conflict || conflict.rule !== 'availability') {
     return null
   }

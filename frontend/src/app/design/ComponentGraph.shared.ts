@@ -1,7 +1,7 @@
-import type { Slot } from '../lib/types'
+import type { GraphSlot, Slot } from '../lib/types'
 
 export type PositionedNode = {
-  slot: Slot
+  slot: GraphSlot
   x: number
   y: number
   width: number
@@ -110,7 +110,7 @@ export function tierLabel(tier: Slot['tier']) {
   return 'PASSIVES'
 }
 
-export function buildGraphLayout(slots: Slot[], hasSupply = false) {
+export function buildGraphLayout(slots: GraphSlot[], hasSupply = false) {
   const slotGroups = TIER_ORDER.map((tier) => ({
     tier,
     slots: slots.filter((slot) => slot.tier === tier),

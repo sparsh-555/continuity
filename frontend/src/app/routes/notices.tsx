@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { BoardConsequence } from '../board/BoardConsequence'
+import { Page } from '../shell/Page'
 import {
   ApiError,
   listChangeRequests,
@@ -259,9 +260,8 @@ export default function NoticesRoute() {
   const active = received?.notice ?? selected
 
   return (
-    <div className="p-lg space-y-lg max-w-[900px]">
-      <header className="flex items-center justify-between gap-md">
-        <h1 className="font-headline-sm text-headline-sm text-on-surface">CHANGE NOTICES</h1>
+    <Page
+      actions={
         <label className="font-data-tabular text-[11px] text-primary-container border border-primary-container rounded px-md py-1 cursor-pointer hover:bg-surface-variant transition-colors">
           RECEIVE A NOTICE
           <input
@@ -275,7 +275,10 @@ export default function NoticesRoute() {
             type="file"
           />
         </label>
-      </header>
+      }
+      title="CHANGE NOTICES"
+      width="reading"
+    >
 
       {notices.length > 0 ? (
         <div className="flex flex-wrap gap-sm">
@@ -385,6 +388,6 @@ export default function NoticesRoute() {
           ))}
         </section>
       ) : null}
-    </div>
+    </Page>
   )
 }

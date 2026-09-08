@@ -44,6 +44,26 @@ export interface Requirements {
   max_lead_days: number
 }
 
+/** What the graph needs of a part position, whoever produced it.
+ *
+ *  A design run produces `Slot`s; a product line that already ships produces these out of
+ *  its stored bill and its operating profile, where the only honest status is `unchecked` —
+ *  the part is fitted and no rule has looked at it in this session. `Slot` is assignable to
+ *  this, so the workspace keeps passing what it always passed. */
+export interface GraphSlot {
+  id: string
+  label: string
+  tier: 'core' | 'power' | 'peripherals' | 'passives'
+  status: 'pending' | 'searching' | 'pass' | 'conflict' | 'unchecked'
+  part: {
+    mpn: string
+    manufacturer?: string | null
+    category?: string | null
+    package?: string | null
+  } | null
+  repair_count?: number
+}
+
 export interface Slot {
   id: string
   label: string

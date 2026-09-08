@@ -47,10 +47,6 @@ function formatRelativeTime(timestamp: string) {
   return `${days}d ago`
 }
 
-function conflictResolvedLabel(count: number) {
-  return `${count} conflict${count === 1 ? '' : 's'} resolved`
-}
-
 function shortPartsLabel(missingCount: number) {
   return `short ${missingCount} part${missingCount === 1 ? '' : 's'}`
 }
@@ -66,7 +62,7 @@ function describe(line: Line): string | null {
     return null
   }
 
-  const revision = line.revision ? `Rev ${line.revision}` : null
+  const revision = line.revision
   const parts = `${line.part_count} ${line.part_count === 1 ? 'part' : 'parts'}`
   const ambient = line.profile
     ? `${line.profile.ambient_c} °C ambient`
@@ -87,71 +83,33 @@ function describeInFull(line: Line): string | undefined {
     : describe(line) ?? undefined
 }
 
-function statusBadgeFromLatestThread(latestThread: LineThread | null): StatusBadge {
-  if (!latestThread) {
+/** What is true of the *product*, which is not whether somebody has run it through us.
+ *
+ *  This read "Never run" on every shipping product in the seeded company, because it was
+ *  computed from the latest design thread. A product line on its third revision with three
+ *  parts fitted is not "never run"; it is shipping, and the only thing about to change it
+ *  is a notice against one of its parts. */
+function statusBadge(line: Line): StatusBadge {
+  if (line.exposed_count > 0) {
     return {
-      label: 'Never run',
+      label: `${line.exposed_count} notice${line.exposed_count === 1 ? '' : 's'}`,
+      dotClassName: 'bg-error',
+      textClassName: 'text-error',
+    }
+  }
+
+  if (line.part_count === 0) {
+    return {
+      label: 'No parts yet',
       dotClassName: 'border border-outline',
       textClassName: 'text-on-surface-variant',
       hollowDot: true,
     }
   }
 
-  const status = latestThread.status.toLowerCase()
-
-  if (status === 'running') {
-    return {
-      label: 'RUNNING',
-      dotClassName: 'bg-tertiary-container',
-      textClassName: 'text-tertiary-fixed-dim',
-    }
-  }
-
-  if (status === 'awaiting' || status === 'awaiting_input') {
-    return {
-      label: 'NEEDS INPUT',
-      dotClassName: 'bg-tertiary-container',
-      textClassName: 'text-tertiary-fixed-dim',
-    }
-  }
-
-  if (status === 'error') {
-    return {
-      label: 'Failed',
-      dotClassName: 'bg-error',
-      textClassName: 'text-error',
-    }
-  }
-
-  // A run whose client went away. Deliberately not 'Failed' — nothing broke, the tab
-  // was closed, and a red badge would report a fault the user did not cause.
-  if (status === 'abandoned') {
-    return {
-      label: 'Stopped',
-      dotClassName: 'bg-outline',
-      textClassName: 'text-on-surface-variant',
-    }
-  }
-
-  if (status === 'done' || status === 'completed') {
-    if (latestThread.summary && latestThread.summary.conflicts_resolved > 0) {
-      return {
-        label: conflictResolvedLabel(latestThread.summary.conflicts_resolved),
-        dotClassName: 'bg-primary-container',
-        textClassName: 'text-on-surface-variant',
-      }
-    }
-
-    return {
-      label: 'Completed',
-      dotClassName: 'bg-outline',
-      textClassName: 'text-on-surface-variant',
-    }
-  }
-
   return {
-    label: 'Completed',
-    dotClassName: 'bg-outline',
+    label: 'Shipping',
+    dotClassName: 'bg-[#4ade80]',
     textClassName: 'text-on-surface-variant',
   }
 }
@@ -367,9 +325,9 @@ export default function LinesRoute() {
           // What the line *is*, when it has been described as a product; otherwise what
           // was last asked of it. A line carrying neither a BOM nor a profile is a design
           // container, and replacing its brief with "0 parts" would take information away.
-          subtitle: describe(line) ?? latestThread?.prompt ?? 'No runs yet',
+          subtitle: describe(line) ?? latestThread?.prompt ?? 'Nothing described yet',
           subtitleTitle: describeInFull(line),
-          status: statusBadgeFromLatestThread(latestThread),
+          status: statusBadge(line),
           shortageLabel: shortageLabelFromLatestThread(latestThread),
         }
       }),
@@ -430,10 +388,10 @@ export default function LinesRoute() {
                     // list reads calmer without twelve of them stacked down the page.
                     className="bg-surface-container h-[72px] rounded-DEFAULT flex items-center justify-between px-md hover:bg-surface-container-high transition-colors cursor-pointer"
                     key={line.id}
-                    onClick={() => navigate(`/design/${line.id}`)}
+                    onClick={() => navigate(`/lines/${line.id}`)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
-                        navigate(`/design/${line.id}`)
+                        navigate(`/lines/${line.id}`)
                       }
                     }}
                     role="button"

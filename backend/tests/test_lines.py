@@ -864,3 +864,115 @@ def test_a_run_without_any_list_is_not_told_every_part_is_unqualified():
     checks = run(go())
 
     assert all(check["status"] == "not_applicable" for check in checks)
+
+
+# ── what a product line is ────────────────────────────────────────────────────
+
+GATEWAY_PROFILE = {
+    "ambient_c": 45,
+    "ambient_source": "gateway operating profile Rev C",
+    "rails": {
+        "3v3": {"source": "u1", "members": ["u2", "c1"], "i_load": 0.42},
+        "vin": {"source": None, "members": ["u1"], "voltage": 5.0, "basis": "USB Type-C"},
+    },
+}
+
+GATEWAY_BOM = [
+    {"refdes": "u1", "mpn": "AMS1117-3.3", "manufacturer": "AMS", "footprint": "SOT-223"},
+    {"refdes": "u2", "mpn": "ESP32-C3-MINI-1-N4", "manufacturer": "Espressif"},
+    {"refdes": "c1", "mpn": "CL31A226KAHNNNE", "manufacturer": "Samsung"},
+]
+
+
+class _Notice:
+    """The fields `save_notice` reads. The reader itself is tested in `test_notices.py`."""
+
+    mpn = "AMS1117-3.3"
+    mpn_line = "Affected part: AMS1117-3.3 (SOT-223)"
+    manufacturer = "Advanced Monolithic Systems"
+    effective_date = "2027-03-31"
+    effective_date_line = "Last time buy: 2027-03-31"
+    replacement_mpn = "NCP1117ST33T3G"
+    replacement_line = "Recommended replacement: NCP1117ST33T3G."
+    reason = "Wafer fabrication line closure."
+
+
+async def a_described_line(http, name: str = "Gateway") -> str:
+    line = (await http.post("/lines", json={"name": name})).json()
+    await http.put(f"/lines/{line['id']}/bom", json={"rows": GATEWAY_BOM})
+    await http.put(
+        f"/lines/{line['id']}/profile",
+        json={"profile": GATEWAY_PROFILE, "revision": "Rev C"},
+    )
+    return line["id"]
+
+
+def test_a_product_line_shows_what_it_is_without_any_run():
+    """The page that did not exist. A product with parts, a profile and a revision used to
+    open the brief entry and ask what you were building."""
+
+    async def go():
+        async with a_store():
+            async with signed_in("overview@example.com") as http:
+                line_id = await a_described_line(http)
+                return (await http.get(f"/lines/{line_id}/overview")).json()
+
+    body = run(go())
+
+    assert body["line"]["name"] == "Gateway"
+    assert body["line"]["revision"] == "Rev C"
+    assert [part["refdes"] for part in body["parts"]] == ["c1", "u1", "u2"]
+    assert body["board"] is None
+    assert body["notices"] == []
+
+
+def test_the_power_tree_comes_out_of_the_stored_profile():
+    async def go():
+        async with a_store():
+            async with signed_in("tree@example.com") as http:
+                line_id = await a_described_line(http)
+                return (await http.get(f"/lines/{line_id}/overview")).json()["graph"]
+
+    graph = run(go())
+
+    assert {(edge["from"], edge["to"]) for edge in graph["edges"]} == {
+        ("__supply", "u1"),
+        ("u1", "u2"),
+        ("u1", "c1"),
+    }
+    assert graph["supply"]["voltage"] == 5.0
+    assert {slot["status"] for slot in graph["slots"]} == {"unchecked"}
+
+
+def test_a_notice_against_a_fitted_part_reaches_the_product_line_page():
+    """The question this page asks that no other screen does: not what a notice reaches,
+    but what is coming for this product."""
+
+    async def go():
+        async with a_store() as store:
+            async with signed_in("exposed@example.com") as http:
+                line_id = await a_described_line(http)
+                user = (await http.get("/auth/me")).json()
+                await store.save_notice(user["org_id"], user["id"], _Notice(), source="test")
+                overview = (await http.get(f"/lines/{line_id}/overview")).json()
+                listed = (await http.get("/lines")).json()
+                return overview, listed
+
+    overview, listed = run(go())
+
+    assert [notice["mpn"] for notice in overview["notices"]] == ["AMS1117-3.3"]
+    assert overview["notices"][0]["refdes"] == ["u1"]
+    assert [line["exposed_count"] for line in listed] == [1], (
+        "the dashboard counts exposure beside the row rather than fetching per line"
+    )
+
+
+def test_another_organisation_s_product_line_is_not_found():
+    async def go():
+        async with a_store():
+            async with signed_in("owner@example.com") as mine:
+                line_id = await a_described_line(mine)
+            async with signed_in("stranger@example.com") as theirs:
+                return await theirs.get(f"/lines/{line_id}/overview")
+
+    assert run(go()).status_code == 404

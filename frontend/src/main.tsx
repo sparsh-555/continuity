@@ -7,6 +7,7 @@ import { RequireAuth } from './app/routes/RequireAuth'
 import DesignRoute from './app/routes/design'
 import { SignInRoute, SignUpRoute } from './app/routes/auth'
 import LandingRoute from './app/routes/landing'
+import LineRoute from './app/routes/line'
 import LinesRoute from './app/routes/lines'
 import MatrixRoute from './app/routes/matrix'
 import MemoryRoute from './app/routes/memory'
@@ -40,6 +41,14 @@ const router = createBrowserRouter([
             element: (
               <RequireAuth>
                 <LinesRoute />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: '/lines/:lineId',
+            element: (
+              <RequireAuth>
+                <LineRoute />
               </RequireAuth>
             ),
           },

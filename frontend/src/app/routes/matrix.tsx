@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router'
 
 import {
   ApiError,
@@ -10,6 +9,7 @@ import {
   type MatrixResponse,
 } from '../lib/api'
 import type { EventStatus } from '../lib/types'
+import { Page } from '../shell/Page'
 
 /** The five coverage labels as a reader should see them, in the order they are read.
  *
@@ -143,7 +143,6 @@ function CellDetail({ cell, onClose }: { cell: MatrixCell; onClose: () => void }
 }
 
 export default function MatrixRoute() {
-  const navigate = useNavigate()
   const [lines, setLines] = useState<Line[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [slot, setSlot] = useState('u1')
@@ -217,18 +216,12 @@ export default function MatrixRoute() {
   }, [matrix])
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="px-lg py-md border-b border-surface-bright flex items-center justify-between gap-md">
-          <h1 className="font-headline-sm text-headline-sm text-on-surface">SUBSTITUTION MATRIX</h1>
-          <button
-            className="font-data-tabular text-[11px] text-on-surface-variant hover:text-on-surface"
-            onClick={() => navigate('/lines')}
-            type="button"
-          >
-            ALL PRODUCT LINES
-          </button>
-        </header>
+    <Page
+      back={{ to: '/lines', label: 'PRODUCT LINES' }}
+      subtitle="Every candidate against every product line, each under its own stored conditions."
+      title="SUBSTITUTION MATRIX"
+    >
+      <div className="flex flex-col gap-md">
 
         <div className="px-lg py-md border-b border-surface-bright flex flex-wrap items-end gap-md">
           <label className="flex flex-col gap-1">
@@ -363,6 +356,6 @@ export default function MatrixRoute() {
       </div>
 
       {open ? <CellDetail cell={open} onClose={() => setOpen(null)} /> : null}
-    </div>
+    </Page>
   )
 }

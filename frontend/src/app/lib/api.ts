@@ -1,4 +1,13 @@
-import type { BomRow, DesignEvent, Edge, EventStatus, QuestionEvent, Slot, SupplyNode } from './types'
+import type {
+  BomRow,
+  DesignEvent,
+  Edge,
+  EventStatus,
+  GraphSlot,
+  QuestionEvent,
+  Slot,
+  SupplyNode,
+} from './types'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
@@ -30,6 +39,9 @@ export type Line = {
     rails?: Record<string, unknown>
   } | null
   part_count: number
+  /** How many change notices reach a part this product has fitted. The only thing on a
+   *  dashboard of shipping products that is about to change. */
+  exposed_count: number
 }
 
 export type ThreadSummary = {
@@ -108,6 +120,52 @@ export type MatrixResponse = {
    *  and only the second one has an action attached — say which manufacturer you meant. */
   ambiguous: Record<string, string>
   cells: MatrixCell[]
+}
+
+export type LinePart = {
+  refdes: string
+  mpn: string
+  manufacturer: string | null
+  footprint: string | null
+  populated: boolean
+}
+
+export type LineGraphView = {
+  slots: GraphSlot[]
+  edges: Edge[]
+  supply: SupplyNode | null
+}
+
+export type LineNotice = {
+  id: string
+  mpn: string
+  manufacturer: string | null
+  effective_date: string | null
+  replacement_mpn: string | null
+  reason: string | null
+  source: string
+  created_at: string
+  /** Where on this board the retired part sits. */
+  refdes: string[]
+}
+
+export type LineRequest = {
+  id: string
+  notice_id: string | null
+  proposal: string | null
+  created_at: string
+  document: ChangeRequest
+}
+
+export type LineOverview = {
+  line: Line
+  parts: LinePart[]
+  /** The power tree the operating profile states. Not a netlist: nothing has read a
+   *  schematic, so every edge here is a rail feeding a part. */
+  graph: LineGraphView
+  board: LineBoard | null
+  notices: LineNotice[]
+  requests: LineRequest[]
 }
 
 export type LineBoard = {
@@ -382,6 +440,10 @@ export function reviewNotice(
 
 export function listChangeRequests(noticeId: string) {
   return request<ChangeRequest[]>(`/notices/${encodeURIComponent(noticeId)}/review`)
+}
+
+export function getLineOverview(lineId: string) {
+  return request<LineOverview>(`/lines/${encodeURIComponent(lineId)}/overview`)
 }
 
 export function getBoard(lineId: string) {
