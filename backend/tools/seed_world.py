@@ -33,7 +33,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import io
+import json
 import sys
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -108,6 +111,112 @@ def profile_for(line, *, ambient: int, ambient_source: str) -> dict:
                 "members": ["u2", "c1"],
                 "i_load": line.load,
                 "i_load_basis": line.load_basis,
+            },
+        },
+    }
+
+
+PROPICO = Path(__file__).resolve().parent.parent / "fixtures" / "kicad" / "propico"
+PROPICO_BOM = PROPICO.parent / "propico_bom.json"
+
+BOARD_LINE = "Sensor node"
+"""The one product line that is a real board, and is described by it.
+
+We have exactly one real KiCad project. Attaching it to three product lines would claim
+three different products are the same board, which anybody can check by opening two of
+them, and a stated bill of three parts beside a project of forty disagrees with itself.
+
+So one line **is** ProPico: its bill is what KiCad reads out of the project, at the
+designators the project uses, with the footprints the project draws. The retired part sits
+at U3 in both records because it sits at U3. The other four lines keep their stated bills
+and honestly have no project, which is an ordinary thing for a company and a better answer
+than pretending otherwise.
+"""
+
+
+def propico_bundle() -> bytes:
+    """The project, zipped exactly as an engineer would upload it."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(PROPICO.iterdir()):
+            if path.is_file():
+                archive.write(path, f"propico/{path.name}")
+    return buffer.getvalue()
+
+
+def propico_bom() -> list[dict]:
+    """ProPico's own bill, as `kicad-cli` read it.
+
+    Vendored rather than read at seed time, so seeding needs no Docker. The file records
+    which field the part numbers came from and which KiCad read them, because a bill whose
+    provenance cannot be checked is a bill somebody typed.
+    """
+    read = json.loads(PROPICO_BOM.read_text())
+    return [
+        {
+            "refdes": row["refdes"],
+            "mpn": row["mpn"],
+            "manufacturer": PROPICO_MANUFACTURERS.get(row["mpn"]),
+            "footprint": row["footprint"],
+            "populated": True,
+        }
+        for row in read["rows"]
+    ]
+
+
+PROPICO_MANUFACTURERS = {
+    "AMS1117-3.3": "Advanced Monolithic Systems",
+    "RP2040": "Raspberry Pi",
+    "W25Q16JVUXIQ": "Winbond",
+    "FM24CL16B": "Infineon",
+    "LM4040D30FTA": "Texas Instruments",
+}
+"""Only where the manufacturer is not in question.
+
+The board states part numbers, not manufacturers. Guessing the rest would put a name
+against a passive nobody has checked, and `None` is the honest answer for a row whose
+maker the project does not say.
+"""
+
+
+def propico_profile(ambient: int, ambient_source: str, load: float, load_basis: str) -> dict:
+    """The operating profile of a real board, with each part of it sourced.
+
+    **The topology is read, not stated.** `nets` in the vendored file is what
+    `kicad-cli sch export netlist` says: VBUS arrives at the USB-C connector, +5V reaches the
+    regulator at U3, and U3's +3V3 output reaches U1, U2 and U5. Nothing here is a guess about
+    what feeds what.
+
+    **The members are the loads, not everything on the net.** Twenty-one components sit on
+    +3V3 and most are decoupling: a capacitor across a rail is on it without drawing from it,
+    and a power tree that drew every one of them would be a wall rather than a picture. So
+    the members are the active devices plus the regulator's output capacitor, which the
+    capacitor rule needs by name. Stated here rather than inferred quietly, because it is the
+    one place in this file where a person chose which rows to keep.
+
+    **The ambient and the load current remain the company's own claims.** A board file does
+    not know where a product is installed or how hard it is driven, and pretending to read
+    those out of KiCad would be inventing provenance.
+    """
+    read = json.loads(PROPICO_BOM.read_text())
+    on_3v3 = read["nets"]["+3V3"]
+    loads = [ref for ref in on_3v3 if ref.startswith("U") and ref != "U3"]
+    return {
+        "ambient_c": ambient,
+        "ambient_source": ambient_source,
+        "mounting": "1000 mm² top and back copper, 1/16in FR-4, 1 oz",
+        "rails": {
+            "vin": {
+                "voltage": 5.0,
+                "i_limit": 3.0,
+                "basis": "USB Type-C default Rp advertisement",
+                "members": ["U3"],
+            },
+            "3v3": {
+                "source": "U3",
+                "members": [*loads, "C1"],
+                "i_load": load,
+                "i_load_basis": load_basis,
             },
         },
     }
@@ -190,15 +299,32 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
     )
 
     made = []
+    board_line_id = None
     for line in AFFECTED:
         created = await store.create_line(engineer.id, org_id, line.label)
+        is_the_board = line.label == BOARD_LINE
+        if is_the_board:
+            board_line_id = created.id
+            await store.save_board(
+                line_id=created.id,
+                org_id=org_id,
+                user_id=engineer.id,
+                filename="ProPico.zip",
+                project="ProPico",
+                bundle=propico_bundle(),
+            )
         await store.save_bom_rows(
-            created.id, engineer.id, org_id, bom_for(AMS1117, line.load_part)
+            created.id, engineer.id, org_id,
+            propico_bom() if is_the_board else bom_for(AMS1117, line.load_part),
         )
         await store.save_profile(
             created.id,
             org_id,
-            _profile(profile_for(line, ambient=line.ambient_c, ambient_source=line.ambient_basis)),
+            _profile(
+                propico_profile(line.ambient_c, line.ambient_basis, line.load, line.load_basis)
+                if is_the_board
+                else profile_for(line, ambient=line.ambient_c, ambient_source=line.ambient_basis)
+            ),
             REVISION,
         )
         made.append((created.id, line.label, AMS1117.mpn))
@@ -221,6 +347,7 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
         "engineer": engineer,
         "approver": approver,
         "lines": made,
+        "board_line_id": board_line_id,
     }
 
 

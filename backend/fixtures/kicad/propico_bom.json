@@ -1,0 +1,248 @@
+{
+ "project": "ProPico",
+ "mpn_field": "P/N",
+ "read_by": "kicad-cli 9.0",
+ "rows": [
+  {
+   "refdes": "C1",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric_Pad0.74x0.62mm_HandSolder"
+  },
+  {
+   "refdes": "C2",
+   "mpn": "GCM1555C1H180JA16D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C3",
+   "mpn": "GCM1555C1H180JA16D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C4",
+   "mpn": "CL10A225KA8NNNC",
+   "footprint": "Capacitor_SMD:C_0603_1608Metric_Pad1.08x0.95mm_HandSolder"
+  },
+  {
+   "refdes": "C5",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric_Pad0.74x0.62mm_HandSolder"
+  },
+  {
+   "refdes": "C6",
+   "mpn": "GRM21BR6YA106KE43L",
+   "footprint": "Capacitor_SMD:C_0805_2012Metric_Pad1.18x1.45mm_HandSolder"
+  },
+  {
+   "refdes": "C7",
+   "mpn": "C1608C0G1H103JT000N",
+   "footprint": "Capacitor_SMD:C_0603_1608Metric_Pad1.08x0.95mm_HandSolder"
+  },
+  {
+   "refdes": "C8",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C9",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C10",
+   "mpn": "GRM155R61E105KA12D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C11",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C12",
+   "mpn": "GRM155R61E105KA12D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C13",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C14",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C15",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C16",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C17",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "C18",
+   "mpn": "GRM155R71H104KE14D",
+   "footprint": "Capacitor_SMD:C_0402_1005Metric"
+  },
+  {
+   "refdes": "D1",
+   "mpn": "PMEG6010CEGWJ",
+   "footprint": "Diode_SMD:D_SOD-123"
+  },
+  {
+   "refdes": "D2",
+   "mpn": "SZYY0603O",
+   "footprint": "LED_SMD:LED_0603_1608Metric_Pad1.05x0.95mm_HandSolder"
+  },
+  {
+   "refdes": "D3",
+   "mpn": "SZYY0603O",
+   "footprint": "LED_SMD:LED_0603_1608Metric_Pad1.05x0.95mm_HandSolder"
+  },
+  {
+   "refdes": "J1",
+   "mpn": "TYPE-C-31-M-12",
+   "footprint": "Connector_USB:USB_C_Receptacle_Palconn_UTC16-G"
+  },
+  {
+   "refdes": "R1",
+   "mpn": "0402WGJ0102TCE",
+   "footprint": "Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder"
+  },
+  {
+   "refdes": "R3",
+   "mpn": "RC0402JR-075K1",
+   "footprint": "Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder"
+  },
+  {
+   "refdes": "R4",
+   "mpn": "RC0402JR-075K1",
+   "footprint": "Resistor_SMD:R_0402_1005Metric_Pad0.72x0.64mm_HandSolder"
+  },
+  {
+   "refdes": "R6",
+   "mpn": "FRL0805FR470TS",
+   "footprint": "Resistor_SMD:R_0805_2012Metric_Pad1.20x1.40mm_HandSolder"
+  },
+  {
+   "refdes": "R7",
+   "mpn": "0603WAF1500T5E",
+   "footprint": "Resistor_SMD:R_0603_1608Metric_Pad0.98x0.95mm_HandSolder"
+  },
+  {
+   "refdes": "R8",
+   "mpn": "FRC0402F27R0TS",
+   "footprint": "Resistor_SMD:R_0402_1005Metric"
+  },
+  {
+   "refdes": "R9",
+   "mpn": "FRC0402F27R0TS",
+   "footprint": "Resistor_SMD:R_0402_1005Metric"
+  },
+  {
+   "refdes": "R10",
+   "mpn": "0402WGJ0102TCE",
+   "footprint": "Resistor_SMD:R_0402_1005Metric"
+  },
+  {
+   "refdes": "R11",
+   "mpn": "0402WGJ0102TCE",
+   "footprint": "Resistor_SMD:R_0402_1005Metric"
+  },
+  {
+   "refdes": "R12",
+   "mpn": "0402WGJ0102TCE",
+   "footprint": "Resistor_SMD:R_0402_1005Metric"
+  },
+  {
+   "refdes": "R13",
+   "mpn": "0402WGJ0102TCE",
+   "footprint": "Resistor_SMD:R_0402_1005Metric"
+  },
+  {
+   "refdes": "SW1",
+   "mpn": "B3U-1000P",
+   "footprint": "Button_Switch_SMD:SW_SPST_B3U-1000P"
+  },
+  {
+   "refdes": "SW2",
+   "mpn": "B3U-1000P",
+   "footprint": "Button_Switch_SMD:SW_SPST_B3U-1000P"
+  },
+  {
+   "refdes": "U1",
+   "mpn": "FM24CL16B",
+   "footprint": "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm"
+  },
+  {
+   "refdes": "U2",
+   "mpn": "W25Q16JVUXIQ",
+   "footprint": "W25Q16JVUXIQ_TR:IC_W25Q16JVUXIQ_TR"
+  },
+  {
+   "refdes": "U3",
+   "mpn": "AMS1117-3.3",
+   "footprint": "Package_TO_SOT_SMD:SOT-223-3_TabPin2"
+  },
+  {
+   "refdes": "U4",
+   "mpn": "LM4040D30FTA",
+   "footprint": "Package_TO_SOT_SMD:SOT-23"
+  },
+  {
+   "refdes": "U5",
+   "mpn": "RP2040",
+   "footprint": "RP2040:RP2040-QFN-56"
+  },
+  {
+   "refdes": "Y1",
+   "mpn": "TXM12M0004252FBCEO00T",
+   "footprint": "Crystal:Crystal_SMD_2520-4Pin_2.5x2.0mm"
+  }
+ ],
+ "nets": {
+  "VBUS": [
+   "D1",
+   "J1",
+   "J4"
+  ],
+  "+5V": [
+   "C4",
+   "D1",
+   "J4",
+   "U3"
+  ],
+  "+3V3": [
+   "C1",
+   "C11",
+   "C12",
+   "C13",
+   "C14",
+   "C15",
+   "C16",
+   "C17",
+   "C18",
+   "C5",
+   "J4",
+   "JP1",
+   "R10",
+   "R11",
+   "R2",
+   "R6",
+   "R7",
+   "U1",
+   "U2",
+   "U3",
+   "U5"
+  ]
+ }
+}

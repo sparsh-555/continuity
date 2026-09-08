@@ -189,6 +189,9 @@ export type LineGraphView = {
   slots: GraphSlot[]
   edges: Edge[]
   supply: SupplyNode | null
+  /** Fitted parts on the bill that no rail names: decoupling, pull-ups, a crystal, a
+   *  connector. Counted so the picture can say what it left out rather than hiding it. */
+  off_tree: number
 }
 
 export type LineNotice = {

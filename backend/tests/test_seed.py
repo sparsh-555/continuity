@@ -100,7 +100,10 @@ def test_every_seeded_line_can_be_turned_into_a_board():
     for name, revision, has_profile, rows in run(go()):
         assert has_profile, f"{name} has no operating profile"
         assert revision == seed_world.REVISION, f"{name} states no revision"
-        assert rows == 3, f"{name} has {rows} BOM rows"
+        # Three for a stated line, forty-one for the one that is a real board. The number
+        # is not the point; a line with an empty bill cannot be checked, and that is.
+        expected = 41 if name == seed_world.BOARD_LINE else 3
+        assert rows == expected, f"{name} has {rows} BOM rows"
 
 
 def test_the_seed_writes_verified_part_facts():
@@ -316,23 +319,33 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
                         json={"document": base64.b64encode(pcn).decode()},
                     )
                 ).json()
-                reviewed = await http.post(
-                    f"/notices/{notice['id']}/review",
+                # The concurrent run, which is what the app does. The one-shot endpoint
+                # beside it takes a single position and applies it to every line, and
+                # since one of these products is a real board that puts its regulator at
+                # U3 while the others say u1, it now refuses rather than guessing. That
+                # refusal is right, and it is why this test moved: it was driving an
+                # endpoint the demo never touches.
+                async with http.stream(
+                    "POST", f"/notices/{notice['id']}/review/run",
                     json={
                         "candidates": [NCP1117.mpn, LD1117.mpn, TLV1117.mpn],
                         "annual_volume": 20_000,
                     },
-                )
-                return notice, reviewed
+                ) as stream:
+                    assert stream.status_code == 200, await stream.aread()
+                    async for _ in stream.aiter_lines():
+                        pass
+                stored = await http.get(f"/notices/{notice['id']}/review")
+                return notice, stored
 
-    notice, reviewed = run(go())
+    notice, stored = run(go())
 
     assert {row["name"] for row in notice["affected"]} == {
         "Sensor node", "Gateway", "Cabinet controller"
     }, "the notice reaches three of five products"
 
-    assert reviewed.status_code == 201, reviewed.text
-    requests = {r["line_name"]: r for r in reviewed.json()["requests"]}
+    assert stored.status_code == 200, stored.text
+    requests = {r["line_name"]: r for r in stored.json()}
     assert len(requests) == 3
 
     for name, request in requests.items():
@@ -356,3 +369,93 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
     # rather than LD1117 at 1.5 °C. The better answer on both counts, and it took the gates
     # to find it.
     assert requests["Gateway"]["proposal"] == TLV1117.mpn
+
+
+# ── the board the company already has ─────────────────────────────────────────
+
+
+def test_a_seeded_line_already_carries_its_kicad_project():
+    """The demo does not open by zipping a fixture and uploading it.
+
+    A company that ships a product has its CAD; making the attach a demo step was an
+    accident of item 16 landing before item 18 and nobody joining them.
+    """
+
+    async def go():
+        async with empty() as store:
+            world = await seed_world.seed(store)
+            board = await store.board_for(world["board_line_id"], world["org_id"])
+            bill = await store.bom_for_line(world["board_line_id"], world["org_id"])
+            return board, bill
+
+    board, bill = run(go())
+
+    assert board is not None, "the line the board belongs to has it at seed time"
+    assert board["project"] == "ProPico"
+    assert board["bytes"] > 0
+
+    at = {row["refdes"]: row["mpn"] for row in bill}
+    assert at["U3"] == "AMS1117-3.3", "the retired part, where the board actually puts it"
+    assert at["U5"] == "RP2040"
+
+
+def test_the_boards_line_states_the_bill_the_board_states():
+    """One product, one set of designators.
+
+    The alternative was a stated bill of three parts beside a project of forty, or the same
+    file attached to three different products. The first disagrees with itself and the second
+    claims three products are one board, which anybody can check by opening two of them.
+    """
+
+    async def go():
+        async with empty() as store:
+            world = await seed_world.seed(store)
+            return await store.bom_for_line(world["board_line_id"], world["org_id"])
+
+    bill = run(go())
+
+    assert len(bill) == 41, "every row KiCad read, not a curated subset"
+    assert all(row["footprint"] for row in bill), "footprints come from the board too"
+
+
+def test_the_other_lines_honestly_have_no_project():
+    """Not every product has its CAD in the system, and saying so is better than pretending."""
+
+    async def go():
+        async with empty() as store:
+            world = await seed_world.seed(store)
+            others = [
+                line_id for line_id, *_ in world["lines"] if line_id != world["board_line_id"]
+            ]
+            return [await store.board_for(line_id, world["org_id"]) for line_id in others]
+
+    assert run(go()) == [None, None, None, None]
+
+
+def test_the_boards_power_tree_is_the_one_its_netlist_states():
+    """Read, not stated. The regulator's position and what it feeds come out of KiCad.
+
+    Before the board was seeded, every line said its regulator was at `u1` and fed `u2` and
+    `c1`. On this board `U1` is an FRAM and the regulator is at `U3`, so carrying the old
+    profile across would have drawn a power tree with a memory chip making the 3.3 V rail.
+    """
+
+    async def go():
+        async with empty() as store:
+            world = await seed_world.seed(store)
+            line = await store.line_for_user(world["board_line_id"], world["org_id"])
+            return line.profile
+
+    profile = run(go())
+    rails = profile["rails"]
+
+    assert rails["3v3"]["source"] == "U3", "the regulator, where the board puts it"
+    assert rails["vin"]["members"] == ["U3"], "the regulator is what sits on the input rail"
+
+    powered = set(rails["3v3"]["members"])
+    assert {"U1", "U2", "U5"} <= powered, "the FRAM, the flash and the RP2040"
+    assert "U3" not in powered, "the regulator makes the rail rather than loading it"
+    # Ten more capacitors and five resistors sit on +3V3 and are decoupling. A capacitor
+    # across a rail is on it without drawing from it, and a power tree drawing every one
+    # would be a wall. C1 stays because the capacitor rule needs the output cap by name.
+    assert powered == {"U1", "U2", "U5", "C1"}

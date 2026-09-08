@@ -201,10 +201,15 @@ export default function LineRoute() {
             No parts are recorded against this product line yet.
           </p>
         )}
-        {/* Said plainly, because the picture would otherwise be read as the schematic. */}
+        {/* Said plainly, because the picture would otherwise be read as the schematic, and
+            because a real board leaves thirty parts off this picture. Both omissions are
+            stated rather than left for somebody to notice. */}
         <p className="font-data-tabular text-[10px] text-on-surface-variant/70">
           The power tree this product line states: which part makes each rail and what that
           rail feeds. Not a netlist — nothing here has read a schematic.
+          {graph.off_tree > 0
+            ? ` ${graph.off_tree} more fitted part${graph.off_tree === 1 ? '' : 's'} sit on the bill and on no rail — decoupling, pull-ups and connectors — and are listed below.`
+            : ''}
         </p>
       </section>
 

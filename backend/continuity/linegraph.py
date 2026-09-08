@@ -16,6 +16,11 @@ regulator, loads.
 edge. The data connections between an MCU and its sensors are in the schematic, and nothing
 here has read one. The screen says so rather than drawing a graph that looks complete.
 
+**It is the tree, not the bill.** When the profile states rails, the picture is what those
+rails name, and everything else on the bill is counted in `off_tree` rather than drawn. A
+real board carries decoupling, pull-ups, a crystal and a connector that no rail names; the
+bill of materials table below the picture is where those live.
+
 **Nothing is checked.** Every slot comes back `unchecked`, which is the truthful status for a
 part that is fitted and shipping and that no rule has looked at in this session. A run is
 what turns those green or red.
@@ -95,11 +100,19 @@ class LineGraph:
     slots: tuple[dict[str, Any], ...]
     edges: tuple[dict[str, Any], ...]
     supply: dict[str, Any] | None
+    off_tree: int = 0
+    """How many fitted parts are on the bill and on no rail.
+
+    Counted rather than hidden. A real board carries decoupling, pull-ups, a crystal and a
+    connector that no rail names, and leaving thirty-six parts out of a picture without
+    saying so is the screen lying by omission.
+    """
 
     def to_json(self) -> dict[str, Any]:
         return {
             "slots": list(self.slots),
             "edges": list(self.edges),
+            "off_tree": self.off_tree,
             "supply": self.supply,
         }
 
@@ -119,6 +132,26 @@ def graph_from(
     }
 
     fitted = [row for row in bom if row.get("populated", True) and row.get("refdes")]
+
+    # **A bill of materials is not a power tree.** Every seeded line stated three parts, so
+    # every row was on a rail and the difference never showed. A real board carries forty
+    # more that no rail names, and drawing all of them makes a wall rather than a picture.
+    #
+    # So when a profile states rails, the tree is what those rails name. With no profile
+    # there is no tree to be selective about, and the honest picture of a bill nobody has
+    # described is all of it, unconnected.
+    on_tree: set[str] | None = None
+    if rails:
+        on_tree = set(sources)
+        for rail in rails.values():
+            on_tree.update(str(member) for member in rail.get("members") or ())
+
+    off_tree = 0
+    if on_tree is not None:
+        kept = [row for row in fitted if str(row["refdes"]) in on_tree]
+        off_tree = len(fitted) - len(kept)
+        fitted = kept
+
     slots = []
     for row in fitted:
         refdes = str(row["refdes"])
@@ -185,4 +218,6 @@ def graph_from(
             "voltage": voltage if isinstance(voltage, (int, float)) else None,
         }
 
-    return LineGraph(slots=tuple(slots), edges=tuple(edges), supply=supply)
+    return LineGraph(
+        slots=tuple(slots), edges=tuple(edges), supply=supply, off_tree=off_tree
+    )

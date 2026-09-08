@@ -122,3 +122,59 @@ def test_the_highest_external_rail_is_the_input():
     }
 
     assert graph_from(profile, GATEWAY_BOM).supply["voltage"] == 12.0
+
+
+# ── a real board, where a bill is not a power tree ────────────────────────────
+
+REAL_BOARD_PROFILE = {
+    "ambient_c": 25,
+    "rails": {
+        "vin": {"source": None, "members": ["U3"], "voltage": 5.0},
+        "3v3": {"source": "U3", "members": ["U1", "U2", "U5", "C1"], "i_load": 0.15},
+    },
+}
+
+REAL_BOARD_BOM = [
+    {"refdes": "U3", "mpn": "AMS1117-3.3", "footprint": "SOT-223"},
+    {"refdes": "U5", "mpn": "RP2040"},
+    {"refdes": "U2", "mpn": "W25Q16JVUXIQ"},
+    {"refdes": "U1", "mpn": "FM24CL16B"},
+    {"refdes": "C1", "mpn": "GRM155R71H104KE14D"},
+    # Thirty-six more, mostly decoupling. A capacitor across a rail is on it without
+    # drawing from it, and none of these is named by any rail.
+    *[{"refdes": f"C{n}", "mpn": "GRM155R71H104KE14D"} for n in range(5, 19)],
+    *[{"refdes": f"R{n}", "mpn": "0402WGJ0102TCE"} for n in range(1, 14)],
+    {"refdes": "J1", "mpn": "TYPE-C-31-M-12"},
+    {"refdes": "Y1", "mpn": "TXM12M0004252FBCEO00T"},
+    {"refdes": "SW1", "mpn": "B3U-1000P"},
+]
+
+
+def test_a_real_board_draws_its_power_tree_not_its_whole_bill():
+    """Forty-one parts is a bill of materials. Five of them are a power tree.
+
+    The seeded lines each stated three parts, so every row was on a rail and the difference
+    never showed. A real board carries decoupling, pull-ups, a crystal and a connector, none
+    of which any rail names, and drawing all of them makes a wall rather than a picture.
+    """
+    drawn = graph_from(REAL_BOARD_PROFILE, REAL_BOARD_BOM)
+
+    assert {slot["id"] for slot in drawn.slots} == {"U3", "U5", "U2", "U1", "C1"}
+
+
+def test_what_is_left_off_the_tree_is_counted_rather_than_hidden():
+    """Silently dropping thirty-six parts would be the screen lying by omission."""
+    drawn = graph_from(REAL_BOARD_PROFILE, REAL_BOARD_BOM)
+
+    on_tree = {"U3", "U5", "U2", "U1", "C1"}
+    assert drawn.off_tree == len(REAL_BOARD_BOM) - len(on_tree)
+    assert drawn.off_tree > 0, "the fixture has to have parts off the tree to prove anything"
+
+
+def test_a_line_with_no_profile_still_shows_every_part_it_has():
+    """Unchanged. With no rails stated there is no tree to be selective about, and the
+    honest picture of a bill nobody has described is all of it, unconnected."""
+    drawn = graph_from(None, REAL_BOARD_BOM)
+
+    assert len(drawn.slots) == len(REAL_BOARD_BOM)
+    assert drawn.off_tree == 0
