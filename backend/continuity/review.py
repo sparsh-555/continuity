@@ -240,9 +240,12 @@ async def candidates_for(
     **Anything a person named is tried last**, and is an override rather than part of the
     flow: the point is that nobody should have to type a part number.
 
-    Only the approved list and the catalogue are filtered by category. A part the
-    manufacturer named, or one a person typed, is a deliberate choice, and refusing it
-    because our category strings disagree would be the tool overruling them.
+    **Only the approved list is filtered by category.** It is an arbitrary list of the
+    company's part numbers, resolved through the same path, so the comparison is sound and an
+    approved list of a hundred parts would otherwise offer capacitors as substitutes for a
+    regulator. The catalogue was constrained by the search itself; the notice's recommendation
+    and a typed part are deliberate choices, and refusing either because our category strings
+    disagree would be the tool overruling a person.
 
     The part being retired is never a candidate to replace itself.
     """
@@ -266,8 +269,15 @@ async def candidates_for(
     for mpn in approved:
         await consider(mpn, APPROVED_ORIGIN, same_category=True)
     if search is not None:
+        # **Not category-filtered.** The search was already constrained — the kind of part in
+        # the query, the package in the constraint — and re-filtering its results against the
+        # retiring part's category string compares two taxonomies that only agree by luck.
+        # JLCPCB says "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators" where
+        # another source says "LDO Regulator", and an exact match silently empties this leg.
+        # A part of the wrong kind that survives the search is caught where everything else
+        # is caught: the engine evaluates it and it fails, visibly, as a rejected alternative.
         for part in await search(retiring):
-            keep(part, CATALOGUE_ORIGIN, same_category=True)
+            keep(part, CATALOGUE_ORIGIN, same_category=False)
     for mpn in named:
         await consider(mpn, NAMED_ORIGIN, same_category=False)
     return tuple(found)

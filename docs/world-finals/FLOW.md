@@ -1,251 +1,327 @@
-# Continuity 2.0 — the flow, and what is settled
+# FLOW.md — what runs, and what happens on the day
 
-Design record for Scenario B. Written 6 Sep 2026. Read [SCENARIO-B.md](SCENARIO-B.md) for
-why we took the topic and [EOL-RESEARCH.md](EOL-RESEARCH.md) for the sourced industry
-figures every claim below leans on.
+Two parts, and they answer different questions.
 
-Two lists. **Finalised** is decided — build it without reopening. **Unproven** is where the
-demo can still change shape, and each item names the test that settles it.
+**Part one · The machine** is what actually executes when a notice arrives: every stage, who
+decides it, the file that does it, and where a model is and is not involved. It is written to
+be *checkable* — if a stage here does not match the code, one of the two is wrong and it is
+worth finding out which.
 
----
+**Part two · The demo** is the beat, in the order it is told, with what is on screen and what
+would be a bug.
 
-## Finalised
+[RUNNER.md](RUNNER.md) is how to start everything. [BUILD.md](BUILD.md) is the work and its
+order. This is what the thing does.
 
-1. **Scenario B.** An EOL part, three product lines, 48 hours, three departments.
-2. **The entry is an event, not a brief.** A PCN is parsed into declared fields and matched
-   to BOMs on MPN. `parse_requirements`, `clarify`, `plan` and `replan` leave the graph —
-   and the 36–105 s GLM planner call leaves with them.
-3. **The engine is untouched.** Ten rules, whole-board re-check after every change, the
-   `/bom/validate` path that never enters the planner.
-4. **Fan-out across candidate × board.** This is the new machinery and the thesis: the same
-   substitute passes on one board and fails on another, because compatibility is a property
-   of the board, not the part.
-5. **A policy layer runs parallel to `RULES`, not inside it.** Same Verdict/Evidence shape,
-   tagged with the department that owns it. `RULES` keeps only physical law, which is
-   derivable from datasheets; an AVL is organisational law, derivable from nothing but the
-   company. Evaluated **alongside**, never as an upstream filter — filtering unapproved
-   candidates before evaluation destroys the moment where design says yes and procurement
-   says no.
-6. **Escalation gains an owner.** Mechanism unchanged: `escalate` → `interrupt()` →
-   `/resume`. What changes is that the question is addressed to procurement or production
-   rather than to "the user".
-7. **One screen with attribution.** No role-specific views and no fourth rail item. Three
-   separate dashboards would rebuild the silo we claim to dissolve, and the value is only
-   visible when the departments' verdicts sit side by side on the same candidate.
-8. **`/datasheet` stays and gets featured.** It extracts one θJA fact for a given MPN and
-   package. Evaluating a candidate substitute needs exactly that, which is how the thermal
-   failure on line C becomes evidence rather than assertion.
-9. **Email: the POST endpoint is the real path.** IMAP polling a throwaway mailbox is the
-   stage flourish on top of it. Everything downstream of the parser is transport-agnostic,
-   so a venue network failure costs the flourish, not the demo.
-10. **Decisions classify into the industry's own buckets** — exact / qualified alternate /
-    redesign candidate — which map onto the DoD cost metrics.
-11. **No WorkBuddy integration** unless the organiser confirms criterion 4.2 means WorkBuddy
-    specifically. See [WORKBUDDY.md](WORKBUDDY.md).
+Anything below marked **[not built]** does not exist yet and is named as a gap rather than
+described as behaviour.
 
 ---
 
-## The flow
+# Part one · The machine
 
-Output changed on 6 Sep. The run used to end with three repaired boards; it now ends with
-**three change requests awaiting approval**, because a released design cannot be altered
-without sign-off. See [SCENARIO-B.md](SCENARIO-B.md) on ECR/ECO. The mechanics up to that
-point are unchanged.
+## Where a model is, and where one is not
 
-**0 · Standing state.** The dashboard lists **product lines** — the brief's own word, and
-better than "projects", which sounds like an engineer's workspace rather than a thing the
-company ships. Each was added by **uploading its KiCad project**, which yields the BOM the
-rules need and the board the footprint view draws, from a file the engineer already has.
-Each department's constraints are registered as inputs *they* own: procurement's
-approved-vendor list, manufacturing's placeable footprints, design's per-board requirements.
+The claim this product rests on is that **no compatibility verdict is produced by a model**.
+That is about who *executes the check*, and it is checkable: here is every model call in the
+codebase, and which of them the end-of-life flow reaches.
 
-**1 · The notice arrives.** A PCN, as an unstructured PDF or a forwarded email — either the
-mailbox connector finds it or an engineer drops it in. Parsed into `{MPN, notice type,
-effective date, LTB date, recommended replacement}`. The model fills declared fields and never
-adds one; an unparseable notice escalates rather than gets guessed at. *This replaces the
-planner.*
-
-**2 · Exposure.** Match the MPN across every line. Deterministic, no model. *"AMS1117-3.3
-appears in 3 of your 5 product lines."*
-
-**This step is not our differentiator and we must stop saying it is.** SiliconExpert has a BOM
-Manager, Z2Data's PCN Manager deduplicates notices and routes ownership, PCNshark does PDF
-intake and BOM matching. Matching a notice to a bill of materials is established, commodity
-functionality. What none of them does is the next step.
-
-**3 · The manufacturer's own suggestion, first.** Because that is what a person does. Then
-model-proposed alternates through the distributor MCP, with precedents consulted.
-
-**4 · The core loop.** For every candidate on every affected line, drop it in and run
-`evaluate(board)` — all ten rules on the whole board. Unchanged code.
-
-**5 · The matrix, and the reveal.** Candidates down, lines across, every cell carrying the
-role that owns any failure. The manufacturer's recommended replacement passes two lines and
-fails the third. Industry names that failure mode itself: assuming a recommended replacement
-is drop-in is a documented standard mistake.
-
-**6 · The approval gate.** When the engine cannot decide, or the only survivor violates a
-role-owned constraint, it stops and addresses the decision to its owner. *"TLV1117LV33DCYR
-passes all three lines but is not on the approved-vendor list. This is procurement's
-decision."* Not a question to whoever is at the keyboard. The answer resumes the run and is
-recorded against the change.
-
-**7 · A change request per line.** Affected part, reason, evidence, cost delta, approvals
-required. Continuity assembled the packet; the board decides.
-
-**8 · The boards, after approval.** And this is where the real parts pay off:
-
-- **Sensor Node and Gateway** take ME6211 at $0.0597 — but that is **SOT-23-5 against the
-  outgoing SOT-223**. The pads move, connections break, both boards need layout work.
-- **Display Unit** takes TLV1117 at $0.1115 — **same SOT-223 footprint, a true drop-in.**
-
-So the footprint view shows two boards with broken connections lit and one untouched, and it
-**inverts the obvious answer**: the cheap part is not cheap once you count respinning two
-boards, and the expensive one is free to adopt. That is a decision no parametric search
-reaches, and it is why the KiCad view earns its place rather than decorating.
-
-**9 · Record.** Precedents — resolutions *and* rejections — plus the audit trail the ECO
-process requires.
-
-### What survives from the current graph
-
-| Current node | 2.0 |
-|---|---|
-| `parse_requirements`, `clarify`, `plan`, `replan` | Replaced by PCN parse + exposure match |
-| `select` | Candidate enumeration for one slot |
-| `validate` | **Unchanged**, fanned out across boards |
-| `review`, `apply` | **Unchanged** |
-| `escalate` | Unchanged mechanism, gains an owner |
-| `finalize` | Per-board decisions |
-
-Six of ten nodes survive untouched, and the four replaced are where the latency lived.
-
----
-
-## The screen
-
-The centre panel gains **three states, as a drill-down rather than new destinations**:
-
-| State | Shows | Reached by |
-|---|---|---|
-| **Matrix** | Candidates × boards, cells owned by department | Default during and after evaluation |
-| **Graph** | One board's reasoning, failure highlighted | Clicking a cell |
-| **PCB** | One board's physical consequence | After a decision |
-
-`ComponentGraph` is **not** replaced by a PCB view. The graph shows what the engine actually
-reasons about — roles, rails, what feeds what — and the ten rules operate on exactly that
-structure. A layout shows physical placement, which the engine touches only through
-`footprint`. Swapping one for the other hides the thing that thinks and shows the thing that
-does not, and it makes us look like a layout tool.
-
-`ConflictPanel` is not replaced either — it is **scoped to one cell**. The moment the
-recommended replacement fails on line C is a conflict, and it still needs its evidence shown.
-
----
-
-## Memory
-
-Keep the part graph. What changes is what a node means.
-
-Today a precedent is *this conflict signature was repaired this way*. In 2.0 it is *this MPN
-was replaced by that one, on this board, for this reason* — **and** *this candidate was
-rejected on that board for thermal*. Rejections matter as much as resolutions: they are what
-stops the orchestrator re-proposing a part already ruled out.
-
-Memory also acquires a price. Per the DoD metrics, resolving an EOL with an **already
-approved** part costs ~$1,281; a simple substitute qualified from scratch costs ~$15,656.
-Memory is the difference between those two buckets on the next event. It is simultaneously
-the audit history the industry checklist mandates.
-
----
-
-## Build order
-
-**Moved to [BUILD.md](BUILD.md)**, which supersedes the ten-item list that used to sit here.
-
-That list was ordered by *claim earned per day*. A later audit found three dependencies that
-force a different sequence — the operating profile before any θJA claim, coverage semantics
-before anything aggregates cells, and real authorisation before an approval gate is anything
-but a label — and added the rules, the seeded world and the notice as work items. Eighteen
-items across five phases. Follow that file, not this section.
-
-## Unproven — each with the test that settles it
-
-| | Item | Test |
-|---|---|---|
-| ✅ | ~~**The demo case exists.**~~ **Settled 6 Sep — see "The differential is real" below.** | `backend/tools/eol_differential.py` |
-| 🔴 | **The deployed app crashes on the walkthrough**; local does not. The booth runs the public URL all day on the 13th. | Drive the walkthrough headless against the deployed app, capture console and network. Rule out the known rebuild window first — any push to `main` restarts both services for 3–6 minutes. |
-| 🟡 | **KiCad footprint swap.** Replace a footprint headless and report which connections broke. Routing is explicitly out of scope. | A `pcbnew` spike, half a day, cleanly cancellable. Rendering in the browser is a second unknown. |
-| 🟡 | **Does the Z.ai key work from mainland China?** `llm.py` warns keys do not cross regions and the default endpoint is international. | Ask, or test. Has a lead time if a `bigmodel.cn` account is needed — not something to discover on the 12th. |
-| ⚪ | Criterion 4.2's referent | Pending with the organiser |
-
-Run order: ~~the differential test~~, the deployment crash, then KiCad.
-
-### The differential is real — and richer than designed
-
-`backend/tools/eol_differential.py` drives `evaluate()` directly on three boards sharing one
-linear regulator that is going EOL. No API, no auth, no planner. Result:
-
-| Candidate | Line A · 5 V, 0.30 A | Line B · 5 V, 0.50 A | Line C · 12 V, 0.20 A |
+| # | What the model does | Where | In the EOL flow? |
 |---|---|---|---|
-| EOL part today | pass | pass | pass (warn: runs hot) |
-| **Recommended replacement** (LDO, SOIC-8) | **pass** | **pass, warns at 119 °C** | **FAIL — 216 °C against a 125 °C limit** |
-| **Second candidate** (buck) | **FAIL — needs 5.5 V min** | **FAIL — needs 5.5 V min** | **pass** |
+| 1 | Reads a change notice into declared fields, each quoted from the document | `notices.py:212` | **yes** |
+| 2 | Turns a distributor's payload into the engine's declared fields | `parts/normalize.py:411` | **yes** |
+| 3 | Reads θJA and a junction limit out of a datasheet, bound to the table column | `parts/datasheet.py:273` | **yes** |
+| 4 | Judges whether a search hit is the right *kind* of part | `interpret.py:197` | no — needs `purpose`, which only a design run passes |
+| 5 | Classifies a free-text answer to a supply question | `interpret.py:86` | no |
+| 6 | Classifies an answer to an escalation as accept / stop / redirect | `interpret.py:112` | no |
+| 7 | Turns a brief into requirements | `api/bom.py:146` | no — BOM-validation path |
+| 8 | Infers a power tree from a pasted parts list | `api/bom.py:232` | no — BOM-validation path |
+| 9 | Plans a board from a brief | `planner/plan.py:491` | no — design runs |
+| 10 | Chooses which repair to try | `reviewer.py:332` | no — design runs |
 
-Three findings, none of them staged:
+**Three, and all three are readers.** Every one produces *claims about a document*, and every
+one is verified before it is believed: the notice's fields must be quoted from lines that are
+in the notice, the datasheet's θJA must sit in the column the document prints it in, and
+normalisation may only fill fields the engine declares. None of them decides whether a part
+fits a board.
 
-1. **The per-board differential exists.** The manufacturer's recommended replacement passes
-   two boards and fails the third on `thermal_dissipation`, with the engine deriving the
-   power, the rise and the junction temperature itself. Verdict text is already
-   demo-ready: *"(12 V − 3.3 V) × 200 mA = 1.74 W in SOIC-8 — 191 °C rise, 216 °C junction
-   against a 125 °C limit."*
-2. **The result is three-state, not binary.** Line B *clears* the limit at 119 °C and the
-   engine still warns that it runs hot. Pass / marginal / fail is a better matrix than
-   pass / fail, and it is the kind of nuance a hardware judge respects.
-3. **No single part solves all three boards, and the reasons are different rules.** The buck
-   fails A and B on `voltage_overlap` — it needs 5.5 V minimum and those rails are 5 V —
-   while passing C. So the LDO and the buck fail on opposite boards. **The answer is
-   necessarily per-board**, which is the argument for the matrix existing at all rather
-   than a single verdict.
+The verdicts come from `engine/rules.py`, which is deterministic and takes no model.
 
-`availability` also fails the EOL part on all three boards from stock alone, so the
-end-of-life condition already has a corresponding engine verdict.
+## 0 · What a company has before anything happens
 
-### Settled 6 Sep — the parts are real now
+| Thing | Where it lives | Who wrote it |
+|---|---|---|
+| Product lines, each with a revision | `product_lines` | the engineer |
+| A bill of materials per line, by reference designator | `line_parts` | uploaded, or read out of a KiCad schematic |
+| An operating profile per line — ambient, mounting, rails with `source`, `members`, `i_load` | `product_lines.profile` | the engineer |
+| The approved manufacturer list and approved vendor list | `approved_parts`, `approved_vendors` | quality and procurement |
+| Verified part facts — datasheet readings that outrank a distributor's table | `part_facts` | whoever read the datasheet; today the seed |
+| A KiCad project per line | `line_boards` | the engineer |
+| What was ruled out before, per board | `precedents` | earlier reviews |
 
-Rebuilt on MPNs pulled from JLCPCB through `graph.sourcing`, the same path the product uses.
-A judge can look every one of them up.
+**`None` and an empty list are different things.** An organisation that keeps no approved
+list has `None` and the qualification rule reports *not applicable*; one that keeps a list
+approving nobody rejects everybody. That distinction cannot be derived from an empty table,
+so `organisations.keeps_aml` and `keeps_avl` record it.
 
-| candidate | A · 120 mA | B · 200 mA | C · 350 mA |
-|---|---|---|---|
-| **AMS1117-3.3** SOT-223, $0.2176 — *going EOL* | pass | pass | pass |
-| **ME6211C33M5G-N** SOT-23-5, $0.0597 — *the cheap swap* | pass | **hot, 110 °C** | **FAIL — 174 °C vs 150 °C** |
-| **TLV1117LV33DCYR** SOT-223, $0.1115 — *same package* | pass | pass | pass |
+## 1 · A notice arrives
 
-The engine's verdict, verbatim: *"(5 V − 3.3 V) × 350 mA = 0.59 W in SOT-23-5 — 149 °C rise,
-174 °C junction against a 150 °C limit."*
+**Today:** uploaded as a PDF or pasted text through `POST /notices`. **[not built]** the
+mailbox that polls for one — item 22.
 
-The mechanism is the package. θJA is absent from every distributor row, so the engine uses
-its own table: **SOT-223 at 62 °C/W against SOT-23-5 at 250 °C/W**. Four times the thermal
-resistance in the cheaper part, which is invisible on a parametric search and is the entire
-reason the swap fails. Uploading the datasheet through `/datasheet` replaces the table figure
-with a quoted one, which is the stronger version of the beat.
+`notices.py` asks the model for `{mpn, manufacturer, effective_date, replacement_mpn,
+reason}` **and the exact line of the document each was read from**. Then code checks:
 
-**One design change fell out of the real specs.** The plan was to differentiate on input
-voltage — a 12 V line C. ME6211 is rated to 6 V, so a 12 V board rejects it on
-`voltage_overlap` before thermal is ever reached, which is correct but tells the wrong story.
-All three lines now run at 5 V and differ in load current, which is also a more believable
-product family.
+- every quoted line appears in the extracted text,
+- the part number appears *in the line quoted for it* — otherwise a model can cite any true
+  sentence and hang any part number on it,
+- the date is ISO-shaped and is the one that ends *ordering*, not the issue date, the
+  response-by date or the last time ship,
+- a word a notice uses for absence — `none`, `to be advised` — is not a part number.
 
-**Blemish to fix or accept:** `voltage_overlap` warns on all nine cells — the distributor
-publishes a maximum but no minimum, and these are LDOs whose real minimum is dropout above
-3.3 V. Honest, and noisy on every row. A datasheet upload clears it.
+A notice whose MPN cannot be sourced from its own text is refused outright, because every
+step after this keys off that part number.
+
+## 2 · Exposure
+
+`store.lines_exposed_to(org, mpn)` — one indexed query against `line_parts`, no model, no
+distributor. *"This reaches three of the five products you ship, at U1 on each."*
+
+This step is commodity: SiliconExpert, Z2Data and PCNshark all match a notice to a bill. It
+is not the differentiator and the pitch should not claim it is.
+
+## 3 · Candidates — where a replacement comes from
+
+`review.candidates_for`, in this order, and each candidate carries **why it is on the list**:
+
+1. **The manufacturer's own recommendation**, from the notice. First because it is the answer
+   everybody in the room already has, and on a board it does not suit, watching it fail is
+   the point.
+2. **The approved manufacturer list**, filtered to the same category. The cheap resolution:
+   roughly **$1,281** against **$15,656** to qualify a part from scratch.
+3. **The distributor's catalogue**, searched in the same package. This is the only leg that
+   can produce a part nobody here has ever bought, and therefore the only one that can
+   produce a decision that belongs to quality rather than to engineering.
+4. **Anything a person typed**, last, as an override. Nobody should have to.
+
+Minus **what this board already ruled out** (`precedents`, scoped to the line: a part that
+cooks one product says nothing about a cooler one).
+
+Four things the catalogue leg had to learn, each measured against JLCPCB:
+
+- The query is built from the rail and the family — *"3.3V LDO regulator"* — never from the
+  part's own description, which is a parametric blob and returns the part itself.
+- The pool is 25 deep, because the top of the list is four listings of the retired part and
+  the real alternatives start at the seventh hit.
+- Another manufacturer's listing of the retired part number is filtered out before it is
+  normalised: it is the part that is going away.
+- A fixed regulator with a different output is not a substitute for this position.
+
+## 4 · The board each product line is checked as
+
+`profile.board_from(profile, bom, specs)` builds an engine `Board` out of stored data: slots
+from the bill, rails from the profile, ambient and mounting from the profile.
+
+Every part is resolved through the distributor **with the manufacturer its own bill records**.
+Resolving by part number alone is ambiguous — three manufacturers list AMS1117-3.3 — and
+asking without it has broken two features in this project.
+
+The company's **verified part facts are installed for the whole run**
+(`normalize.set_dossier_lookup`). Without them every SOT-223 part falls back to one figure
+from the package table and NCP1117 has no junction limit at all, so it clears every board —
+including the one where it runs 159 °C against onsemi's 150 °C.
+
+## 5 · The substitution run
+
+`review.attempt(board, slot, candidate)` — put the candidate where the retired part sits and
+re-check the **whole board**, not the slot. A regulator moves the rail it makes, and a check
+scoped to one position would clear a part that browns out everything downstream.
+
+Fourteen rules run on every board, every time:
+
+`voltage_overlap` · `interface_role_match` · `pin_budget` · `current_budget` ·
+`thermal_dissipation` · `availability` · `part_qualification` · `source_approval` ·
+`footprint` · `footprint_compatibility` · `capacitor_requirements` · `temperature_rating` ·
+`energy_budget` · `rail_coverage`
+
+A fifteenth entry in `RULES`, `not_assessed`, checks nothing: it declares the three questions
+this engine does not answer for any board — output capacitor stability, EMC and signal
+integrity — so an approver has an honest denominator rather than a board that looks as
+though its emissions had been inspected.
+
+Each returns one of five coverage labels — `satisfied`, `failed`, `not_applicable`,
+`not_assessed`, `evidence_missing`. Margin is an attribute of *satisfied*; acceptance is an
+attribute of *failed*. There is no sixth label and no verdict without one.
+
+The three product lines run **concurrently on one stream** (`api/review.py`). One stream
+because browsers cap around six connections per origin and three sequence spaces would race,
+and the client drops anything at or below its high-water mark.
+
+## 6 · Who is asked
+
+Every candidate lands in one of three states, and this is the routing the whole scenario is
+about:
+
+| State | Means | Who signs |
+|---|---|---|
+| **clear** | nothing failed | engineering — a released design is approved before it changes, never after |
+| **gated** | the only failures are rules a department owns | quality for qualification, procurement for source approval |
+| **blocked** | something physical failed | nobody. No signature turns 159 °C into 150 °C |
+
+A clear candidate is preferred over a gated one, because an approved part costs a twelfth of
+a qualification. Within a state, the discovery order above decides.
+
+The question carries the roles that may answer it, and a `decisions` row records it —
+proposal, gate rule, roles, and **the whole run as evidence**. Nothing is suspended: by the
+time a person is asked the work is finished, so the answer can arrive tomorrow, from another
+browser, from somebody who never watched it.
+
+## 7 · The decision **[not built — item 21]**
+
+Approving is meant to write the substitute into `line_parts`, bump the revision, record the
+approval against the person, record a **successful** precedent, and leave the product line
+showing the new part in its graph, its bill and its board. Today the decision row is written
+and nothing consumes it.
+
+## 8 · The board consequence
+
+`continuity/kicad/` — for a product line with a KiCad project attached, the substitute is
+placed where the retired part sits, its nets carried pad by pad **by function**, and the same
+design rule check runs before and after. KiCad answers; we report the difference.
+
+This is production's leg of the scenario: same package is a substitution, different package
+is a board revision. On the verification board a SOT-223 drop-in adds nothing and a SOT-23-5
+takes unconnected items from 1 to 4 with four shorting items behind it.
+
+Pinouts come from `kicad/catalogue.py`, a table of datasheet readings. A part not in it gets
+no board consequence and says so — LD1117 is absent because ST publishes its pin connections
+as a figure, and a figure is not extractable text.
+
+## 9 · What is remembered
+
+- **Rejections**, scoped to the board they happened on, so the next notice does not
+  re-litigate them.
+- **Change requests** — the ECR packet: proposal, every rejection with the sentence that
+  killed it, evidence, what was not assessed *and* what could not be checked, the cost split,
+  and the desks that must sign.
+- **Approvals** — identity, timestamp, rule, rationale. Recorded, and **[not built]** shown.
+- **Successes** — **[not built]**, and they need item 21: a success is only real once a
+  substitution is accepted.
 
 ---
 
-## Still open
+# Part two · The demo
 
-- Whether the PCB state is worth building at all, decided after the `pcbnew` spike.
-- Where department constraints are *authored*. They are experienced in the matrix, which is
-  all the demo needs; a management surface is a product need, not a demo need.
-- Whether `replan` has any role left.
+Five products, one company, one notice. [RUNNER.md](RUNNER.md) has the commands; this is the
+story. Timings are from live runs on the seeded world.
+
+## Before you start
+
+Seeded and signed in as the engineer, sitting on `/lines`. The KiCad project attached to one
+product line. The notice PDF ready to drop in.
+
+## 1 · This is what the company ships
+
+`/lines`. Five products, each with a revision, a part count, an ambient and a status. Open
+one: its power tree, its bill of materials, the board it is built from. *This is a product
+line, not a design run — Continuity knows what this company ships and under what conditions.*
+
+Say how a product line gets here: **NEW PRODUCT LINE** takes a brief, or a KiCad project is
+attached and its bill is read out of the schematic.
+
+## 2 · The problem, before the tool
+
+An end-of-life notice arrives with a last-order date. Somewhere in the company, three
+products carry that part and nobody yet knows which. The cross-team response is a sequence of
+round trips — design proposes, procurement replies on stock, production objects on footprint
+— and each leg is a day or two of email. That is where the 48 hours in the brief goes.
+
+## 3 · The notice arrives
+
+Drop `PCN-2026-114.pdf` in. Continuity reads it, and shows the line it read the part number
+from. **Reaches 3 of the 5 products you ship.**
+
+Point at the date: four dates on that page and only one ends ordering.
+
+## 4 · All three products at once
+
+**START THE REVIEW.** Three columns, running together, about a minute:
+
+- the manufacturer's recommendation tried first, on every board,
+- then the approved list, then the catalogue — each candidate saying where it came from,
+- each board's own conditions applied to each candidate.
+
+**What comes back does not agree**, and that is the point:
+
+| Product | Answer | Why the obvious one lost |
+|---|---|---|
+| **Gateway** | TLV1117, 35 °C to spare | NCP1117 → *159 °C junction against a 150 °C limit* |
+| **Cabinet controller** | NCP1117, 11 °C to spare | TLV1117 → *rated to 5.5 V, vin at 12 V is above that* |
+| **Sensor node** | NCP1117, 84 °C to spare | — |
+
+Two answers, three products, and the rejections are different physics on each. A single
+manufacturer-wide recommendation cannot express this, and neither can a parametric search.
+
+## 5 · The decision that is not yours
+
+Each column ends with a question addressed to a desk. Where a part is electrically perfect
+and not on the approved list, that desk is **quality**, not engineering — the tool routes,
+it does not decide. Signing in as the second account to answer it is a stronger beat than
+approving it yourself.
+
+**Watch for:** in the seeded world an approved part clears every board, so every column
+currently ends at engineering. See DEFERRED — it is a flow decision, not a defect.
+
+## 6 · What it costs the board
+
+Open the product line: the substitute placed on the real KiCad board, before and after, and
+the connections it breaks reported by KiCad's own design rule check. Same package is a
+substitution; a different one is a layout revision, and that inverts which part is cheap.
+
+## 7 · The packet
+
+One change request per product line: proposal, every rejection with the sentence that killed
+it, evidence with its arithmetic, what was not assessed and what could not be checked kept
+apart, the cost split, and who has to sign. Continuity drafts the ECR. The board decides.
+
+## 8 · The number
+
+$1,281 to resolve with a part already approved, $15,656 to qualify one from scratch, and
+three products triaged in a minute against days of round trips.
+
+## If something fails on stage
+
+- **The network.** `CONTINUITY_FIXTURES=1` replays every distributor call. The one step with
+  no offline path is reading the notice, so receive it while you have a connection.
+- **A column stalls.** The other two are unaffected — each product line is its own task and
+  one failing emits an error on that column alone.
+- **KiCad.** Needs Docker; without it the board section says so rather than guessing.
+
+---
+
+# The original design record, 6 Sep
+
+Kept for the reasoning. Where it disagrees with Part one, Part one is what the code does.
+
+**What was decided then and still holds:** the entry is an event rather than a brief; the
+engine is untouched and fanned out across candidate × board; escalation gains an owner;
+one screen with attribution rather than three role dashboards; decisions classify into the
+industry's own buckets.
+
+**What changed in the building:**
+
+- *"A policy layer runs parallel to `RULES`, not inside it."* The approved lists became
+  **engine rules** — `part_qualification` and `source_approval` — because a gate that fires
+  on a part with nothing electrically wrong has to produce a verdict shaped like every other
+  verdict. There is no parallel layer.
+- *"Ten rules."* Fifteen.
+- *"Pass / marginal / fail."* Five coverage labels, with margin as an attribute of satisfied.
+- *"Sensor Node and Gateway take ME6211 at $0.0597."* ME6211 is not a candidate in the built
+  demo: its datasheet gives 6.5 V absolute maximum, which rules it out on the 12 V product,
+  and it was never made a sourced part. The SOT-23-5 beat lives in the KiCad tests instead.
+- *"Display Unit."* The five products are Sensor node, Gateway, Cabinet controller, Bench
+  supply and Handheld meter.
+
+**The differential that settled the scenario**, from `tools/eol_differential.py`, is still
+the argument in miniature: no single part solves all three boards, and the reasons are
+different rules — one candidate fails on thermal where another fails on voltage.

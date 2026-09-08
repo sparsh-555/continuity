@@ -140,6 +140,11 @@ def _search_query(retiring: PartSpec) -> str:
     return f"{volts}{kind}"
 
 
+class CatalogueUnreachable(RuntimeError):
+    """The distributor could not be searched. Said out loud rather than quietly costing the
+    review its only source of parts nobody here has bought."""
+
+
 async def _catalogue_search(retiring: PartSpec) -> list[PartSpec]:
     """What the distributor lists that could stand where this part stands.
 
@@ -154,7 +159,7 @@ async def _catalogue_search(retiring: PartSpec) -> list[PartSpec]:
         hits = await sourcing.find(query, constraint=constraint, pool=CATALOGUE_POOL)
     except Exception as error:  # noqa: BLE001 — a dead distributor is not a failed review
         log.warning("catalogue search failed for %s: %s", retiring.mpn, error)
-        return []
+        raise CatalogueUnreachable(str(error)) from error
 
     found: list[PartSpec] = []
     for hit in hits:
@@ -402,12 +407,28 @@ async def run_review(
             f"approved manufacturer list first, then the distributor's catalogue.",
         ))
 
+        searched = _catalogue_search
+
+        async def search_or_say(part: PartSpec) -> list[PartSpec]:
+            try:
+                return await searched(part)
+            except CatalogueUnreachable as unreachable:
+                # The run continues on what it has. It does not pretend the catalogue was
+                # empty: "we could not look" and "there was nothing there" are different
+                # answers, and only one of them is worth retrying.
+                emit(None, stream.reasoning(
+                    None,
+                    "The distributor could not be searched, so only the notice's "
+                    f"recommendation and the approved list were tried. ({unreachable})",
+                ))
+                return []
+
         candidates = await review.candidates_for(
             retiring=retiring,
             resolve=_resolve_quietly,
             notice_replacement=notice.get("replacement_mpn"),
             approved=sorted(approved.parts or ()),
-            search=_catalogue_search,
+            search=search_or_say,
             named=list(body.candidates),
         )
         emit(None, stream.reasoning(
@@ -450,12 +471,12 @@ async def run_review(
     async def framed() -> AsyncIterator[str]:
         lookup_token = normalize.set_dossier_lookup(facts_for)
         try:
-            async for line in _framed(lookup_token):
+            async for line in _framed():
                 yield line
         finally:
             normalize.reset_dossier_lookup(lookup_token)
 
-    async def _framed(_token: Any) -> AsyncIterator[str]:
+    async def _framed() -> AsyncIterator[str]:
         yield events.frame(
             stream.review_started(
                 notice_id,

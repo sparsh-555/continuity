@@ -20,6 +20,7 @@ import httpx
 import pytest
 
 from continuity.api import app as app_module
+from continuity import review
 from continuity.api import matrix as matrix_api
 from continuity.api.app import app
 from continuity.api.store import Store
@@ -254,7 +255,9 @@ def test_the_decision_leaves_engineering_when_no_approved_part_clears():
         if frame["type"] == "line_done" and frame["line_name"] == "Gateway"
     )
 
-    assert gateway["proposal"] == LD1117.mpn
+    # Which unqualified part wins is the catalogue's business and changes with it. What is
+    # under test is where the decision goes.
+    assert gateway["proposal"] not in (None, NCP1117.mpn)
     assert gateway["conditional"] is True
     assert "quality" in gateway["roles"], "qualification is not engineering's to grant"
 
@@ -263,7 +266,7 @@ def test_the_decision_leaves_engineering_when_no_approved_part_clears():
         if frame["type"] == "question" and frame["line_id"] == gateway["line_id"]
     )
     assert "quality" in question["roles"]
-    assert LD1117.mpn in question["text"]
+    assert gateway["proposal"] in question["text"]
     assert "clears every electrical check" in question["text"], (
         "the desk being asked did not watch the run: say the part works before asking "
         "them to qualify it"
@@ -370,5 +373,38 @@ def test_the_catalogue_is_searched_and_what_it_found_is_said():
     ]
     said = " ".join(review_wide)
 
-    assert "the distributor's catalogue" in said
+    # Not the sentence that says it is *about* to search — that one is emitted whether or
+    # not the search returns anything, and this test passed with the catalogue leg removed
+    # entirely before it asserted on the origin instead.
+    assert review.CATALOGUE_ORIGIN in said, (
+        "a candidate the distributor's catalogue produced, not just the promise of one"
+    )
     assert "Trying" in said, "the shortlist is named before any board is touched"
+
+
+def test_a_distributor_that_cannot_be_reached_is_said_out_loud(monkeypatch):
+    """"We could not look" and "there was nothing there" are different answers, and only
+    one of them is worth retrying. A dead network already turned a whole review into three
+    silent "could not be sourced" columns once."""
+    from continuity.api import review as review_api
+
+    async def unreachable(_query, **_kwargs):
+        raise RuntimeError("jlc_search: unreachable after 3 attempts")
+
+    monkeypatch.setattr(review_api.sourcing, "find", unreachable)
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, notice_id):
+                return await frames_of(http, notice_id)
+
+    frames = run(go())
+    said = " ".join(
+        frame["text"] for frame in frames
+        if frame["type"] == "reasoning" and frame.get("line_id") is None
+    )
+
+    assert "could not be searched" in said
+    assert any(frame["type"] == "line_done" for frame in frames), (
+        "the review still finishes on what it has"
+    )

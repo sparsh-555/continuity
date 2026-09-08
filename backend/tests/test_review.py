@@ -259,19 +259,36 @@ def test_the_catalogue_is_searched_after_the_approved_list_and_before_anything_t
     assert candidates[2].origin == review.CATALOGUE_ORIGIN
 
 
-def test_the_catalogue_cannot_offer_a_part_of_another_kind():
-    """A search returns what a search returns. A capacitor is not a substitute for a
-    regulator however the query was worded."""
+def test_the_catalogue_is_trusted_rather_than_re_filtered_on_category():
+    """The search was already constrained by the kind of part and the package. Comparing
+    its results against the retiring part's category string compares two taxonomies that
+    agree only by luck — JLCPCB writes "Voltage Regulators - Linear, Low Drop Out (LDO)
+    Regulators" where another source writes "LDO Regulator" — and an exact match empties
+    this leg without saying so. A wrong-kind part is caught by the engine, visibly.
+    """
     import asyncio
 
     async def search(_retiring):
-        return [OUTPUT_CAPACITOR, LD1117]
+        return [LD1117]
 
     candidates = asyncio.run(
         review.candidates_for(retiring=AMS1117, resolve=catalogue, search=search)
     )
 
     assert [c.part.mpn for c in candidates] == [LD1117.mpn]
+
+
+def test_the_approved_list_is_still_filtered_by_category():
+    """It is an arbitrary list of the company's part numbers and it holds every kind."""
+    import asyncio
+
+    candidates = asyncio.run(
+        review.candidates_for(
+            retiring=AMS1117, resolve=catalogue, approved=[OUTPUT_CAPACITOR.mpn, TLV1117.mpn]
+        )
+    )
+
+    assert [c.part.mpn for c in candidates] == [TLV1117.mpn]
 
 
 def test_a_catalogue_hit_already_on_the_approved_list_keeps_the_cheaper_claim():
