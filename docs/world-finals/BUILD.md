@@ -526,7 +526,10 @@ was not assessed**, cost split into recurring and one-time, and the approvals re
 
 **Test** the three demo lines produce three requests, each naming its unassessed checks.
 
-`continuity/change.py` builds them and `POST /notices/{id}/review` runs the whole flow in one
+`continuity/change.py` builds them. **Superseded by item 20:** a review now runs as three
+concurrent substitutions on one stream through `POST /notices/{id}/review/run`, and the
+one-shot endpoint below has no caller in the app. What it described was true when written and
+the packet it produces is unchanged. `POST /notices/{id}/review` runs the whole flow in one
 call — exposure finds the lines, the matrix checks every candidate against each line's own
 stored conditions, and the request is that work written down. **One per line**, because the
 answer differs per line, which is the finding a single manufacturer-wide recommendation
@@ -555,7 +558,7 @@ has visibly departed rather than never considered it — and on the gateway it d
 
 # Phase 4 · Demo assets
 
-## 15a · Precedents — **PARTLY DONE**
+## 15a · Precedents — **WRITTEN AND SHOWN, NOT YET READ BY A REVIEW**
 
 Missing from every document until now, and it carries a business argument: per the DoD
 metrics, resolving an EOL with an **already approved** part costs about $1,281 against roughly
@@ -584,13 +587,16 @@ never been considered, which is the first question its reader would ask. Verifie
 two reviews of one notice, the second declining the recommendation the first learned cooks
 the gateway.
 
-**Not built: the success half does not reach the reviewer's precedent lookup yet.**
-`worked_anywhere` exists and `graph/nodes.py` still calls `precedents_for_user`, which reads
-`findings` rather than this table — so a part approved on line A does not yet surface when
-line B hits the same signature. The reads are one line apart; what is missing is *writing* a
-`worked` precedent, which needs the point where a substitution is actually accepted rather
-than merely proposed. That is the approval flow, and it belongs with item 16's seeded world
-where a full run can be driven end to end.
+**The success half is written now.** Item 21 writes a `worked` precedent the moment a
+substitution is approved, against the conflict's signature, and `/memory` reads it back and
+shows it under the part it was about. That closed the writing gap this section was opened for.
+
+**What is still missing is a consumer.** `worked_anywhere` has no caller anywhere in
+`continuity/` — audited 9 Sep — so a part approved on line A does not surface as the cheap
+answer when line B hits the same signature. `api/review.py` reads `rejected_on`, so the
+rejection half is mechanised end to end, and the success half is currently only shown to a
+person. The business argument this section opens with, $1,281 against $15,656, rests on the
+half that is not wired. Logged 🟡 in [DEFERRED.md](DEFERRED.md).
 
 ---
 
@@ -626,7 +632,7 @@ find it. That is a stronger beat than the one the scenario was written around.
 readings as *verified* facts, which is the writer the verified-over-listing rule was built
 for and did not have.
 
-## 17 · The notice
+## 17 · The notice — **DONE**
 
 **Done when** a PCN document exists that parses, **labelled as a constructed example** rather
 than passed off as a real manufacturer notice. It recommends NCP1117ST33 — plausible, since
@@ -657,7 +663,7 @@ that name. A word a notice uses for absence is no longer a part number, and — 
 the affected part already lived under — a recommended part is refused unless the line quoted
 for it actually prints it.
 
-## 18 · KiCad
+## 18 · KiCad — **DONE**
 
 **Files** new module
 
@@ -733,7 +739,7 @@ change. The notice is the trigger. The three runs happen **concurrently**, which
 multi-board machinery SCENARIO-B marks as the most demoable moment in the scenario, and it is
 what turns the pacing problem into the argument: a team does these legs one email at a time.
 
-## 19 · The shell and the product line page
+## 19 · The shell and the product line page — **done 8 Sep**
 
 **Files** a page-chrome component, `routes/line.tsx`, `api/lines.py`
 
@@ -749,7 +755,7 @@ come from the planner; a stored line's come from its profile, whose rails carry 
 **Test** a seeded line renders its parts, its graph and its exposure with no thread in
 existence, and the words "Never run" appear nowhere.
 
-## 20 · The substitution run
+## 20 · The substitution run — **done 8 Sep**
 
 **Files** `graph/substitute.py`, `api/review.py`
 
@@ -769,7 +775,15 @@ board, route the failure, ask, apply.
 applied, paused at a desk, and no viable part — and the paused one refuses an answer from a
 desk that does not own it.
 
-## 21 · Applying the change
+**What actually happens, 9 Sep.** The concurrency, the stream, the per-line verdicts and the
+403 are all built and tested. The *three different kinds* of verdict are not reachable in the
+seeded world: all three lines find a candidate that clears, and every question is addressed to
+engineering, so nothing is paused at another desk and nothing comes back with no viable part.
+The refusal is covered by `tests/test_review_api.py` rather than by the demo. This is the 🟡
+in [DEFERRED.md](DEFERRED.md) about every column ending at engineering, and it is a question
+about the seeded world rather than about this item.
+
+## 21 · Applying the change — **done 8 Sep**
 
 **Files** `api/review.py`, `api/store.py`
 
@@ -784,7 +798,7 @@ scoped to its board; a success is evidence anywhere in the company.
 **Test** after approval the line's stored bill carries the substitute, the revision has
 moved, and a second notice on another line offers the precedent.
 
-## 22 · The notice arrives by email
+## 22 · The notice arrives by email — **done 9 Sep**
 
 **Files** `continuity/mail.py`, `api/notices.py`
 
@@ -798,8 +812,14 @@ URL, so the venue's network is not on the critical path. `CONTINUITY_MAIL_HOST`,
 **Test** a message with a PDF attachment becomes a stored notice with `source` recording the
 mailbox it came from, and a message with no notice in it is left alone rather than guessed at.
 
-**Built 8 Sep, waiting on a live mailbox.** `continuity/mail.py`, started from the app's
-lifespan when the three variables are set and silent when they are not.
+**Verified live 9 Sep against a real Gmail mailbox.** `continuity/mail.py`, started from the
+app's lifespan when the three variables are set and silent when they are not.
+
+A forwarded `PCN-2026-114.pdf` became a stored notice with no upload: the right part, the
+right last-order date, and the quoted line it came from. The three unrelated messages beside
+it were read, found to hold no notice, and left alone. `CONTINUITY_MAIL_ORG` takes an email
+address as well as an organisation id, because a reseed mints a new id and a stale one fails
+by quietly finding no product lines.
 
 `deliveries` is the whole IMAP conversation and `collect` decides what becomes a notice, so
 everything worth getting wrong is tested without a server. `tools/check_mail.py` proves the
@@ -825,8 +845,10 @@ Four decisions worth knowing:
   guessed. The position still advances past it, and the loop does not poll at all while the
   model is unavailable, so no message is passed over unread.
 
-Still to do once a mailbox exists: run `tools/check_mail.py`, forward `PCN-2026-114.pdf` to
-it, and watch the notices screen pick it up on its own.
+**The one thing a run-through has to know:** Gmail files a forwarded notice as spam. An
+attachment, no sending history and often no subject is close to a textbook spam signature, and
+the poller reads `INBOX` only, on purpose. `tools/check_mail.py` reports mail sitting in a
+quarantine folder and names the filter that stops it.
 
 ## 23 · Memory, on the company's record — **done 8 Sep**
 
@@ -862,7 +884,7 @@ cares about: a last order date that has passed makes a part `obsolete`, and one 
 makes it `nrnd`. A notice that withholds its date, as `PCN-2026-118` does, still gets `nrnd`.
 Nothing here overwrites a lifecycle a distributor stated.
 
-## 24 · The walkthrough goes
+## 24 · The walkthrough goes — **done 8 Sep**
 
 **Done when** the replay, its route and the first-sign-in redirect are gone, and signing in
 lands on the product lines. It teaches a story the product no longer tells, and this is a

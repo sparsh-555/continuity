@@ -35,6 +35,17 @@ FIXED:
 STILL TO DO: fill [bracketed placeholders]; write the Appendix A resumes. Appendix C is the Word conversion checklist.
 -->
 
+> **Singapore, not Shenzhen.** This is a record of the regional submission, kept because it
+> is what was true then. It is **superseded** for anything about the current build: the
+> finals work lives in [`docs/world-finals/`](world-finals/), and where the two disagree the
+> world-finals file is right. Do not read this for the state of the code.
+>
+> The most likely confusion is the deferred list. This directory has one and
+> [`world-finals/DEFERRED.md`](world-finals/DEFERRED.md) has another; the second is the live
+> one.
+
+---
+
 # Proposal for the Design of Continuity: A System for Whole-Board Constraint Validation of Electronic Bills of Materials
 
 <div align="center">

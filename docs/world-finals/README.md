@@ -13,12 +13,13 @@ Read in this order.
 
 | File | What it is |
 |---|---|
+| **[FLOW.md](FLOW.md)** | **Start here.** Part one is the machine: every stage of a review, who decides it, the file that does it, and where a model is and is not. Part two is the demo beat. Written to be checked against the code. |
 | **[SPEC.md](SPEC.md)** | The contract. Flow diagram, data model, rules, coverage semantics, the demo case with its arithmetic, how the handoff is shown. |
-| **[BUILD.md](BUILD.md)** | Twenty-four ordered work items across six phases, each with its files, its done-condition and its own acceptance test. Items 1 to 18 are built; Phase 5 is the product around the engine, opened after the first flow pass. **Start here for what to do next.** |
+| **[BUILD.md](BUILD.md)** | Twenty-four ordered work items across six phases, each with its files, its done-condition and its own acceptance test. **Items 1 to 24 are built**, the last of them verified live on 9 Sep. Phase 6, the presentation, is not written. **Start here for what to do next.** |
 | **[RUNNER.md](RUNNER.md)** | How to start everything from cold and walk through every capability in the app, in the order that tells the story. What to look for at each step, and what would be a bug. |
 | **[PARTS.md](PARTS.md)** | Every listing and datasheet value the demo rests on, with its quote and its provenance. Read before changing any number in SPEC.md's matrix. |
 | [SCENARIO-B.md](SCENARIO-B.md) | The assigned scenario, and the ECR/ECO framing that replaced our first answer |
-| [FLOW.md](FLOW.md) | The narrative version of the flow, and what remains unproven |
+
 | [EOL-RESEARCH.md](EOL-RESEARCH.md) | Sourced research on how EOL response actually works, with every figure's provenance |
 | [PRELIM-IDEA.md](PRELIM-IDEA.md) | The 200-word submission, and why each line is worded as it is |
 | [COMPETITORS.md](COMPETITORS.md) | What each vendor documents, why Zuken is not the counterexample it looked like, and the questions this prepares for |

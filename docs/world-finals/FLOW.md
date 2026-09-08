@@ -66,8 +66,14 @@ so `organisations.keeps_aml` and `keeps_avl` record it.
 
 ## 1 · A notice arrives
 
-**Today:** uploaded as a PDF or pasted text through `POST /notices`. **[not built]** the
-mailbox that polls for one — item 22.
+**Two ways in, and they meet at the same reader.** A mailbox is polled every fifteen seconds
+by `mail.py`, started from the app's lifespan when `CONTINUITY_MAIL_*` is set; and a PDF can
+be uploaded through `POST /notices`, which is the fallback and stays unchanged.
+
+The mail half keeps its read position as a stored UID with the folder's `UIDVALIDITY`, not as
+the `\Seen` flag, so that opening the mailbox in a browser does not make the poller skip the
+message. Attachments are tried before the body. A message that holds no notice is left alone:
+nothing stored, nothing deleted, nothing guessed at.
 
 `notices.py` asks the model for `{mpn, manufacturer, effective_date, replacement_mpn,
 reason}` **and the exact line of the document each was read from**. Then code checks:
@@ -176,12 +182,28 @@ proposal, gate rule, roles, and **the whole run as evidence**. Nothing is suspen
 time a person is asked the work is finished, so the answer can arrive tomorrow, from another
 browser, from somebody who never watched it.
 
-## 7 · The decision **[not built — item 21]**
+## 7 · The decision
 
-Approving is meant to write the substitute into `line_parts`, bump the revision, record the
-approval against the person, record a **successful** precedent, and leave the product line
-showing the new part in its graph, its bill and its board. Today the decision row is written
-and nothing consumes it.
+`POST /decisions/{id}`, and the authorisation is at the HTTP boundary: a decision addressed to
+a desk the answerer does not sit at is refused with a 403 naming the desk, before anything is
+written.
+
+Approving does five things in one request, and they are the difference between a
+recommendation and a change:
+
+- the substitute is written into `line_parts` at the reference designator it replaces,
+- the revision moves,
+- the approval is recorded against the person, with the rule and the rationale,
+- a **successful** precedent is written against the conflict's signature,
+- and the product line's own page shows the new part in its power tree, its bill and its
+  board.
+
+The part applied comes out of the run's own record rather than being resolved again, because
+resolving by MPN alone is ambiguous — three manufacturers list AMS1117-3.3 — and that is how
+the first applied substitution landed on a bill with no manufacturer.
+
+Declining writes the refusal and leaves the board carrying the retired part, which is a real
+answer and is remembered as one.
 
 ## 8 · The board consequence
 
@@ -199,14 +221,21 @@ as a figure, and a figure is not extractable text.
 
 ## 9 · What is remembered
 
+All of it is read back on `/memory`, assembled by `api/recall.compose` from `line_parts`, the
+notices, the precedents, the approvals and the open decisions. It used to read `threads` only,
+so a company that had never run a design here had no memory at all.
+
 - **Rejections**, scoped to the board they happened on, so the next notice does not
   re-litigate them.
 - **Change requests** — the ECR packet: proposal, every rejection with the sentence that
   killed it, evidence, what was not assessed *and* what could not be checked, the cost split,
   and the desks that must sign.
-- **Approvals** — identity, timestamp, rule, rationale. Recorded, and **[not built]** shown.
-- **Successes** — **[not built]**, and they need item 21: a success is only real once a
-  substitution is accepted.
+- **Approvals** — identity, timestamp, rule, rationale, and the line they were given on.
+  Shown on `/memory` under the part they were about.
+- **Successes**, written the moment a substitution is approved rather than proposed. Not
+  scoped to a board, and the asymmetry is the point: a rejection is about the board it
+  happened on, and a part already qualified somewhere in the company is the cheap answer on
+  the next product.
 
 ---
 

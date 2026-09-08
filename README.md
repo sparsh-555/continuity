@@ -13,10 +13,10 @@
 
 
 <p align="center">
-  <img alt="717 tests passing" src="https://img.shields.io/badge/tests-717%20passing-4ade80?style=flat-square&labelColor=1c2620">
+  <img alt="1092 tests passing" src="https://img.shields.io/badge/tests-1092%20passing-4ade80?style=flat-square&labelColor=1c2620">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-f2a25c?style=flat-square&labelColor=1c2620">
   <img alt="React 19" src="https://img.shields.io/badge/react-19-f2a25c?style=flat-square&labelColor=1c2620">
-  <img alt="LangGraph" src="https://img.shields.io/badge/langgraph-1.0-f2a25c?style=flat-square&labelColor=1c2620">
+  <img alt="LangGraph" src="https://img.shields.io/badge/langgraph-1.2-f2a25c?style=flat-square&labelColor=1c2620">
   <img alt="MIT licence" src="https://img.shields.io/badge/license-MIT-4ade80?style=flat-square&labelColor=1c2620">
 </p>
 
