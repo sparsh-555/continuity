@@ -41,6 +41,7 @@ from ..graph.build import build
 from ..planner import topology
 from ..parts import datasheet, dossier, normalize
 from . import auth, boards, bom, events, exposure, memory, lines, spa
+from . import review as review_api
 from . import matrix as matrix_api
 from . import notices as notices_api
 from .memory import FindingRecorder
@@ -154,6 +155,7 @@ app.include_router(boards.router)
 app.include_router(exposure.router)
 app.include_router(matrix_api.router)
 app.include_router(notices_api.router)
+app.include_router(review_api.router)
 
 STREAMS: dict[str, events.EventStream] = {}
 """thread_id → the live counter for a run in flight.
@@ -867,34 +869,9 @@ async def _run(
 
 
 
-async def _with_heartbeats(
-    events_in: AsyncIterator[dict[str, Any]],
-) -> AsyncIterator[dict[str, Any] | None]:
-    """Yield each event, and `None` whenever the producer has been quiet too long.
-
-    A plain `async for` over a slow generator sends nothing while it works. This turns
-    the gap into a heartbeat the client can count on, without the producer having to
-    know it is being streamed.
-    """
-    pending: asyncio.Task[dict[str, Any]] | None = None
-    iterator = events_in.__aiter__()
-    try:
-        while True:
-            if pending is None:
-                pending = asyncio.create_task(anext(iterator))
-            try:
-                yield await asyncio.wait_for(
-                    asyncio.shield(pending), timeout=events.HEARTBEAT_INTERVAL_S
-                )
-            except asyncio.TimeoutError:
-                yield None
-                continue
-            except StopAsyncIteration:
-                return
-            pending = None
-    finally:
-        if pending is not None and not pending.done():
-            pending.cancel()
+_with_heartbeats = events.with_heartbeats
+"""One implementation of the heartbeat wrapper, in `events`, because it is part of the wire
+and the review stream needs it too."""
 
 
 async def _run_bom(

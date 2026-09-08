@@ -177,3 +177,70 @@ def narrate(attempt_made: Attempt) -> str:
     if attempt_made.gated:
         return f"{attempt_made.mpn} is electrically fine here. {first.detail}"
     return f"{attempt_made.mpn} — {first.detail}"
+
+
+# ── where candidates come from ────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """A part worth trying, and why it is on the list.
+
+    The origin is not decoration. "The manufacturer recommended this" and "we already ship
+    this" are different claims with different costs behind them — roughly $1,281 to resolve
+    with a part that is already approved against $15,656 to qualify one from scratch — and a
+    reader deciding between two candidates is entitled to know which they are looking at.
+    """
+
+    part: PartSpec
+    origin: str
+
+
+NOTICE_ORIGIN = "recommended by the notice"
+APPROVED_ORIGIN = "already on the approved manufacturer list"
+NAMED_ORIGIN = "named by you"
+
+
+async def candidates_for(
+    *,
+    retiring: PartSpec,
+    resolve,
+    notice_replacement: str | None = None,
+    approved: Sequence[str] = (),
+    named: Sequence[str] = (),
+) -> tuple[Candidate, ...]:
+    """What to try, in the order to try it.
+
+    The manufacturer's own recommendation first, because it is the answer the notice puts in
+    front of everybody and the one a reader will ask about if it is missing. Then the parts
+    this company has already qualified, because that is the cheap resolution. Then whatever
+    the caller named.
+
+    **The approved list is filtered by category and the other two are not.** A part somebody
+    typed, or one the manufacturer named, is a deliberate choice and refusing it because our
+    category strings disagree would be the tool overruling a person; the approved list is a
+    hundred parts of every kind, and offering the whole of it as substitutes for a regulator
+    is noise.
+
+    The part being retired is never a candidate to replace itself.
+    """
+    seen: set[str] = {retiring.mpn.casefold()}
+    found: list[Candidate] = []
+
+    async def consider(mpn: str | None, origin: str, *, same_category: bool) -> None:
+        if not mpn or mpn.casefold() in seen:
+            return
+        seen.add(mpn.casefold())
+        part = await resolve(mpn)
+        if part is None:
+            return
+        if same_category and (part.category or "") != (retiring.category or ""):
+            return
+        found.append(Candidate(part=part, origin=origin))
+
+    await consider(notice_replacement, NOTICE_ORIGIN, same_category=False)
+    for mpn in approved:
+        await consider(mpn, APPROVED_ORIGIN, same_category=True)
+    for mpn in named:
+        await consider(mpn, NAMED_ORIGIN, same_category=False)
+    return tuple(found)

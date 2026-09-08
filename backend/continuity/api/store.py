@@ -284,6 +284,7 @@ class Store:
                  + (SELECT count(*) FROM approved_parts WHERE org_id = %(org)s)
                  + (SELECT count(*) FROM approved_vendors WHERE org_id = %(org)s)
                  + (SELECT count(*) FROM line_boards WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM decisions WHERE org_id = %(org)s)
             """,
             {"org": org_id},
         )
@@ -1403,3 +1404,93 @@ class Store:
                 (line_id, org_id),
             )
             return await cursor.fetchall()
+
+    # ── decisions waiting for a desk ──────────────────────────────────────────
+
+    async def save_decision(
+        self,
+        *,
+        org_id: str,
+        line_id: str,
+        notice_id: str | None,
+        user_id: str | None,
+        slot_id: str,
+        retiring: str,
+        proposal: str,
+        gate_rule: str | None,
+        roles: Sequence[str],
+        detail: str,
+        document: Mapping[str, Any],
+    ) -> str:
+        """Record a substitution that is waiting for somebody to say yes.
+
+        One pending decision per line at a time: re-running a review replaces the pending
+        one rather than stacking a second, because two open decisions about the same
+        position on the same board is a question nobody can answer.
+        """
+        decision_id = new_id()
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                "DELETE FROM decisions WHERE line_id = %s AND org_id = %s AND state = 'pending'",
+                (line_id, org_id),
+            )
+            await conn.execute(
+                """
+                INSERT INTO decisions (
+                    id, org_id, line_id, notice_id, user_id, slot_id, retiring, proposal,
+                    gate_rule, roles, detail, document
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    decision_id, org_id, line_id, notice_id, user_id, slot_id, retiring,
+                    proposal, gate_rule, list(roles), detail, Json(dict(document)),
+                ),
+            )
+        return decision_id
+
+    async def decision_for(self, decision_id: str, org_id: str) -> dict[str, Any] | None:
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT d.*, p.name AS line_name, p.revision
+                  FROM decisions d
+                  JOIN product_lines p ON p.id = d.line_id AND p.org_id = d.org_id
+                 WHERE d.id = %s AND d.org_id = %s
+                """,
+                (decision_id, org_id),
+            )
+            return await cursor.fetchone()
+
+    async def decisions_for_notice(self, notice_id: str, org_id: str) -> list[dict[str, Any]]:
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT d.*, p.name AS line_name
+                  FROM decisions d
+                  JOIN product_lines p ON p.id = d.line_id AND p.org_id = d.org_id
+                 WHERE d.notice_id = %s AND d.org_id = %s
+              ORDER BY p.name
+                """,
+                (notice_id, org_id),
+            )
+            return await cursor.fetchall()
+
+    async def settle_decision(
+        self, decision_id: str, org_id: str, *, state: str, by: str | None, rationale: str | None
+    ) -> bool:
+        """Answer a decision, once. A second answer is refused rather than overwriting.
+
+        `state = 'pending'` in the WHERE clause is what makes that true under two people
+        pressing approve at the same moment: the second update matches no row.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute(
+                """
+                UPDATE decisions
+                   SET state = %s, decided_by = %s, rationale = %s, decided_at = now()
+                 WHERE id = %s AND org_id = %s AND state = 'pending'
+                """,
+                (state, by, rationale, decision_id, org_id),
+            )
+            return cursor.rowcount == 1

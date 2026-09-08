@@ -14,9 +14,10 @@ Two invariants the frontend depends on and will not tell you it is depending on:
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import asdict, is_dataclass
-from typing import Any, Iterable
+from typing import Any, AsyncIterator, Iterable
 
 from ..engine.models import Alternative, Edge, PartSpec, Slot, Verdict
 
@@ -270,6 +271,44 @@ class EventStream:
     def error(self, message: str, recoverable: bool = True) -> dict[str, Any]:
         return self._event("error", message=message, recoverable=recoverable)
 
+    # ── a review across several product lines ────────────────────────────────
+
+    def review_started(
+        self, notice_id: str, mpn: str, lines: Iterable[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """What is about to run, and on what. The client draws its columns from this.
+
+        Sent before any work so the reader sees the shape of the answer immediately: this
+        notice reaches these three products, and all three are being checked now."""
+        return self._event(
+            "review_started", notice_id=notice_id, mpn=mpn, lines=list(lines)
+        )
+
+    def line_done(
+        self,
+        line_name: str,
+        *,
+        proposal: str | None,
+        decision_id: str | None,
+        reason: str,
+        conditional: bool = False,
+        roles: Iterable[str] = (),
+    ) -> dict[str, Any]:
+        """One product line's run has ended. Not `done`, which ends a whole session.
+
+        A review is several runs on one stream, so each needs its own ending: `done` would
+        tell the client the stream is over while two other product lines are still working.
+        """
+        return self._event(
+            "line_done",
+            line_name=line_name,
+            proposal=proposal,
+            decision_id=decision_id,
+            reason=reason,
+            conditional=conditional,
+            roles=list(roles),
+        )
+
 
 # ── serialisation ─────────────────────────────────────────────────────────────
 
@@ -362,3 +401,37 @@ def bom_row(slot: str, part: PartSpec, qty: int = 1) -> dict[str, Any]:
         "datasheet": part.datasheet,
         "product_url": part.product_url,
     }
+
+
+async def with_heartbeats(
+    events_in: AsyncIterator[dict[str, Any]],
+) -> AsyncIterator[dict[str, Any] | None]:
+    """Yield each event, and `None` whenever the producer has been quiet too long.
+
+    A plain `async for` over a slow generator sends nothing while it works. This turns
+    the gap into a heartbeat the client can count on, without the producer having to
+    know it is being streamed.
+
+    It lives here rather than in the app because it is part of the wire, and because the
+    review stream needs it too — two copies of this loop is two places for a dropped
+    heartbeat to hide.
+    """
+    pending: asyncio.Task[dict[str, Any]] | None = None
+    iterator = events_in.__aiter__()
+    try:
+        while True:
+            if pending is None:
+                pending = asyncio.create_task(anext(iterator))
+            try:
+                yield await asyncio.wait_for(
+                    asyncio.shield(pending), timeout=HEARTBEAT_INTERVAL_S
+                )
+            except asyncio.TimeoutError:
+                yield None
+                continue
+            except StopAsyncIteration:
+                return
+            pending = None
+    finally:
+        if pending is not None and not pending.done():
+            pending.cancel()

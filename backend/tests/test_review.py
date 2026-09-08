@@ -171,3 +171,63 @@ def test_a_clear_candidate_carries_its_margin():
 def test_the_part_reported_is_the_part_evaluated(candidate):
     """Read back off the board rather than copied from the argument, as the matrix does."""
     assert review.attempt(gateway(), "u1", candidate).mpn == candidate.mpn
+
+
+# ── where candidates come from ────────────────────────────────────────────────
+
+
+CATALOGUE = {part.mpn: part for part in (AMS1117, NCP1117, LD1117, TLV1117, OUTPUT_CAPACITOR)}
+
+
+async def catalogue(mpn):
+    return CATALOGUE.get(mpn)
+
+
+def found(**kwargs):
+    import asyncio
+
+    return asyncio.run(review.candidates_for(retiring=AMS1117, resolve=catalogue, **kwargs))
+
+
+def test_the_manufacturers_recommendation_is_tried_first():
+    """It is the answer the notice puts in front of everybody, and the first thing a reader
+    asks about if it is missing."""
+    candidates = found(
+        notice_replacement=NCP1117.mpn, approved=[TLV1117.mpn], named=[LD1117.mpn]
+    )
+
+    assert [c.part.mpn for c in candidates] == [NCP1117.mpn, TLV1117.mpn, LD1117.mpn]
+    assert candidates[0].origin == review.NOTICE_ORIGIN
+    assert candidates[1].origin == review.APPROVED_ORIGIN
+    assert candidates[2].origin == review.NAMED_ORIGIN
+
+
+def test_the_part_being_retired_is_not_a_candidate_to_replace_itself():
+    assert AMS1117.mpn not in [
+        c.part.mpn for c in found(approved=[AMS1117.mpn, TLV1117.mpn])
+    ]
+
+
+def test_a_part_named_twice_is_tried_once():
+    candidates = found(notice_replacement=NCP1117.mpn, approved=[NCP1117.mpn])
+
+    assert [c.part.mpn for c in candidates] == [NCP1117.mpn]
+    assert candidates[0].origin == review.NOTICE_ORIGIN, "the first claim on it wins"
+
+
+def test_the_approved_list_is_filtered_by_category():
+    """An approved list is a hundred parts of every kind. Offering a capacitor as a
+    substitute for a regulator is noise."""
+    assert [c.part.mpn for c in found(approved=[OUTPUT_CAPACITOR.mpn, TLV1117.mpn])] == [
+        TLV1117.mpn
+    ]
+
+
+def test_a_part_somebody_named_is_not_second_guessed_on_category():
+    """A person naming a part is a decision. Refusing it because our category strings
+    disagree would be the tool overruling them."""
+    assert [c.part.mpn for c in found(named=[OUTPUT_CAPACITOR.mpn])] == [OUTPUT_CAPACITOR.mpn]
+
+
+def test_a_part_the_distributor_has_never_heard_of_is_dropped_rather_than_carried():
+    assert found(named=["NOT-A-REAL-PART"]) == ()

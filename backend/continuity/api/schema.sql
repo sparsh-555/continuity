@@ -416,3 +416,39 @@ CREATE TABLE IF NOT EXISTS line_boards (
 );
 
 CREATE INDEX IF NOT EXISTS line_boards_org_idx ON line_boards(org_id);
+
+-- Added 8 Sep 2026. A substitution waiting for the desk that owns it.
+--
+-- The run that produced it is not suspended anywhere: the evidence is computed, the
+-- proposal is chosen, and what remains is a person saying yes. So this is a row rather than
+-- a checkpointed graph — it survives a restart, a reload and a different browser, and the
+-- answer can arrive tomorrow from somebody who was not watching.
+--
+-- `roles` is who may answer, copied from the rule that raised it rather than looked up
+-- later: the routing table can change, and a decision that was quality's when it was raised
+-- stays quality's. `document` is the whole run — every candidate tried and every verdict —
+-- because a decision without its evidence is a signature on nothing.
+CREATE TABLE IF NOT EXISTS decisions (
+    id          text PRIMARY KEY,
+    org_id      text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    line_id     text NOT NULL REFERENCES product_lines(id) ON DELETE CASCADE,
+    notice_id   text REFERENCES notices(id) ON DELETE SET NULL,
+    user_id     text REFERENCES users(id) ON DELETE SET NULL,
+    slot_id     text NOT NULL,
+    retiring    text NOT NULL,
+    proposal    text NOT NULL,
+    gate_rule   text,
+    roles       text[] NOT NULL,
+    detail      text NOT NULL,
+    document    jsonb NOT NULL,
+    state       text NOT NULL DEFAULT 'pending'
+                CHECK (state IN ('pending', 'approved', 'declined')),
+    decided_by  text REFERENCES users(id) ON DELETE SET NULL,
+    rationale   text,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    decided_at  timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS decisions_org_idx ON decisions(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS decisions_line_idx ON decisions(line_id, state);
+CREATE INDEX IF NOT EXISTS decisions_notice_idx ON decisions(notice_id);
