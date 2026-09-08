@@ -717,7 +717,106 @@ one line is a document that contradicts itself.
 
 ---
 
-# Phase 5 · Presentation
+# Phase 5 · The product around the engine
+
+**Opened 8 Sep, after the first flow pass.** Phases 1 to 4 built the engine, the enterprise
+layer and the board, and every one of them is tested. They were built as endpoints and three
+new screens hung beside the 1.0 shell, and the old centre of gravity was left in place — a
+product line is still *a design run that has not happened yet*. [DEFERRED.md](DEFERRED.md)
+carries the nine findings; this phase is the fix.
+
+**The shape, decided 8 Sep.** The product line is the centre. An EOL review is a **run on a
+product line**, not a document about one: it swaps the retired part, re-checks the whole
+board against every department's rules at once, streams its reasoning, stops at a gate
+addressed to the desk that owns the failing constraint, and on approval **applies** the
+change. The notice is the trigger. The three runs happen **concurrently**, which is the
+multi-board machinery SCENARIO-B marks as the most demoable moment in the scenario, and it is
+what turns the pacing problem into the argument: a team does these legs one email at a time.
+
+## 19 · The shell and the product line page
+
+**Files** a page-chrome component, `routes/line.tsx`, `api/lines.py`
+
+**Done when** every screen shares the chrome `/lines` already has, a row opens the product
+line rather than the brief entry, and that page shows what a product line *is*: revision,
+ambient and rail, the bill of materials from `line_parts`, a component graph, the attached
+board, and the notices that reach it.
+
+**Note** the graph is derivable today and nothing builds it. A design run's slots and edges
+come from the planner; a stored line's come from its profile, whose rails carry `source` and
+`members` — the seeded Gateway is `vin 5 V → u1 → 3v3 → u2, c1`.
+
+**Test** a seeded line renders its parts, its graph and its exposure with no thread in
+existence, and the words "Never run" appear nowhere.
+
+## 20 · The substitution run
+
+**Files** `graph/substitute.py`, `api/review.py`
+
+**Done when** a review of a notice runs one substitution per affected line, concurrently, on
+one multiplexed stream, and each run emits the same event vocabulary the workspace already
+renders — reasoning, checks, conflicts, a question carrying the roles that may answer it, and
+an approval.
+
+**Note** one stream, not one per line. Browsers cap around six HTTP/1.1 connections per
+origin and the client already streams over `fetch`; three streams plus the page's own calls
+sit on that limit, and three sequence spaces race. Every event carries its line.
+
+**Note** no planner. The board exists. The run is: place the candidate, re-check the whole
+board, route the failure, ask, apply.
+
+**Test** three lines run at once from one notice and finish with three different verdicts —
+applied, paused at a desk, and no viable part — and the paused one refuses an answer from a
+desk that does not own it.
+
+## 21 · Applying the change
+
+**Files** `api/review.py`, `api/store.py`
+
+**Done when** an approved substitution writes the new part into `line_parts`, bumps the
+revision, records the approval against the person who gave it, records a **successful**
+precedent, and leaves the product line page showing the new part in its graph, its bill and
+its board.
+
+**Note** this is what closes the successful-precedent gap open since item 15a. A rejection is
+scoped to its board; a success is evidence anywhere in the company.
+
+**Test** after approval the line's stored bill carries the substitute, the revision has
+moved, and a second notice on another line offers the precedent.
+
+## 22 · The notice arrives by email
+
+**Files** `continuity/mail.py`, `api/notices.py`
+
+**Done when** a notice forwarded to a mailbox appears in Continuity without anybody uploading
+anything, and the upload path still works unchanged as the fallback.
+
+**Note** IMAP polling, not a webhook: it needs an account and an app password and no public
+URL, so the venue's network is not on the critical path. `CONTINUITY_MAIL_HOST`,
+`CONTINUITY_MAIL_USER`, `CONTINUITY_MAIL_PASSWORD`.
+
+**Test** a message with a PDF attachment becomes a stored notice with `source` recording the
+mailbox it came from, and a message with no notice in it is left alone rather than guessed at.
+
+## 23 · Memory, on the company's record
+
+**Files** `api/store.py`, `routes/memory.tsx`
+
+**Done when** memory reads what the company actually has — the parts across every product
+line, the notices received, the change requests raised, the precedents on both sides and the
+approvals given — rather than only what a design run left behind.
+
+**Test** a seeded company with no design runs at all has a memory worth reading.
+
+## 24 · The walkthrough goes
+
+**Done when** the replay, its route and the first-sign-in redirect are gone, and signing in
+lands on the product lines. It teaches a story the product no longer tells, and this is a
+finals demo rather than an onboarding funnel.
+
+---
+
+# Phase 6 · Presentation
 
 Not written yet, and not covered anywhere in these documents.
 
