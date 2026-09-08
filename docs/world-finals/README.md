@@ -15,6 +15,7 @@ Read in this order.
 |---|---|
 | **[SPEC.md](SPEC.md)** | The contract. Flow diagram, data model, rules, coverage semantics, the demo case with its arithmetic, how the handoff is shown. |
 | **[BUILD.md](BUILD.md)** | Eighteen ordered work items across five phases, each with its files, its done-condition and its own acceptance test. **Start here for what to do next.** |
+| **[RUNNER.md](RUNNER.md)** | How to start everything from cold and walk through every capability in the app, in the order that tells the story. What to look for at each step, and what would be a bug. |
 | **[PARTS.md](PARTS.md)** | Every listing and datasheet value the demo rests on, with its quote and its provenance. Read before changing any number in SPEC.md's matrix. |
 | [SCENARIO-B.md](SCENARIO-B.md) | The assigned scenario, and the ECR/ECO framing that replaced our first answer |
 | [FLOW.md](FLOW.md) | The narrative version of the flow, and what remains unproven |
