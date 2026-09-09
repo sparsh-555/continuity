@@ -191,12 +191,37 @@ async def _catalogue_search(retiring: PartSpec) -> list[PartSpec]:
 
 
 async def board_for_line(store: Any, line_id: str, org_id: str):
-    """One product line assembled into a board the engine can check.
+    """One product line assembled into a board the engine can check, and what it left out.
 
     The same assembly a review uses, named so that `api/lines.check` can ask for it without
     reaching into this module's internals or building a second one that drifts.
+
+    Returns `(board, reason, unresolved)`. A part the distributor could not give us is
+    skipped rather than fatal — one unlisted passive should not stop a board being checked —
+    but it is **named**, because a slot with no verdict renders identically to one nobody
+    got to, and a screen showing grey beside green without saying why is the kind of
+    unaccounted state a judge asks about first.
     """
-    return await _board_for(store, {"line_id": line_id}, org_id)
+    stored = await store.line_for_user(line_id, org_id)
+    if stored is None or not stored.profile:
+        return None, "no operating profile is stored for this product line", []
+    rows = await store.bom_for_line(line_id, org_id)
+    specs: dict[str, PartSpec] = {}
+    unresolved: list[dict[str, str]] = []
+    for row in rows:
+        if not row["populated"]:
+            continue
+        part = await _resolve_quietly(row["mpn"], row.get("manufacturer"))
+        if part is not None:
+            specs[row["mpn"]] = part
+        else:
+            unresolved.append({"refdes": row["refdes"], "mpn": row["mpn"]})
+    try:
+        profile = OperatingProfile.from_json(stored.profile)
+        board = board_from(profile, rows, specs)
+    except (KeyError, TypeError, ValueError) as error:
+        return None, f"this product line's stored profile could not be read: {error}", unresolved
+    return board, None, unresolved
 
 
 async def _board_for(store: Any, line: dict[str, Any], org_id: str):

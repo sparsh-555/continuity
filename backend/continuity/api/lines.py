@@ -165,7 +165,7 @@ async def check(
 
     token = normalize.set_dossier_lookup(facts_for)
     try:
-        board, why_not = await review_api.board_for_line(store, line_id, user.org_id)
+        board, why_not, unresolved = await review_api.board_for_line(store, line_id, user.org_id)
     finally:
         normalize.reset_dossier_lookup(token)
     if board is None:
@@ -185,6 +185,9 @@ async def check(
     return {
         "slots": per_slot,
         "checked": len(verdicts),
+        # Named rather than left grey. A part the distributor could not give us has no
+        # verdict, and a slot with no verdict looks exactly like one nobody got to.
+        "unresolved": unresolved,
         # Green means nothing failed, not that everything was checkable. Naming the two
         # separately is the whole reason there are five coverage labels rather than three.
         "not_assessed": sorted({v.rule for v in verdicts if v.status == "not_assessed"}),

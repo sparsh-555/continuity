@@ -36,12 +36,24 @@ export type Line = {
     ambient_c: number
     ambient_source: string
     mounting?: string | null
-    rails?: Record<string, unknown>
+    rails?: Record<string, Rail>
   } | null
   part_count: number
   /** How many change notices reach a part this product has fitted. The only thing on a
    *  dashboard of shipping products that is about to change. */
   exposed_count: number
+}
+
+/** One supply rail as the product line states it: what makes it, what it feeds, and what
+ *  it is expected to carry. `source` is absent on the rail that arrives from outside. */
+export type Rail = {
+  source?: string | null
+  members?: string[]
+  voltage?: number | null
+  i_load?: number | null
+  i_limit?: number | null
+  basis?: string | null
+  i_load_basis?: string | null
 }
 
 export type ThreadSummary = {
@@ -218,8 +230,7 @@ export type LineRequest = {
 export type LineOverview = {
   line: Line
   parts: LinePart[]
-  /** The power tree the operating profile states. Not a netlist: nothing has read a
-   *  schematic, so every edge here is a rail feeding a part. */
+  /** The power tree the operating profile states: every edge is a rail feeding a part. */
   graph: LineGraphView
   board: LineBoard | null
   notices: LineNotice[]
@@ -582,6 +593,9 @@ export type LineCheck = {
    *  Green means nothing failed, not that everything was checkable. */
   not_assessed: string[]
   evidence_missing: string[]
+  /** Fitted parts no distributor listing was found for. They have no verdict, and a slot
+   *  with no verdict renders exactly like one nobody got to, so they are named. */
+  unresolved: Array<{ refdes: string; mpn: string }>
 }
 
 export function getLineOverview(lineId: string) {
