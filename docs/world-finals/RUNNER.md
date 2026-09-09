@@ -24,6 +24,11 @@ writes `.demo/api.log` and `.demo/ui.log`. Then go to §3, which is the demo.
 **It always names the database on the command line**, because `backend/.env` points
 `DATABASE_URL` at production Neon and a local run that forgets writes real rows.
 
+**It replays distributor calls by default.** The same review that took over two minutes
+against a live JLCPCB takes 0.25 s from `backend/fixtures/`, with identical verdicts, because
+only the distributor's answers come off disk. `--live` goes to the network and records what
+comes back. See §5, and say so in the pitch rather than hiding it.
+
 Read the rest of §0 and §1 when something it warns about needs fixing, or when you want to
 run the pieces by hand.
 
@@ -572,21 +577,45 @@ curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/board/render' # the boa
 
 ---
 
-## 5 · Rehearsing without a network
+## 5 · Replay, which is the default
+
+`./demo.sh` sets `CONTINUITY_FIXTURES=1`. Every distributor call replays from
+`backend/fixtures/` — 604 of them committed, so a fresh clone has them — and none of them
+touches the network.
+
+**Measured on 10 Sep.** The company-wide review across all three affected product lines:
+
+| | Live | Replayed |
+|---|---|---|
+| One product line | 52 s one day, **unfinished after 140 s** the next | — |
+| All three | — | **0.25 s** |
+
+Same frames, same verdicts, same margins: TLV1117LV33DCYR at 35 °C on the Gateway,
+NCP1117ST33T3G at 84 °C on the Sensor node and 11 °C on the Cabinet controller. Only the
+distributor's answers come off disk. The engine, every rule, KiCad and the model all still
+run, and a call with no recording is an **error** rather than a silent live fetch — a replay
+run that quietly reaches the internet looks offline right up until the wifi fails.
+
+**Say so.** This is the demo's safety net and it is disclosed rather than hidden: the parts
+data is real, recorded from real calls, and nothing about the verdicts is canned.
 
 ```bash
-CONTINUITY_FIXTURES=1 DATABASE_URL=postgresql:///continuity_demo CONTINUITY_KICAD=docker \
-  ../.venv/bin/python -m uvicorn continuity.api.app:app --port 8000
+./demo.sh --live      # go to the distributor, and record what comes back
 ```
 
-Distributor calls replay from `backend/fixtures/` and never touch the network. A call with no
-recording is an error rather than a silent live fetch, which is the point: a fixture run that
-quietly reaches the internet looks offline right up until the wifi fails. Part normalisation
-and datasheet readings come from `backend/cache/`.
+Run that when a part, a bill or a search query has changed and the recordings need
+refreshing. It is slow for the reason above, and it is the only way new fixtures are made.
 
-**One step is not covered: reading a change notice.** That calls the model directly and has
-no recorded path, so on a dead network the upload fails. Receive the notice while you have a
-connection — it is stored — and everything after it replays offline.
+**One step never replays: reading a change notice.** That calls the model directly and has no
+recorded path, so on a dead network the upload fails. Receive the notice while you have a
+connection — it is stored — and everything after it replays.
+
+**A thought for the demo, not a defect.** At 0.25 s the lanes finish before anybody can watch
+them advance, so the *simultaneity* item 30 was built for is no longer visible: you see three
+verdicts appear at once rather than three products working at once. The disagreement — the
+comparison the whole scenario exists to point at — reads exactly as well either way. If the
+beat matters more than the speed, `--live` gives you the wait back honestly. Adding a delay
+to replay would not be honest and is not on the table.
 
 ---
 

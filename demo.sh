@@ -6,6 +6,7 @@
 #   ./demo.sh --reset      replace the world and run
 #   ./demo.sh --check      the checks only, change nothing
 #   ./demo.sh --stop       stop whatever this script started
+#   ./demo.sh --live       go to the distributor instead of replaying recordings
 #
 # Everything RUNNER.md §0 and §1 ask you to type, in the order it asks, with the
 # reasons kept next to the failures. It is not a replacement for that document —
@@ -28,7 +29,13 @@ PY="$ROOT/.venv/bin/python"
 
 MODE=run
 RESET=0
-FIXTURES=0
+# **Replay by default.** Every distributor call the demo makes is recorded in
+# `backend/fixtures/`, 604 of them committed, and replaying takes a review from
+# over two minutes against a live JLCPCB to under a second — same frames, same
+# verdicts, same margins, because only the distributor's answers come off disk
+# and the engine, the rules, KiCad and the model all still run. `--live` goes to
+# the network, which is how new recordings are made.
+FIXTURES=1
 WITH_MAIL=1
 
 while [ $# -gt 0 ]; do
@@ -36,6 +43,7 @@ while [ $# -gt 0 ]; do
     --check)    MODE=check ;;
     --stop)     MODE=stop ;;
     --reset)    RESET=1 ;;
+    --live)     FIXTURES=0 ;;
     --fixtures) FIXTURES=1 ;;
     --no-mail)  WITH_MAIL=0 ;;
     -h|--help)  sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -129,6 +137,19 @@ else
   WITH_MAIL=0
   warn "no mailbox — the notice arrives by UPLOAD ONE INSTEAD rather than by email"
   note "the three CONTINUITY_MAIL_* variables in backend/.env"
+fi
+
+recorded=$(ls "$ROOT"/backend/fixtures/*.json 2>/dev/null | wc -l | tr -d ' ')
+if [ "$FIXTURES" = 1 ]; then
+  if [ "${recorded:-0}" -gt 0 ]; then
+    ok "$recorded recorded distributor calls — replaying, not calling out"
+  else
+    warn "no recordings in backend/fixtures — every distributor call will fail"
+    note "./demo.sh --live records them as it goes"
+  fi
+else
+  warn "--live: every distributor call goes to the network and is recorded as it goes"
+  note "a review took over 140 s live on 10 Sep and under 1 s replayed"
 fi
 
 if docker info >/dev/null 2>&1; then
@@ -248,6 +269,9 @@ else
   echo "  No mailbox: use UPLOAD ONE INSTEAD on /changes with the same PDF."
 fi
 echo
+if [ "$FIXTURES" = 1 ]; then
+  note "distributor calls are replayed from backend/fixtures — disclose this, never hide it"
+fi
 note "walkthrough: docs/world-finals/RUNNER.md §3"
 note "logs: .demo/api.log  .demo/ui.log"
 note "ctrl-c stops both"
