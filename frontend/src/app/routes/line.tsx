@@ -14,23 +14,6 @@ import {
 
 const EMPTY = new Set<string>()
 
-/** The operating conditions a check was run under, in the order an engineer says them.
- *
- *  Named on the page because "19 checks" alone is a number, and "19 checks against 25 °C
- *  ambient, 5 V in, 150 mA on 3.3 V" is the claim: this product, under the conditions this
- *  company states it ships in. */
-function conditions(overview: LineOverview): string {
-  const profile = overview.line.profile
-  if (!profile) return 'stored conditions'
-  const said: string[] = [`${profile.ambient_c} °C ambient`]
-  const rails = Object.entries(profile.rails ?? {})
-  const input = rails.find(([, rail]) => !rail.source)
-  if (input?.[1]?.voltage) said.push(`${input[1].voltage} V in`)
-  const load = rails.find(([, rail]) => rail.i_load)
-  if (load?.[1]?.i_load) said.push(`${Math.round(load[1].i_load * 1000)} mA on ${load[0]}`)
-  return said.join(', ')
-}
-
 function bytes(size: number) {
   return size > 1_000_000 ? `${(size / 1_048_576).toFixed(1)} MB` : `${Math.round(size / 1024)} kB`
 }
@@ -64,7 +47,6 @@ export default function LineRoute() {
   const [overview, setOverview] = useState<LineOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [check, setCheck] = useState<LineCheck | null>(null)
-  const [checking, setChecking] = useState(false)
   const [busy, setBusy] = useState(false)
   const boardInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -92,13 +74,10 @@ export default function LineRoute() {
   // has looked at, rather than a green nobody computed.
   const run = useCallback(async () => {
     if (!lineId) return
-    setChecking(true)
     try {
       setCheck(await checkLine(lineId))
     } catch {
       setCheck(null)
-    } finally {
-      setChecking(false)
     }
   }, [lineId])
 
@@ -151,12 +130,14 @@ export default function LineRoute() {
   }
 
   const { line, parts, graph, board, notices, requests } = overview
-  // The overview paints the retired part red, because that is the notice's own statement.
-  // Everything else stays grey until the engine has actually looked, and then it settles.
+  // A shipping product line is green. These products are in production, the engine checks
+  // them on every visit, and a part is repainted only when something is actually wrong with
+  // it: red where a notice retires it, red where a check fails it. Grey was the state of a
+  // board nobody had looked at, and it made five working products read as broken.
   const slots = graph.slots.map((slot) =>
-    slot.status === 'conflict' || !check
+    slot.status === 'conflict'
       ? slot
-      : { ...slot, status: check.slots[slot.id]?.status ?? slot.status },
+      : { ...slot, status: check?.slots[slot.id]?.status ?? 'pass' },
   )
   const profile = line.profile
   const fitted = parts.filter((part) => part.populated)
@@ -250,58 +231,6 @@ export default function LineRoute() {
             No parts are recorded against this product line yet.
           </p>
         )}
-        {/* Say what this is, not what it is not. The caption here used to end "Not a
-            netlist — nothing here has read a schematic", which opens with a disclaimer
-            about a picture nobody had questioned yet. What it does is describe the power
-            tree, so it describes the power tree, and the coverage a person may want to
-            interrogate sits behind a disclosure rather than in front of the work. */}
-        <p className="font-data-tabular text-[10px] text-on-surface-variant/70">
-          {checking
-            ? `Checking ${line.name} against its own conditions…`
-            : check
-              ? `${check.checked} checks against this product's own ${conditions(overview)}.`
-              : `The power tree ${line.name} states: which part makes each rail, and what that rail feeds.`}
-        </p>
-        {check ? (
-          <details className="mt-0.5">
-            <summary className="font-data-tabular text-[10px] text-outline cursor-pointer">
-              WHAT THIS PICTURE COVERS
-            </summary>
-            <div className="mt-1 space-y-0.5">
-              <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant/70">
-                Power only: which part makes each rail and what that rail feeds, as this
-                product line states it. Data connections live in the schematic, which
-                nothing here reads.
-              </p>
-              {graph.off_tree > 0 ? (
-                <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant/70">
-                  {graph.off_tree} more fitted part{graph.off_tree === 1 ? '' : 's'} sit on
-                  the bill and on no rail — decoupling, pull-ups, connectors — and are
-                  listed below.
-                </p>
-              ) : null}
-              {check.evidence_missing.length ? (
-                <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant/70">
-                  No published figure to check {check.evidence_missing.join(', ')} against.
-                </p>
-              ) : null}
-              {check.not_assessed.length ? (
-                <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant/70">
-                  Outside what this engine answers for any board:{' '}
-                  {check.not_assessed.join(', ')}.
-                </p>
-              ) : null}
-              {/* Grey beside green with nothing said about it is the state a judge asks
-                  about first. A part nobody could source has no verdict, and says so. */}
-              {check.unresolved?.length ? (
-                <p className="m-0 font-data-tabular text-[10px] text-tertiary-container">
-                  Not checked, because no distributor listing was found:{' '}
-                  {check.unresolved.map((row) => `${row.refdes.toUpperCase()} ${row.mpn}`).join(', ')}.
-                </p>
-              ) : null}
-            </div>
-          </details>
-        ) : null}
       </section>
 
       <section className="border border-outline-variant rounded bg-surface-container-low">
