@@ -8,7 +8,7 @@ from ever being mistaken for a property of the part itself.
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from ..engine.models import DOSSIER_SOURCE, PartSpec
 
@@ -191,3 +191,37 @@ def original_source(value: str | None) -> str | None:
     if value is not None and value.startswith(prefix) and value.endswith(")"):
         return value[len(prefix) : -1]
     return value
+
+
+def part_from_facts(
+    mpn: str, manufacturer: str | None, facts: Sequence[Mapping[str, Any]]
+) -> PartSpec | None:
+    """A part built from the readings this company recorded, with no distributor involved.
+
+    The fallback for a product line that already ships. A distributor is a network call and
+    a venue's network is not ours, and a line whose parts cannot be resolved cannot be
+    checked — which put a grey node beside two green ones on the page a demo opens with.
+
+    These readings are **better evidence than a listing**, not worse: they were read off the
+    manufacturer's own datasheets and are exactly what `set_dossier_lookup` exists to let
+    override a parametric table. What they lack is the commercial half — stock, price, lead
+    time, lifecycle — which no datasheet knows and no rule here needs.
+
+    `None` when nothing was recorded, because a part with no facts is not a part.
+    """
+    fields: dict[str, Any] = {}
+    for fact in facts:
+        field = str(fact.get("field") or "")
+        value = value_from_text(field, str(fact.get("value") or ""))
+        if value is not None:
+            fields[field] = value
+    if not fields:
+        return None
+    return PartSpec(
+        mpn=mpn,
+        manufacturer=manufacturer or "",
+        description=f"{mpn}, from readings this company recorded",
+        category=fields.pop("category", "") or "",
+        provenance={field: DOSSIER_SOURCE for field in fields},
+        **fields,
+    )

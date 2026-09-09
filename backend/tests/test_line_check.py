@@ -25,6 +25,7 @@ import pytest
 from continuity.api import matrix as matrix_api
 from continuity.api.app import app
 from continuity.api.store import Store
+from tools import seed_world as SEED
 from tools.eol_differential import AMS1117, NCP1117, OUTPUT_CAPACITOR, TLV1117
 
 DB_URL = os.environ.get("CONTINUITY_TEST_DB")
@@ -205,20 +206,59 @@ def test_the_check_installs_the_companys_verified_part_facts(monkeypatch):
 
 
 @database
-def test_a_part_the_distributor_could_not_give_us_is_named(monkeypatch):
+def test_a_part_nobody_knows_anything_about_is_named(monkeypatch):
     """A slot with no verdict renders exactly like a slot nobody got to.
 
-    Sparsh saw one part green and one grey with nothing on the page explaining the
-    difference. The grey one was a part that failed to resolve, so no rule ever ran against
-    it. Skipping it is right — one unlisted passive should not stop a board being checked —
-    but leaving it unexplained is the unaccounted state a judge asks about first.
+    This is now the narrow case it should be: no distributor listing **and** no reading the
+    company recorded. A part on a shipping line usually has one or the other, and when it
+    has neither the honest answer is to say which part, rather than leave a grey node beside
+    two green ones with nothing explaining the difference.
     """
     from continuity.api import matrix as matrix_api
 
     async def resolve(mpn: str, manufacturer: str | None = None):
-        return None if mpn == OUTPUT_CAPACITOR.mpn else CATALOGUE.get(mpn)
+        return None
 
     monkeypatch.setattr(matrix_api, "resolve", resolve)
+
+    async def go():
+        async with a_world() as (http, world):
+            store = app.state.store
+            line_id = named(world, "Bench supply")
+            rows = await store.bom_for_line(line_id, world["org_id"])
+            engineer = await store.user_by_email(SEED.ENGINEER[0])
+            # One part nothing has ever recorded a fact about.
+            await store.save_bom_rows(
+                line_id, engineer.id, world["org_id"],
+                [*rows, {"refdes": "u9", "mpn": "NOBODY-KNOWS-THIS-1", "populated": True}],
+            )
+            return (await http.post(f"/lines/{line_id}/check")).json()
+
+    body = asyncio.run(go())
+
+    named_back = {row["refdes"]: row["mpn"] for row in body["unresolved"]}
+    assert named_back == {"u9": "NOBODY-KNOWS-THIS-1"}
+    assert "u9" not in body["slots"], "no verdict was produced for it, and none is claimed"
+
+
+@database
+def test_a_line_is_still_checked_when_no_distributor_answers(monkeypatch):
+    """A product line in the demo is live. It has to be checked, not excused.
+
+    The distributor is a network call and the venue's network is not ours. When it cannot
+    answer, the parts fall back to the readings the company recorded — which are better
+    evidence than a listing anyway, being read off the manufacturer's own datasheets — so
+    a shipping product is checked rather than reported as unresolvable.
+
+    Without this, one flaky lookup put a grey node beside two green ones on the main demo
+    page, with the product unable to say anything about a part it ships.
+    """
+    from continuity.api import matrix as matrix_api
+
+    async def nothing(mpn: str, manufacturer: str | None = None):
+        raise RuntimeError("no distributor today")
+
+    monkeypatch.setattr(matrix_api, "resolve", nothing)
 
     async def go():
         async with a_world() as (http, world):
@@ -226,6 +266,6 @@ def test_a_part_the_distributor_could_not_give_us_is_named(monkeypatch):
 
     body = asyncio.run(go())
 
-    named_back = {row["refdes"]: row["mpn"] for row in body["unresolved"]}
-    assert named_back["c1"] == OUTPUT_CAPACITOR.mpn
-    assert "c1" not in body["slots"], "no verdict was produced for it, and none is claimed"
+    assert body["unresolved"] == [], "the company's own readings are enough to check with"
+    assert set(body["slots"]) == {"u1", "u2", "c1"}
+    assert body["checked"] > 0

@@ -39,7 +39,7 @@ from .. import change, review
 from ..engine.models import ApprovedLists, PartSpec
 from ..matrix import Cell, Matrix
 from ..graph import sourcing
-from ..parts import normalize
+from ..parts import dossier, normalize
 from ..profile import OperatingProfile, board_from
 from . import events
 from .auth import current_user, store_of
@@ -98,7 +98,14 @@ def _decision_text(line_name: str, proposal: review.Proposal) -> str:
 
 
 async def _resolve_quietly(mpn: str, manufacturer: str | None = None) -> PartSpec | None:
-    """A part, or nothing. An ambiguity is a reason to skip a candidate, not to fail a run."""
+    """A part, or nothing. A distributor that cannot answer is not a reason to fail a run.
+
+    Ambiguity was the only thing caught here, so a timeout or a refused connection took the
+    whole call down — on a page whose entire job is to say whether a shipping product is
+    sound, over a network that at a venue is not ours. The caller falls back to the
+    company's own recorded readings, which are better evidence than a listing anyway, so
+    nothing is lost by being quiet here and a working product stops depending on the wifi.
+    """
     try:
         # Through the module, never `from .matrix import resolve`: a direct import binds a
         # second reference that a test's monkeypatch cannot reach, and the run would
@@ -106,6 +113,9 @@ async def _resolve_quietly(mpn: str, manufacturer: str | None = None) -> PartSpe
         return await matrix_api.resolve(mpn, manufacturer)
     except Ambiguous as ambiguous:
         log.info("skipping %s: %s", mpn, ambiguous)
+        return None
+    except Exception as unreachable:  # noqa: BLE001
+        log.warning("could not resolve %s from a distributor: %s", mpn, unreachable)
         return None
 
 
@@ -212,6 +222,13 @@ async def board_for_line(store: Any, line_id: str, org_id: str):
         if not row["populated"]:
             continue
         part = await _resolve_quietly(row["mpn"], row.get("manufacturer"))
+        if part is None:
+            # The distributor could not answer. A product line that already ships still
+            # has to be checkable, and the company's own datasheet readings are better
+            # evidence than a listing — that is what lets them override one. What they
+            # lack is the commercial half, which no rule here asks for.
+            recorded = (await store.part_facts([row["mpn"]])).get(row["mpn"], [])
+            part = dossier.part_from_facts(row["mpn"], row.get("manufacturer"), recorded)
         if part is not None:
             specs[row["mpn"]] = part
         else:
@@ -225,24 +242,15 @@ async def board_for_line(store: Any, line_id: str, org_id: str):
 
 
 async def _board_for(store: Any, line: dict[str, Any], org_id: str):
-    """One product line's board, out of the database, or `None` with the reason logged."""
-    stored = await store.line_for_user(line["line_id"], org_id)
-    if stored is None or not stored.profile:
-        return None, "no operating profile is stored for this product line"
-    rows = await store.bom_for_line(line["line_id"], org_id)
-    specs: dict[str, PartSpec] = {}
-    for row in rows:
-        if not row["populated"]:
-            continue
-        part = await _resolve_quietly(row["mpn"], row.get("manufacturer"))
-        if part is not None:
-            specs[row["mpn"]] = part
-    try:
-        profile = OperatingProfile.from_json(stored.profile)
-        board = board_from(profile, rows, specs)
-    except (KeyError, TypeError, ValueError) as error:
-        return None, f"this product line's stored profile could not be read: {error}"
-    return board, None
+    """The review's view of the same assembly: a board, or the reason there is not one.
+
+    One implementation rather than two. This existed first and `board_for_line` was added
+    beside it for `api/lines.check`, which put the resolution loop in two places for a day
+    and immediately drifted: the fallback to the company's own readings landed in one of
+    them only.
+    """
+    board, why_not, _ = await board_for_line(store, line["line_id"], org_id)
+    return board, why_not
 
 
 def _as_matrix(
