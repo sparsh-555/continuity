@@ -29,25 +29,21 @@ run the pieces by hand.
 
 ---
 
-## 0a · Once, before anything
+## 0a · What the script checks, and what to do when one fails
 
-```bash
-pg_isready                              # expect: accepting connections
-createdb continuity_demo                # the world the demo happens inside
-createdb continuity_test                # only needed to run the suite
+`./demo.sh --check` prints one line per item. The commands are in the script; the reasons are
+here, because a check that fails is a check somebody has to understand.
 
-ls .venv/bin/python                     # expect a path, not "No such file"
-cd frontend && bun install && cd ..
-
-# The model key. Reading a change notice is the one step that needs it.
-cd backend && ../.venv/bin/python -c "from continuity import llm; print(llm.available())"
-
-# The mailbox, if the notice is to arrive by email rather than by upload.
-cd backend && ../.venv/bin/python tools/check_mail.py
-```
-
-`True` means real parsing. **`False` is not a crash**, which is exactly why it is worth
-checking: the app keeps running and every field that needs a model comes back unchecked.
+| Check | Fatal? | If it fails |
+|---|---|---|
+| python | yes | There is no `.venv`. Anaconda's Python cannot import langgraph and gives twelve collection errors |
+| postgres | yes | `pg_isready` says no. Start Postgres |
+| `continuity_demo` | no | The script creates it |
+| `continuity_test` | no | `createdb continuity_test`. Only the suite needs it |
+| frontend dependencies | no | The script runs `bun install` |
+| model key | no | Reading a change notice is the one step that needs it. Everything else still runs |
+| mailbox | no | The notice arrives by **UPLOAD ONE INSTEAD** rather than by email |
+| kicad image | no | The BOARD view reports itself unavailable |
 
 **There is nothing to paste.** The key lives in `backend/.env`, which is gitignored, and
 `continuity/env.py` walks upward from wherever the process starts, so it is found whether you
@@ -57,20 +53,26 @@ credentials in it. The KiCad image is public and needs no Docker login. The only
 you type anywhere are the two demo accounts in §2.
 
 If the key ever has to be replaced, put the new one in `backend/.env` as
-`CONTINUITY_LLM_API_KEY=…` and set `CONTINUITY_LLM_BASE_URL=https://api.deepseek.com`
-beside it. Do not echo it into a terminal on the way there: scrollback outlives the command.
+`CONTINUITY_LLM_API_KEY=…` and set `CONTINUITY_LLM_BASE_URL=https://api.deepseek.com` beside
+it. Do not echo it into a terminal on the way there: scrollback outlives the command.
 
-`check_mail.py` should say `signed in` and a message count. If it warns that messages are
-sitting in a spam folder, one of them is probably the notice: the poller reads `INBOX` only,
-on purpose, because acting on a document the provider has judged hostile is not a thing to do
-in a system whose output is an engineering change request. Fix it with a Gmail filter rather
-than by reading the folder. `not configured` means the three `CONTINUITY_MAIL_*` variables are
-not in `backend/.env`, and the whole demo still runs by upload.
-
-**For the board view**, Docker Desktop must be running and the pinned image pulled:
+**The mailbox, in more detail than the script gives:**
 
 ```bash
-docker pull --platform linux/amd64 kicad/kicad:9.0        # about 2 GB, once
+cd backend && ../.venv/bin/python tools/check_mail.py
+```
+
+It should say `signed in` and a message count. If it warns that messages are sitting in a spam
+folder, one of them is probably the notice: the poller reads `INBOX` only, on purpose, because
+acting on a document the provider has judged hostile is not a thing to do in a system whose
+output is an engineering change request. Fix it with a Gmail filter rather than by reading the
+folder. `not configured` means the three `CONTINUITY_MAIL_*` variables are not in
+`backend/.env`, and the whole demo still runs by upload.
+
+**The KiCad image, once:**
+
+```bash
+docker pull --platform linux/amd64 kicad/kicad:9.0        # about 2 GB
 docker run --rm --platform linux/amd64 kicad/kicad:9.0 kicad-cli version   # expect 9.0.9
 ```
 
@@ -79,38 +81,39 @@ Docker Hub page says, and emulation is what runs it.
 
 ---
 
-## 1 · Three terminals
+## 1 · Running the pieces by hand
 
-### Seed the world
+`./demo.sh` starts both servers. Run them separately when one of them is what you are
+debugging — its log is then in front of you rather than in `.demo/`.
 
 ```bash
+# Seed. --reset replaces a world that is already there.
 cd backend
 PYTHONPATH=. ../.venv/bin/python tools/seed_world.py postgresql:///continuity_demo
-```
 
-Add `--reset` to replace a world that is already there. It prints what it built, ending with
-the five product lines and their ids. **If it prints nothing about an AML, stop** — the
-qualification gate is half the story.
-
-It also records **a described design run against every line**, which is what step 2 opens.
-Confirm one landed:
-
-```bash
-psql postgresql:///continuity_demo -t -c \
-  "select l.name, t.status, count(r.*) from threads t
-     join product_lines l on l.id = t.line_id
-     left join run_events r on r.thread_id = t.id group by 1,2 order by 1"
-```
-
-Expect five rows, each `done` with 36 frames.
-
-### The API
-
-```bash
-cd backend
+# The API.
 DATABASE_URL=postgresql:///continuity_demo CONTINUITY_KICAD=docker \
+  CONTINUITY_MAIL_ORG=engineer@northwind.example \
   ../.venv/bin/python -m uvicorn continuity.api.app:app --port 8000
+
+# The UI.
+cd ../frontend
+VITE_API_URL=http://localhost:8000 bun run dev --strictPort --port 5173
 ```
+
+Three things about those commands are load-bearing.
+
+**`backend/.env` points `DATABASE_URL` at production Neon.** Naming the database on the
+command line is what keeps a local run local. Never start the API without it.
+
+**`--strictPort` matters.** If Vite quietly takes 5174 or 5175, the browser blocks every API
+call on CORS and the app looks broken without naming the cause. To use another port, add it to
+`CONTINUITY_ORIGINS` on the API.
+
+**`CONTINUITY_MAIL_ORG` is an address, not an organisation id.** A reseed mints a new id every
+time, and a stale one fails by quietly finding no product lines. With exactly one company in
+the database it can be left out entirely; the demo world has two if anybody has ever signed
+up, which is why it is there.
 
 **There is no startup line to look for.** Nothing configures logging, so the API's own
 `persistence: postgres` never reaches the console under uvicorn's default config — an earlier
@@ -122,37 +125,13 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8000/auth/logi
   -d '{"email":"engineer@northwind.example","password":"continuity-demo-2026"}'
 ```
 
-`200` means it is on the seeded database. Anything else means `DATABASE_URL` did not reach
-it, and in single-user in-memory mode there are no accounts at all. `./demo.sh` does this
-check for you.
+`200` means it is on the seeded database. Anything else means `DATABASE_URL` did not reach it,
+and in single-user in-memory mode there are no accounts at all. `./demo.sh` does this check
+for you.
 
-**If the notice is to arrive by email**, `backend/.env` also needs the line that says whose
-mailbox it is:
-
-```
-CONTINUITY_MAIL_ORG=engineer@northwind.example
-```
-
-An address rather than an organisation id, because a reseed mints a new id every time and a
-stale one fails by quietly finding no product lines. With exactly one company in the database
-this can be left out entirely; the demo world has two if anybody has ever signed up, which is
-why it is here.
-
-`backend/.env` points `DATABASE_URL` at **production Neon**. Naming the database on the
-command line as above is what keeps a local run local. Never start the API without it.
-
-### The UI
-
-```bash
-cd frontend
-VITE_API_URL=http://localhost:8000 bun run dev --strictPort --port 5173
-```
-
-`--strictPort` matters. If Vite quietly takes 5174 or 5175, the browser blocks every API call
-on CORS and the app looks broken without naming the cause. To use another port, add it to
-`CONTINUITY_ORIGINS` on the API.
-
-Open `http://localhost:5173`.
+**The API checks every product line once at startup**, so the first person to open one is not
+the person who waits four seconds for it. Nothing depends on that finishing; it moves work
+that was going to happen anyway to a moment when nobody is looking.
 
 ---
 
@@ -213,26 +192,30 @@ three panes, the same proportions, the same components as `/design`. Left to rig
 | **Component Logic Graph** | the power tree, with **COMPONENTS / BOARD** in its header |
 | **Bill of Materials** | what the product is made of |
 
+**Nothing is wrong with this product yet.** The notice has not arrived — that is step 4 — so
+this is what a company looks like on an ordinary Tuesday, and it is the picture the red one
+in step 7 is worth comparing against.
+
 **Look for**, in this order:
 
-- The header: `Rev C · 3 parts · 45 °C ambient · 3V3 at 420 mA · 5 V · WS2812Controller`.
-- The chip beside it: **`1 end of life · 22 checks`**, and the **End of life (1)** button.
-- **The power tree, every part green except U1.** Green because this product ships and the
-  engine confirms it — the page runs a check against the line's own ambient, rail and load on
-  every visit. U1 is red because a notice retires it, which is a manufacturer's statement
-  rather than a verdict of ours.
+- The header: **Gateway**, and under it `Rev C · 3 parts · 45 °C ambient · 3V3 at 420 mA · 5 V`.
+- The chip beside it: **`0 end of life · 22 checks`**, and **End of life (0)**, disabled.
+- **The power tree, every part green.** Green because this product ships and the engine
+  confirms it — the page checks the board against the line's own ambient, rail and load, and
+  green means green because it was computed.
 - In the review pane, under **THE ENGINE, ON THE PARTS FITTED TODAY**: *22 checks, nothing
-  failed*. That heading is load-bearing. Beside a red part it would otherwise read as a
-  contradiction, and it is not one — the notice is about 2027, and no rule fails on the board
-  as it ships today.
-- **The bill lights the same part red**, with a warning glyph beside `AMS1117-3.3`. The graph
-  and the bill are two views of one board and must never disagree about it.
+  failed*. **It should be there the moment the page is**, because the API checks every line
+  once at startup. If it arrives four seconds late, the warm did not run.
+- The bill of materials, three rows, no red.
+- **COMPONENTS / BOARD** in the graph pane's header. Press **BOARD**: the real
+  `WS2812Controller`, drawn by KiCad, named in that pane's own title. It should appear in well
+  under a second — the page warms it on arrival too.
 
 **Would be a bug:** the words *"What are you building?"*; a grey part; content in a narrow
-strip with an empty field around it; a part red on the graph and ordinary in the bill; or any
-sentence on this page about what could not be checked. The last one is not a style note — a
-product whose pitch is that it checks parts must never open by naming the ones it did not. See
-BUILD.md's second governing rule.
+strip with an empty field around it; a four-second wait for anything; or any sentence on this
+page about what could not be checked. The last one is not a style note — a product whose pitch
+is that it checks parts must never open by naming the ones it did not. See BUILD.md's second
+governing rule.
 
 **Also a bug:** anything on this page navigating to `/changes`. A whole run-through was once
 spent looking for a review that was on another page.
@@ -273,14 +256,12 @@ AMS1117-3.3 in SOT-223, each at a **different reference designator**. That last 
 saying out loud if anyone asks how the substitution finds the part: it resolves the position
 per board, because no two products put the same chip in the same place.
 
-Press **BOARD** in the graph pane's header now if you want it early — the real PCB is drawn by
-KiCad and the page warms it on arrival, so the toggle is a switch rather than a wait.
-
 **Worth knowing:** OpenJBOD carries 687 copper zones and found two defects the day it arrived,
 both fixed. See `backend/fixtures/kicad/README.md`.
 
 **Would be a bug:** a product line reporting no board, two of them reporting the same one, or
-the toggle missing before a review has run.
+the toggle missing before a review has run. The board view exists whether or not anything is
+being substituted — *show me the board* is a question this product can always answer.
 
 ### Step 4 · The notice arrives by email
 
@@ -305,6 +286,12 @@ over that proof.
 - *read from: "Affected part: AMS1117-3.3 (SOT-223)"* — the line the part number came from, in
   the document's own words.
 - *Affects 3 product lines: Cabinet controller, Gateway, Sensor node.*
+
+**Then go back to `/lines` → Gateway for five seconds.** U1 is red now, on the power tree and
+in the bill, and the chip reads `1 end of life`. Nothing was recomputed to make that happen:
+the notice names a part, the bill says the part is fitted, and red is the manufacturer's
+statement rather than a verdict of ours. It is the same page you opened in step 1, and the
+difference is the whole reason the rest of this exists.
 
 **Would be a bug:** 2027-09-30 as the last order date. That is the last time **ship** date and
 it is the mistake this document was built to catch. Also a bug: nothing appearing at all,

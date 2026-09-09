@@ -37,6 +37,22 @@ def isolated_part_caches(monkeypatch, tmp_path):
     monkeypatch.setattr(datasheet, "CACHE_DIR", tmp_path / "datasheets")
 
 
+@pytest.fixture(autouse=True)
+def no_shared_check_cache():
+    """No test is served another test's product line check.
+
+    `api/lines` keeps checked lines in process memory so a page is not four seconds of
+    waiting on every click. That is right for a server and wrong for a suite: a test that
+    watches the engine being invoked passes alone and fails after any test that checked the
+    same line, because the second one is answered from memory and never reaches the engine.
+    """
+    from continuity.api import lines as lines_api
+
+    lines_api.forget_checks()
+    yield
+    lines_api.forget_checks()
+
+
 def _as_candidate(part) -> Candidate:
     """Wrap a catalogue `PartSpec` so it looks like a raw search hit."""
     return Candidate(

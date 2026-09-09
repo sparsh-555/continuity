@@ -1008,6 +1008,22 @@ synthesis run that never happened.
 It is `change_circle`: a notice arrives, a request is written, a change is applied, and the
 envelope described only the first third.
 
+### What the fourth pass changed
+
+- **The check is cached and warmed.** `POST /lines/{id}/check` took four to seven seconds
+  on every visit and never got faster, because the answer was thrown away each time and
+  resolving three parts is three network calls. It is keyed on a digest of the bill, the
+  profile and the revision, so applying a substitution invalidates it by changing it; and
+  the API checks every line once at startup, so the first person to open one is not the
+  person who waits. **Measured: 4.1 s → 11 ms.** One input can change without the key
+  changing — a distributor's stock — and the docstring says so.
+- **The page header is 64 px, not 48.** At 48 with a 10 px subtitle the product's name was
+  a strip of grey nobody could read across a room. The KiCad project's name moved out of
+  that subtitle and into the board pane's own header, which is the pane it is about.
+- **`design/BomTable` stopped printing why a disabled control is disabled.** *"This part
+  has no package, so a thermal table column cannot be selected"* ran down the whole column
+  on every seeded design run. It is the `title` on the control now.
+
 ### What the second pass changed, and why the first was wrong
 
 Repurposing the design page meant *using its components in its grammar*, and the first two

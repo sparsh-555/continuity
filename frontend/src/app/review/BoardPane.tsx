@@ -20,6 +20,7 @@ export function BoardPane({
   lineId,
   retiring,
   candidate,
+  project,
   action,
 }: {
   lineId: string
@@ -27,6 +28,10 @@ export function BoardPane({
   retiring: string | null
   /** What to place, when anything has been proposed. */
   candidate: string | null
+  /** The KiCad project this product line is built from. It reads here rather than in the
+   *  page header, where it was one more clause on a line that already carried the
+   *  product's name, revision, ambient and rails. */
+  project: string
   action: React.ReactNode
 }) {
   const [picture, setPicture] = useState<Picture | null>(null)
@@ -65,7 +70,10 @@ export function BoardPane({
         <div className="flex items-center gap-sm text-on-surface">
           <span className="material-symbols-outlined text-[16px]">developer_board</span>
           <h2 className="font-headline-sm text-[14px] font-semibold tracking-wide">
-            {candidate ? 'Board · Before and After' : 'Board'}
+            {project}
+            <span className="text-on-surface-variant font-normal">
+              {candidate ? ' · before and after' : ''}
+            </span>
           </h2>
         </div>
         {action}

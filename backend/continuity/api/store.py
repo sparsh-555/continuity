@@ -907,6 +907,13 @@ class Store:
                 (org_id, validity, uid),
             )
 
+    async def every_organisation(self) -> list[str]:
+        """Every company in this database. Only the startup warm asks: nothing a request
+        serves is ever allowed to reach past the organisation it was authorised for."""
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute("SELECT id FROM organisations")
+            return [row[0] for row in await cursor.fetchall()]
+
     async def only_organisation(self) -> str | None:
         """The one organisation, when there is exactly one.
 

@@ -238,7 +238,13 @@ export default function LineRoute() {
 
   return (
     <div className="h-full min-h-0 w-full overflow-hidden flex flex-col font-body-md antialiased bg-background text-on-background">
-      <header className="flex items-center justify-between gap-md w-full px-lg h-12 flex-shrink-0 bg-surface-container-low border-b border-outline-variant shadow-[0_1px_0_0_rgba(255,255,255,0.05)]">
+      {/* Taller than the design workspace's, and deliberately. That one carries a wordmark
+          and two chips; this one carries the product's identity — the name somebody is
+          demonstrating, its revision, and the conditions every verdict below is graded
+          against. At 48 px with a 10 px subtitle it was a strip of grey nobody could read
+          across a room. The board's project name is not here: it belongs to the board, and
+          the pane that draws the board says it. */}
+      <header className="flex items-center justify-between gap-md w-full px-lg h-16 flex-shrink-0 bg-surface-container-low border-b border-outline-variant shadow-[0_1px_0_0_rgba(255,255,255,0.05)]">
         <div className="flex items-center gap-md min-w-0">
           <Link
             className="h-8 w-8 -ml-1 rounded flex items-center justify-center text-on-surface-variant hover:text-primary-container hover:bg-surface-container-high transition-colors flex-shrink-0"
@@ -247,15 +253,14 @@ export default function LineRoute() {
             <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           </Link>
           <div className="min-w-0">
-            <h1 className="font-label-caps text-label-caps tracking-[0.1em] uppercase text-on-surface truncate">
+            <h1 className="font-headline-sm text-[16px] font-semibold tracking-wide text-on-surface truncate">
               {line.name}
             </h1>
-            <p className="font-data-tabular text-[10px] text-on-surface-variant truncate">
+            <p className="font-data-tabular text-[11px] text-on-surface-variant truncate">
               {line.revision ? `${line.revision} · ` : ''}
               {fitted.length} part{fitted.length === 1 ? '' : 's'}
               {profile ? ` · ${profile.ambient_c} °C ambient` : ''}
               {railSummary(overview) ? ` · ${railSummary(overview)}` : ''}
-              {board ? ` · ${board.project}` : ''}
             </p>
           </div>
         </div>
@@ -319,6 +324,7 @@ export default function LineRoute() {
             action={toggle}
             candidate={placing}
             lineId={lineId}
+            project={board.project}
             retiring={retiring}
           />
         ) : (

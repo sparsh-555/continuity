@@ -300,9 +300,12 @@ export function BomTable({ bom, slots }: BomTableProps) {
                           ? 'Extracting…'
                           : 'Attach PDF'}
                     </label>
-                    {unavailableReason ? (
-                      <p className="mt-1 text-[10px] text-on-surface-variant">{unavailableReason}</p>
-                    ) : null}
+                    {/* Why the control is disabled belongs on the control, not under it.
+                        Printed as body text it ran down the whole column — every module
+                        with no package on its listing carrying a sentence about thermal
+                        table columns, on a bill of materials nobody opened to read about
+                        that. It is the `title` on the label above, where a reader who
+                        wonders will find it. */}
                     {upload?.status === 'error' ? (
                       <p className="mt-1 text-[10px] text-error">{upload.message}</p>
                     ) : null}

@@ -269,3 +269,78 @@ def test_a_line_is_still_checked_when_no_distributor_answers(monkeypatch):
     assert body["unresolved"] == [], "the company's own readings are enough to check with"
     assert set(body["slots"]) == {"u1", "u2", "c1"}
     assert body["checked"] > 0
+
+
+@database
+def test_checking_the_same_board_twice_does_not_check_it_twice():
+    """Four to seven seconds a visit, measured, because the answer was thrown away.
+
+    The inputs are the stored bill, the stored profile and the recorded facts, so a second
+    request with none of them changed has nothing to recompute. Asserted on the engine
+    being reached rather than on a duration, because a timing assertion on a network call
+    is a flake waiting for a slow morning.
+    """
+    from continuity.api import lines as lines_api
+    from continuity.parts import normalize
+
+    installs: list[object] = []
+    real = normalize.set_dossier_lookup
+
+    def spy(lookup):
+        installs.append(lookup)
+        return real(lookup)
+
+    async def go():
+        async with a_world() as (http, world):
+            line = named(world, "Bench supply")
+            first = await http.post(f"/lines/{line}/check")
+            second = await http.post(f"/lines/{line}/check")
+            return first, second
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(normalize, "set_dossier_lookup", spy)
+        first, second = asyncio.run(go())
+
+    assert first.status_code == 200 and second.status_code == 200
+    assert first.json() == second.json(), "the same board answered differently"
+    assert len(installs) == 1, f"the engine ran {len(installs)} times for one unchanged board"
+
+    # And a bill that changes is a different board, so it is checked again.
+    lines_api.forget_checks()
+
+
+@database
+def test_a_changed_bill_is_checked_again():
+    """The cache is keyed on what was checked, not on which line it was.
+
+    Applying a substitution rewrites a row, and a page still showing the old verdict would
+    be the worst possible thing for this cache to do — the whole demo ends in a bill
+    changing.
+    """
+    from continuity.parts import normalize
+
+    installs: list[object] = []
+    real = normalize.set_dossier_lookup
+
+    def spy(lookup):
+        installs.append(lookup)
+        return real(lookup)
+
+    async def go():
+        async with a_world() as (http, world):
+            line = named(world, "Bench supply")
+            await http.post(f"/lines/{line}/check")
+            rows = (await http.get(f"/lines/{line}/bom")).json()
+            for row in rows:
+                if row["refdes"] == "u1":
+                    row["mpn"] = "NCP1117ST33T3G"
+                    row["manufacturer"] = "onsemi"
+            await http.put(f"/lines/{line}/bom", json={"rows": rows})
+            return await http.post(f"/lines/{line}/check")
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(normalize, "set_dossier_lookup", spy)
+        again = asyncio.run(go())
+
+    assert again.status_code == 200, again.text
+    assert len(installs) == 2, "a rewritten bill was answered from the old board's cache"

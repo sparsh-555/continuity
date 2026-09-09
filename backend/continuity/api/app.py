@@ -114,6 +114,10 @@ async def lifespan(app: FastAPI):
     # process, because the thing it produces is a row this app already knows how to serve,
     # and a second process would need the same database URL, the same model key and its
     # own deployment. Unconfigured, nothing starts and the upload path is unaffected.
+    # Every product line checked once, now, so the first person to open one is not the
+    # person who waits for it. Detached and best effort: nothing downstream needs it.
+    warming = asyncio.create_task(lines.warm_checks(store), name="warm-checks")
+
     watcher = None
     if mail.configured():
         watcher = asyncio.create_task(mail.watch(store), name="mail-watch")
@@ -123,6 +127,11 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        # Cancelled before the pool closes, for the same reason the poller is: a warm in
+        # flight is holding a connection.
+        warming.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await warming
         if watcher is not None:
             watcher.cancel()
             # Awaited rather than abandoned, so a cancelled poll closes its IMAP

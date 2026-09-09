@@ -10,7 +10,12 @@ else, which is a fact the caller has no business learning.
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+import hashlib
+import json
+import logging
+from collections import OrderedDict
+from typing import Any, Mapping, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
@@ -23,6 +28,8 @@ from ..engine import rules
 from ..linegraph import graph_from
 from ..parts import normalize
 from ..profile import OperatingProfile
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/lines", tags=["lines"])
 
@@ -131,30 +138,110 @@ async def get_line(
     return _view(line)
 
 
-@router.post("/{line_id}/check")
-async def check(
-    line_id: str, request: Request, user: User = Depends(current_user)
-) -> dict[str, Any]:
-    """Run the engine over a product line as it stands, under its own stored conditions.
+_CHECKED: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+_CHECKED_LIMIT = 40
+"""Lines already checked, by the content of what was checked.
 
-    **Why this is its own call.** The graph on a product line used to be entirely grey,
-    because every slot came back `unchecked` and that was the truthful answer: no rule had
-    looked at the board. The result was a screen saying nothing works about products that
-    ship today. Painting it green without running anything would be worse, since an
-    unearned verdict is the one thing this system must not produce. So it runs the engine,
-    and green means green because it was computed.
+Four to seven seconds a visit, every visit, because resolving three parts against a
+distributor is three network calls and the answer was thrown away each time. The inputs are
+the stored bill, the stored profile and the recorded part facts, so the key is a digest of
+them: apply a substitution and the bill changes, the digest changes, and the check runs
+again.
 
-    Separate from `/overview` because resolving parts reaches a distributor and the
-    overview promises to render offline and instantly. The page loads grey and settles.
+**One input can change without the key changing**, and it is worth naming: a distributor's
+stock. `availability` reads it live, so a cached verdict is as fresh as the moment it was
+computed rather than as fresh as the request. For a product line page that paints a part
+green or red, minutes-old stock is the right trade against four seconds of waiting on every
+click; a change request, which is the document somebody signs, resolves parts again when it
+is written and does not read this.
+"""
 
-    Nothing here is a substitution. It places nothing and proposes nothing: it checks the
-    parts the line already has, which is the question "is this product, as it ships, sound
-    under the conditions its own profile states".
+
+def forget_checks() -> None:
+    """Empty the cache. For tests, which must never be served another test's answer.
+
+    Process-global state that survives a request is exactly the kind a suite ends up
+    sharing by accident: the first version of this cache made a test that spies on the
+    engine being invoked pass on its own and fail after any test that had checked the same
+    line, because the second one never reached the engine at all.
     """
-    store = store_of(request)
-    line = await store.line_for_user(line_id, user.org_id)
+    _CHECKED.clear()
+
+
+def _checked(key: str) -> dict[str, Any] | None:
+    found = _CHECKED.get(key)
+    if found is not None:
+        _CHECKED.move_to_end(key)
+    return found
+
+
+def _remember_check(key: str, result: dict[str, Any]) -> dict[str, Any]:
+    _CHECKED[key] = result
+    while len(_CHECKED) > _CHECKED_LIMIT:
+        _CHECKED.popitem(last=False)
+    return result
+
+
+def _fingerprint(line: Line, rows: Sequence[Mapping[str, Any]]) -> str:
+    """What was checked, as one string. Anything that changes a verdict changes this."""
+    material = json.dumps(
+        {
+            "revision": line.revision,
+            "profile": line.profile,
+            "rows": [
+                {k: row.get(k) for k in ("refdes", "mpn", "manufacturer", "populated")}
+                for row in rows
+            ],
+        },
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha256(material.encode()).hexdigest()
+
+
+async def warm_checks(store: Any) -> None:
+    """Check every product line once, at startup, so the first visit is not the slow one.
+
+    The graph is green before this finishes — green is the resting state and the page does
+    not wait for a verdict to paint it — but the line under it that says how many rules ran
+    did wait, and arriving four seconds after the picture reads as the page still thinking.
+
+    Best effort in every direction: one line failing does not stop the others, and the whole
+    thing failing does not stop the app. Nothing here is required for correctness; it moves
+    work that was going to happen anyway to a moment when nobody is looking at it.
+    """
+    try:
+        organisations = await store.every_organisation()
+    except Exception:  # noqa: BLE001
+        log.info("could not list organisations to warm checks", exc_info=True)
+        return
+
+    async def one(line_id: str, org_id: str) -> None:
+        try:
+            await _check_line(store, line_id, org_id)
+        except Exception:  # noqa: BLE001
+            log.info("could not warm the check for %s", line_id, exc_info=True)
+
+    work = []
+    for org_id in organisations:
+        for line in await store.lines_for_user(org_id):
+            work.append(one(line.id, org_id))
+    if work:
+        await asyncio.gather(*work)
+        log.info("warmed %d product line checks", len(work))
+
+
+async def _check_line(store: Any, line_id: str, org_id: str) -> dict[str, Any]:
+    """The engine over one product line, cached on what it looked at."""
+    line = await store.line_for_user(line_id, org_id)
     if line is None:
         raise HTTPException(404, "no such line")
+
+    rows = await store.bom_for_line(line_id, org_id)
+    key = _fingerprint(line, rows)
+    already = _checked(key)
+    if already is not None:
+        return already
 
     # The company's own verified readings, in the engine's hands before anything resolves.
     # Without this every SOT-223 part falls back to the package table's single figure and to
@@ -166,7 +253,7 @@ async def check(
 
     token = normalize.set_dossier_lookup(facts_for)
     try:
-        board, why_not, unresolved = await review_api.board_for_line(store, line_id, user.org_id)
+        board, why_not, unresolved = await review_api.board_for_line(store, line_id, org_id)
     finally:
         normalize.reset_dossier_lookup(token)
     if board is None:
@@ -183,17 +270,48 @@ async def check(
             "detail": failed[0].detail if failed else None,
         }
 
-    return {
-        "slots": per_slot,
-        "checked": len(verdicts),
-        # Named rather than left grey. A part the distributor could not give us has no
-        # verdict, and a slot with no verdict looks exactly like one nobody got to.
-        "unresolved": unresolved,
-        # Green means nothing failed, not that everything was checkable. Naming the two
-        # separately is the whole reason there are five coverage labels rather than three.
-        "not_assessed": sorted({v.rule for v in verdicts if v.status == "not_assessed"}),
-        "evidence_missing": sorted({v.rule for v in verdicts if v.status == "evidence_missing"}),
-    }
+    return _remember_check(
+        key,
+        {
+            "slots": per_slot,
+            "checked": len(verdicts),
+            # Named rather than left grey. A part the distributor could not give us has no
+            # verdict, and a slot with no verdict looks exactly like one nobody got to.
+            "unresolved": unresolved,
+            # Green means nothing failed, not that everything was checkable. Naming the two
+            # separately is the whole reason there are five coverage labels rather than three.
+            "not_assessed": sorted({v.rule for v in verdicts if v.status == "not_assessed"}),
+            "evidence_missing": sorted(
+                {v.rule for v in verdicts if v.status == "evidence_missing"}
+            ),
+        },
+    )
+
+
+@router.post("/{line_id}/check")
+async def check(
+    line_id: str, request: Request, user: User = Depends(current_user)
+) -> dict[str, Any]:
+    """Run the engine over a product line as it stands, under its own stored conditions.
+
+    **Why this is its own call.** The graph on a product line used to be entirely grey,
+    because every slot came back `unchecked` and that was the truthful answer: no rule had
+    looked at the board. The result was a screen saying nothing works about products that
+    ship today. Painting it green without running anything would be worse, since an
+    unearned verdict is the one thing this system must not produce. So it runs the engine,
+    and green means green because it was computed.
+
+    Separate from `/overview` because resolving parts reaches a distributor and the
+    overview promises to render offline and instantly.
+
+    Nothing here is a substitution. It places nothing and proposes nothing: it checks the
+    parts the line already has, which is the question "is this product, as it ships, sound
+    under the conditions its own profile states".
+
+    The work is in `_check_line`, which the startup warm calls too, so a page and a warm
+    cannot come to disagree about what checking a line means.
+    """
+    return await _check_line(store_of(request), line_id, user.org_id)
 
 
 @router.get("/{line_id}/reviews")
