@@ -5,8 +5,10 @@ import { ComponentGraph } from '../design/ComponentGraph'
 import { Page } from '../shell/Page'
 import {
   ApiError,
+  checkLine,
   getLineOverview,
   putBoard,
+  type LineCheck,
   type LineOverview,
 } from '../lib/api'
 
@@ -44,6 +46,8 @@ export default function LineRoute() {
 
   const [overview, setOverview] = useState<LineOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [check, setCheck] = useState<LineCheck | null>(null)
+  const [checking, setChecking] = useState(false)
   const [busy, setBusy] = useState(false)
   const boardInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -64,6 +68,27 @@ export default function LineRoute() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // The engine, after the page is on screen. This resolves parts against a distributor and
+  // takes a few seconds, so it must not sit in front of the render: the page arrives grey
+  // and settles. A failure leaves it grey, which is the honest picture of a board nothing
+  // has looked at, rather than a green nobody computed.
+  const run = useCallback(async () => {
+    if (!lineId) return
+    setChecking(true)
+    try {
+      setCheck(await checkLine(lineId))
+    } catch {
+      setCheck(null)
+    } finally {
+      setChecking(false)
+    }
+  }, [lineId])
+
+  useEffect(() => {
+    setCheck(null)
+    void run()
+  }, [run])
 
   const attach = useCallback(
     async (file: File) => {
@@ -109,6 +134,13 @@ export default function LineRoute() {
   }
 
   const { line, parts, graph, board, notices, requests } = overview
+  // The overview paints the retired part red, because that is the notice's own statement.
+  // Everything else stays grey until the engine has actually looked, and then it settles.
+  const slots = graph.slots.map((slot) =>
+    slot.status === 'conflict' || !check
+      ? slot
+      : { ...slot, status: check.slots[slot.id]?.status ?? slot.status },
+  )
   const profile = line.profile
   const fitted = parts.filter((part) => part.populated)
 
@@ -192,7 +224,7 @@ export default function LineRoute() {
               onReleaseRepairHold={() => undefined}
               revealedSlotIds={new Set(graph.slots.map((slot) => slot.id))}
               slotConflictVariant={{}}
-              slots={graph.slots}
+              slots={slots}
               supply={graph.supply}
             />
           </div>
@@ -210,6 +242,21 @@ export default function LineRoute() {
           {graph.off_tree > 0
             ? ` ${graph.off_tree} more fitted part${graph.off_tree === 1 ? '' : 's'} sit on the bill and on no rail — decoupling, pull-ups and connectors — and are listed below.`
             : ''}
+        </p>
+        {/* What the green is worth. A verdict with no count behind it is a colour, and
+            green means nothing failed rather than that everything was checkable. */}
+        <p className="font-data-tabular text-[10px] text-on-surface-variant/70">
+          {checking
+            ? 'Checking this product line against its own stored conditions…'
+            : check
+              ? `${check.checked} checks under this line's own conditions.` +
+                (check.evidence_missing.length
+                  ? ` No evidence for ${check.evidence_missing.join(', ')}.`
+                  : '') +
+                (check.not_assessed.length
+                  ? ` Not assessed: ${check.not_assessed.join(', ')}.`
+                  : '')
+              : 'Not checked in this session.'}
         </p>
       </section>
 

@@ -566,6 +566,24 @@ export function answerDecision(decisionId: string, approve: boolean, rationale =
   })
 }
 
+/** What the engine says about a product line as it stands today.
+ *
+ *  A separate call from the overview on purpose: this one resolves parts against a
+ *  distributor and takes seconds, and the overview promises to render offline and
+ *  instantly. The page loads grey and settles. */
+export function checkLine(lineId: string) {
+  return request<LineCheck>(`/lines/${encodeURIComponent(lineId)}/check`, { method: 'POST' })
+}
+
+export type LineCheck = {
+  slots: Record<string, { status: 'pass' | 'conflict'; checked: number; detail: string | null }>
+  checked: number
+  /** Rules that do not apply to this board, and rules whose inputs nobody has supplied.
+   *  Green means nothing failed, not that everything was checkable. */
+  not_assessed: string[]
+  evidence_missing: string[]
+}
+
 export function getLineOverview(lineId: string) {
   return request<LineOverview>(`/lines/${encodeURIComponent(lineId)}/overview`)
 }
