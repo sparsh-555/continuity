@@ -106,7 +106,11 @@ _FLOAT_FIELDS = frozenset(
     {
         "theta_ja", "efficiency", "temp_min", "temp_max", "t_j_max",
         "vmin", "vmax", "vout_min", "vout_max", "i_max",
-        "cout_min_uf", "capacitance_uf",
+        # `cout_min_uf` is a datasheet *requirement* and belongs here. A capacitor's own
+        # `capacitance_uf` does not: a distributor states an MLCC accurately, our seeded
+        # figures came from the JLCPCB listing, and a stored fact outranking a live listing
+        # is exactly what this set exists to gate.
+        "cout_min_uf",
     }
 )
 
