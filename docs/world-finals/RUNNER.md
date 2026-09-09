@@ -197,6 +197,11 @@ You do not have to finish this. The point is to show the way in: an engineer des
 product, or uploads a bill of materials, and from then on Continuity knows what the company
 ships. Press escape and go back.
 
+**If anyone asks what that produces**, the three-dot menu on any row has **DESIGN RUNS**.
+Every seeded line has one, because the seed records the run in which the line was described:
+its parts, its rails, and the engine's verdicts on them. It is the design workspace with a
+finished board in it, and it is where the product line page's layout comes from.
+
 **Then say the line that frames everything after it:** *these are Northwind's five product
 lines, and three of them carry the same regulator.*
 

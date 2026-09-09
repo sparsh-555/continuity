@@ -62,6 +62,68 @@ export function useLineReview({
     setTrace((current) => [...current, item])
   }, [])
 
+  /** One frame, live or replayed. Both read the same vocabulary, so a stored review and a
+   *  running one cannot come to mean different things on the way to the screen. */
+  const consume = useCallback(
+    (frame: ReviewFrame) => {
+      switch (frame.type) {
+        case 'reasoning':
+          // The engine's own answer to where it is working replaces the notice's, because
+          // a notice can name a designator on a board the run then declines to touch.
+          if (frame.slot) setPositions([frame.slot])
+          say({ kind: 'said', text: frame.text })
+          break
+        case 'candidate':
+          setPositions([frame.slot])
+          setTrying(frame.part.mpn)
+          break
+        case 'check':
+          say({
+            kind: 'check',
+            rule: frame.rule,
+            scope: frame.scope,
+            status: frame.status,
+            detail: frame.detail,
+            margin: frame.margin,
+            accepted: frame.accepted,
+          })
+          break
+        case 'question':
+          setQuestion({
+            decisionId: frame.question_id.replace(/^decision:/, ''),
+            text: frame.text,
+            roles: frame.roles,
+          })
+          break
+        case 'line_done':
+          setProposal(frame.proposal)
+          setConditional(frame.conditional)
+          setReason(frame.reason)
+          setTrying(frame.proposal)
+          break
+        case 'error':
+          say({ kind: 'error', text: frame.message })
+          break
+        default:
+          break
+      }
+    },
+    [say],
+  )
+
+  const clear = useCallback((at: readonly string[]) => {
+    setTrace([])
+    setPositions(at)
+    setTrying(null)
+    setProposal(null)
+    setConditional(false)
+    setReason('')
+    setQuestion(null)
+    setSettled(null)
+    setApplied(null)
+    setError(null)
+  }, [])
+
   /**
    * Start the run.
    *
@@ -77,69 +139,39 @@ export function useLineReview({
    * the button. The notice already says where the part is, it needs nothing computed, and
    * the banner overhead is rendering the same fact.
    */
-  const start = useCallback((noticeId: string, at: readonly string[] = []) => {
-    abort.current?.()
-    setStatus('running')
-    setTrace([])
-    setPositions(at)
-    setTrying(null)
-    setProposal(null)
-    setConditional(false)
-    setReason('')
-    setQuestion(null)
-    setSettled(null)
-    setApplied(null)
-    setError(null)
+  const start = useCallback(
+    (noticeId: string, at: readonly string[] = []) => {
+      abort.current?.()
+      setStatus('running')
+      clear(at)
+      abort.current = runReview(
+        { noticeId, candidates: [], lineId },
+        consume,
+        setError,
+        () => setStatus('done'),
+      )
+    },
+    [clear, consume, lineId],
+  )
 
-    abort.current = runReview(
-      { noticeId, candidates: [], lineId },
-      (frame: ReviewFrame) => {
-        switch (frame.type) {
-          case 'reasoning':
-            // The engine's own answer to where it is working replaces the notice's, because
-            // a notice can name a designator on a board the run then declines to touch.
-            if (frame.slot) setPositions([frame.slot])
-            say({ kind: 'said', text: frame.text })
-            break
-          case 'candidate':
-            setPositions([frame.slot])
-            setTrying(frame.part.mpn)
-            break
-          case 'check':
-            say({
-              kind: 'check',
-              rule: frame.rule,
-              scope: frame.scope,
-              status: frame.status,
-              detail: frame.detail,
-              margin: frame.margin,
-              accepted: frame.accepted,
-            })
-            break
-          case 'question':
-            setQuestion({
-              decisionId: frame.question_id.replace(/^decision:/, ''),
-              text: frame.text,
-              roles: frame.roles,
-            })
-            break
-          case 'line_done':
-            setProposal(frame.proposal)
-            setConditional(frame.conditional)
-            setReason(frame.reason)
-            setTrying(frame.proposal)
-            break
-          case 'error':
-            say({ kind: 'error', text: frame.message })
-            break
-          default:
-            break
-        }
-      },
-      setError,
-      () => setStatus('done'),
-    )
-  }, [lineId, say])
+  /**
+   * A review that already happened, put back on screen.
+   *
+   * Through the same reducer the stream goes through, so what a reader sees of a finished
+   * review is what they would have seen watching it. The one difference is the question: a
+   * replayed run does not raise one, because whatever it was waiting for has been answered
+   * or is still recorded as pending on the decision itself.
+   */
+  const hydrate = useCallback(
+    (frames: ReviewFrame[], settledAs: 'approved' | 'declined' | null = null) => {
+      abort.current?.()
+      clear([])
+      frames.forEach(consume)
+      setSettled(settledAs)
+      setStatus('done')
+    },
+    [clear, consume],
+  )
 
   const answer = useCallback(
     async (approve: boolean) => {
@@ -186,6 +218,7 @@ export function useLineReview({
     answering,
     error,
     start,
+    hydrate,
     answer,
   }
 }

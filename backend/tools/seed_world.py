@@ -38,6 +38,7 @@ import json
 import sys
 import zipfile
 from pathlib import Path
+from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -264,27 +265,25 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
                 project=project_name,
                 bundle=zipped(folder),
             )
-        await store.save_bom_rows(
-            created.id, engineer.id, org_id, bom_for(AMS1117, line.load_part)
-        )
-        await store.save_profile(
-            created.id,
-            org_id,
-            _profile(profile_for(line, ambient=line.ambient_c, ambient_source=line.ambient_basis)),
-            REVISION,
+        rows = bom_for(AMS1117, line.load_part)
+        payload = profile_for(line, ambient=line.ambient_c, ambient_source=line.ambient_basis)
+        await store.save_bom_rows(created.id, engineer.id, org_id, rows)
+        await store.save_profile(created.id, org_id, _profile(payload), REVISION)
+        await describe_run(
+            store, line_id=created.id, line_label=line.label, user_id=engineer.id,
+            org_id=org_id, rows=rows, profile=_profile(payload), profile_json=payload,
         )
         made.append((created.id, line.label, AMS1117.mpn))
 
     for label, regulator, load_part, ambient, ambient_source in UNAFFECTED:
         created = await store.create_line(engineer.id, org_id, label)
-        await store.save_bom_rows(
-            created.id, engineer.id, org_id, bom_for(regulator, load_part)
-        )
-        await store.save_profile(
-            created.id,
-            org_id,
-            _profile(profile_for(LINE_A, ambient=ambient, ambient_source=ambient_source)),
-            REVISION,
+        rows = bom_for(regulator, load_part)
+        payload = profile_for(LINE_A, ambient=ambient, ambient_source=ambient_source)
+        await store.save_bom_rows(created.id, engineer.id, org_id, rows)
+        await store.save_profile(created.id, org_id, _profile(payload), REVISION)
+        await describe_run(
+            store, line_id=created.id, line_label=label, user_id=engineer.id,
+            org_id=org_id, rows=rows, profile=_profile(payload), profile_json=payload,
         )
         made.append((created.id, label, regulator.mpn))
 
@@ -301,6 +300,114 @@ def _profile(payload: dict):
     from continuity.profile import OperatingProfile
 
     return OperatingProfile.from_json(payload)
+
+
+PART_BY_MPN = {part.mpn: part for part in EVERY_PART}
+
+
+async def describe_run(
+    store: Store,
+    *,
+    line_id: str,
+    line_label: str,
+    user_id: str,
+    org_id: str,
+    rows: list[dict],
+    profile,
+    profile_json: dict,
+) -> str:
+    """Record the run in which this product line was described, and check it.
+
+    **This is not a synthesised design.** A product that already ships did not arrive by
+    asking a model what to build: somebody entered its bill of materials and its operating
+    profile, and the engine checked the board that describes. That is what this writes, and
+    it is what `RUNNER.md` step 2 says the way in is. Seeding a *synthesis* would be
+    inventing work that never happened; seeding this is recording work the seed is doing.
+
+    Everything in it is real. The parts are the company's own recorded readings, the rails
+    come from the stored profile, and every check is `rules.evaluate` on the board those two
+    make — the same call `/lines/{id}/check` makes when the page opens.
+
+    It exists because `/design/:lineId` had nothing to show for a shipping product and asked
+    *"What are you building?"* about one that had been built.
+    """
+    from continuity.api import events as events_module
+    from continuity.engine import rules
+    from continuity.linegraph import graph_from
+    from continuity.profile import board_from
+
+    thread_id = uuid4().hex[:12]
+    await store.create_thread(
+        thread_id, line_id, user_id, org_id, f"{line_label}, as it ships."
+    )
+
+    specs = {row["mpn"]: PART_BY_MPN[row["mpn"]] for row in rows if row["mpn"] in PART_BY_MPN}
+    board = board_from(profile, rows, specs)
+    verdicts = rules.evaluate(board)
+    drawn = graph_from(profile_json, rows).to_json()
+
+    stream = events_module.EventStream(thread_id)
+    frames: list[dict] = []
+
+    def say(text: str, slot: str | None = None) -> None:
+        frames.append(stream.reasoning(slot, text))
+
+    say(f"{line_label} is described by its bill of materials and its operating profile.")
+
+    # The picture, in the frames the client already knows how to draw. `pinned` is true of
+    # every one of them: these parts were given, not chosen.
+    plan = stream._event(
+        "plan",
+        slots=[
+            {"id": slot["id"], "label": slot["label"], "tier": slot["tier"], "pinned": True}
+            for slot in drawn["slots"]
+        ],
+        edges=drawn["edges"],
+    )
+    supply = drawn.get("supply")
+    if supply is not None:
+        plan["supply"] = supply
+    frames.append(plan)
+
+    rails = ", ".join(
+        f"{rail_id.upper()} at {rail.voltage} V" for rail_id, rail in board.rails.items()
+    )
+    say(f"Rails: {rails}." if rails else "No rails are stated for this product line.")
+
+    for row in rows:
+        part = specs.get(row["mpn"])
+        if part is None:
+            say(f"{row['refdes'].upper()} is {row['mpn']}, which nothing here can resolve.")
+            continue
+        frames.append(stream.candidate(row["refdes"], part))
+        frames.append(stream.selection(row["refdes"], part))
+        say(f"{row['refdes'].upper()} is {part.mpn}, {part.manufacturer}.", row["refdes"])
+
+    for verdict in verdicts:
+        frames.append(stream.check(verdict))
+
+    failed = [verdict for verdict in rules.blocking(verdicts)]
+    say(
+        f"{len(verdicts)} checks under {board.requirements.ambient_c} °C ambient. "
+        + (f"{len(failed)} failed." if failed else "Nothing failed.")
+    )
+
+    bom_rows = [events_module.bom_row(row["refdes"], specs[row["mpn"]]) for row in rows
+                if row["mpn"] in specs]
+    done = stream.done(
+        slots=len(drawn["slots"]),
+        conflicts_resolved=0,
+        elapsed_s=0.0,
+        placed=len(bom_rows),
+    )
+    summary = done["summary"]
+    frames.append(done)
+
+    await store.save_run_events(thread_id, frames)
+    await store.save_bom(thread_id, bom_rows)
+    await store.save_summary(thread_id, summary)
+    await store.save_progress(thread_id, frames[-1]["seq"], "done")
+    return thread_id
 
 
 async def main() -> None:

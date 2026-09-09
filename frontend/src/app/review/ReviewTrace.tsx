@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { ReasoningLine } from '../design/ReasoningLine'
-import type { LineCheck, LineNotice, LineRequest } from '../lib/api'
+import type { LineCheck, LineRequest } from '../lib/api'
 import type { EventStatus } from '../lib/types'
 import type { LineReview, TraceItem } from './useLineReview'
 
@@ -85,25 +85,23 @@ function Verdict({ review }: { review: LineReview }) {
  * **It is a pane, not a popover, so it does not close.** It briefly had a CLOSE button,
  * which made the workspace's left third vanish and took the board toggle with it — a
  * control that removes a third of the screen and part of another is not a control anybody
- * wants. What is coming for this product goes at the top of it, because the notice is the
- * reason to run anything and it belongs in the pane a reader is already in rather than in a
- * banner across the page.
+ * wants.
+ *
+ * What is coming for this product is **not** here. It was, briefly, and it was wrong for the
+ * same reason the banner above the page was: an end-of-life notice is this board's conflict,
+ * and a conflict opens in the drawer on the right. See `NoticePanel`.
  */
 export function ReviewTrace({
   review,
   check,
-  notices,
   requests,
-  onStart,
-  onOpenNotice,
+  onOpenRequest,
 }: {
   review: LineReview
   /** What the engine found on this product line as it stands, from the per-visit check. */
   check: LineCheck | null
-  notices: LineNotice[]
   requests: LineRequest[]
-  onStart: (notice: LineNotice) => void
-  onOpenNotice: (noticeId: string) => void
+  onOpenRequest: (request: LineRequest) => void
 }) {
   const tail = useRef<HTMLDivElement | null>(null)
 
@@ -113,13 +111,20 @@ export function ReviewTrace({
     }
   }, [review.trace.length, review.question, review.applied])
 
-  const idle = review.status === 'idle'
+  // Not `status === 'idle'`: a replayed review reaches `done` the moment the page loads, and
+  // the change request is exactly what a finished one should offer. What must not show it is
+  // a run in flight.
+  const idle = review.status !== 'running'
+  // Nothing has been said about this board yet — no live run and no stored one replayed.
+  // The check is the resting statement in that case and is displaced by a trace, which is
+  // the better account of the same board.
+  const empty = review.trace.length === 0
   const failing = Object.entries(check?.slots ?? {}).filter(
     ([, slot]) => slot.status === 'conflict',
   )
 
   return (
-    <aside className="w-[400px] flex-shrink-0 flex flex-col min-h-0 panel-border rounded-lg overflow-hidden bg-surface-container-low">
+    <aside className="w-1/4 min-w-[280px] max-w-[400px] flex-shrink-0 flex flex-col min-h-0 panel-border rounded-lg overflow-hidden bg-surface-container-low">
       <header className="h-10 px-md flex items-center justify-between gap-sm border-b border-outline-variant bg-surface-container-high flex-shrink-0">
         <h2 className="font-label-caps text-label-caps uppercase text-on-surface-variant">
           THE REVIEW
@@ -128,46 +133,6 @@ export function ReviewTrace({
       </header>
 
       <div className="flex-1 overflow-y-auto p-sm flex flex-col gap-xs bg-[#0B0C0E]">
-        {/* What is coming for this product, and the only button that matters on this page. */}
-        {notices.map((notice) => (
-          <div
-            className="flex-shrink-0 border border-error/60 bg-error-container/10 rounded p-sm space-y-sm"
-            key={notice.id}
-          >
-            <div>
-              <p className="font-data-tabular text-[11px] text-error leading-relaxed">
-                {notice.mpn} at {notice.refdes.join(', ').toUpperCase()} is end of life
-                {notice.effective_date ? ` · last order ${notice.effective_date}` : ''}
-              </p>
-              <p className="font-data-tabular text-[10px] text-on-surface-variant mt-1 leading-relaxed">
-                {notice.manufacturer ?? 'manufacturer not stated'}
-                {notice.replacement_mpn ? ` recommends ${notice.replacement_mpn}` : ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-sm">
-              <button
-                className="h-7 px-md border border-primary-container rounded font-data-tabular text-[10px] text-primary-container hover:bg-surface-variant transition-colors disabled:opacity-40"
-                disabled={review.status === 'running'}
-                onClick={() => onStart(notice)}
-                type="button"
-              >
-                {review.status === 'running'
-                  ? 'RUNNING…'
-                  : review.trace.length > 0
-                    ? 'REVIEW AGAIN'
-                    : 'REVIEW THIS LINE'}
-              </button>
-              <button
-                className="h-7 px-md border border-outline-variant rounded font-data-tabular text-[10px] text-on-surface-variant hover:bg-surface-variant transition-colors"
-                onClick={() => onOpenNotice(notice.id)}
-                type="button"
-              >
-                THE NOTICE
-              </button>
-            </div>
-          </div>
-        ))}
-
         {/* What the engine found on this product as it stands.
             
             Two jobs. It gives the green picture a number a reader can hold — the colour is
@@ -179,24 +144,34 @@ export function ReviewTrace({
             Note what is deliberately *not* here: what could not be checked. Coverage
             honesty belongs in the change request, where somebody is deciding whether to
             sign. See BUILD.md's second governing rule. */}
-        {idle && check ? (
-          failing.length > 0 ? (
-            failing.map(([refdes, slot]) => (
+        {empty && check ? (
+          <>
+            {/* Scoped, because *nothing failed* beside a part the graph has painted red
+                reads as a contradiction. It is not one: a notice is a manufacturer saying a
+                part is going away, and no rule has failed on the board as it stands today.
+                Two different statements about two different moments, and the heading is
+                what keeps them apart. */}
+            <h3 className="font-data-tabular text-[10px] text-on-surface-variant/70 px-sm pt-1 uppercase">
+              The engine, on the parts fitted today
+            </h3>
+            {failing.length > 0 ? (
+              failing.map(([refdes, slot]) => (
+                <ReasoningLine
+                  detail={slot.detail ?? undefined}
+                  icon="cancel"
+                  iconClassName="text-error"
+                  key={refdes}
+                  text={`${refdes.toUpperCase()} fails a check on this product line`}
+                />
+              ))
+            ) : (
               <ReasoningLine
-                detail={slot.detail ?? undefined}
-                icon="cancel"
-                iconClassName="text-error"
-                key={refdes}
-                text={`${refdes.toUpperCase()} fails a check on this product line`}
+                icon="check_circle"
+                iconClassName="text-[#4ade80]"
+                text={`${check.checked} checks, nothing failed`}
               />
-            ))
-          ) : (
-            <ReasoningLine
-              icon="check_circle"
-              iconClassName="text-[#4ade80]"
-              text={`${check.checked} checks, nothing failed`}
-            />
-          )
+            )}
+          </>
         ) : null}
 
         {review.trace.map((item, index) => {
@@ -282,25 +257,28 @@ export function ReviewTrace({
           <p className="font-data-tabular text-[11px] text-error px-sm py-2">{review.error}</p>
         ) : null}
 
-        {/* What has already been decided here, when nothing is running. Stored, and until
-            now written by every review and read by nothing. */}
+        {/* The change request, at the end of the trace rather than in place of it.
+            
+            The trace above is *how* this board reached its answer, and it is what somebody
+            on this product wants. The change request is the **document** — cost, approvals,
+            the board consequence, and the two coverage admissions — and it is what somebody
+            signing wants. `/changes` already lists it for every affected line, so putting it
+            here as the answer to clicking a notice made the page a second copy of that. One
+            line, reachable, not in the way. */}
         {idle && requests.length > 0 ? (
-          <div className="flex-shrink-0 mt-sm space-y-1">
-            <h3 className="font-data-tabular text-[10px] text-on-surface-variant/70 px-sm uppercase">
-              Already decided here
-            </h3>
+          <div className="flex-shrink-0 mt-sm border-t border-outline-variant/40 pt-sm">
             {requests.map((request) => (
               <button
-                className="w-full text-left px-sm py-1 rounded hover:bg-surface-variant/50 transition-colors"
+                className="w-full text-left px-sm py-1 rounded hover:bg-surface-variant/50 transition-colors flex items-center gap-sm"
                 key={request.id}
-                onClick={() => request.notice_id && onOpenNotice(request.notice_id)}
+                onClick={() => onOpenRequest(request)}
                 type="button"
               >
-                <span className="font-data-tabular text-[11px] text-on-surface">
-                  {request.proposal ?? 'no viable part'}
+                <span className="material-symbols-outlined text-[14px] text-on-surface-variant">
+                  description
                 </span>
-                <span className="block font-data-tabular text-[10px] text-on-surface-variant">
-                  {new Date(request.created_at).toLocaleDateString()}
+                <span className="font-data-tabular text-[11px] text-on-surface-variant">
+                  Change request · {request.proposal ?? 'no viable part'}
                 </span>
               </button>
             ))}

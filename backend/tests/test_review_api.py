@@ -663,3 +663,60 @@ def test_narrowing_to_a_line_the_notice_does_not_reach_is_refused():
 
     assert response.status_code == 409
     assert "this product line" in response.json()["detail"]
+
+
+# ── a finished review, read back ──────────────────────────────────────────────
+
+
+def test_a_finished_review_can_be_replayed_from_what_it_recorded():
+    """A design run is replayable and a review was not.
+
+    Every frame a design run emits is stored; a review streamed its reasoning and kept only
+    its conclusions, so reopening the product line afterwards showed a part number and a
+    date. `decisions.document` already holds every candidate and the sentence that settled
+    it — this is the same account, in the frames the client renders.
+    """
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                await frames_of(http, notice_id)
+                gateway = next(
+                    row for row in await store.decisions_for_notice(notice_id, me["org_id"])
+                    if row["line_name"] == "Gateway"
+                )
+                line_id = gateway["line_id"]
+                return (await http.get(f"/lines/{line_id}/reviews")).json()
+
+    reviews = run(go())
+
+    assert len(reviews) == 1
+    frames = reviews[0]["frames"]
+    said = [frame["text"] for frame in frames if frame["type"] == "reasoning"]
+    checks = [frame for frame in frames if frame["type"] == "check"]
+
+    assert said[0] == f"{AMS1117.mpn} is going end of life."
+    assert any("sits at U1" in line for line in said)
+    # The candidate that lost, with the sentence that killed it, is the whole point.
+    assert any(NCP1117.mpn in line for line in said)
+    assert checks, "the winner's verdicts travel with the trace"
+    assert all(check["status"] for check in checks)
+
+    # A finished run ends with its answer. Without this frame the replay reached `done`
+    # carrying no proposal, and a board that shipped rendered as NO VIABLE PART.
+    ending = frames[-1]
+    assert ending["type"] == "line_done"
+    assert ending["proposal"] == reviews[0]["proposal"]
+    assert ending["reason"]
+    # The incumbent is a baseline, not something the run considered fitting.
+    assert not any(line == f"Trying {AMS1117.mpn}." for line in said)
+
+
+def test_a_line_that_has_never_been_reviewed_replays_nothing():
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, _notice_id):
+                spare = (await http.post("/lines", json={"name": "Never reviewed"})).json()
+                return (await http.get(f"/lines/{spare['id']}/reviews")).json()
+
+    assert run(go()) == []

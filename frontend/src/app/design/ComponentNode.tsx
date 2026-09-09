@@ -15,6 +15,8 @@ type ComponentNodeProps = {
   stockBadge?: string | null
   categoryEmphasis?: boolean
   reveal?: boolean
+  selected?: boolean
+  onSelect?: () => void
 }
 
 function truncate(text: string, max: number) {
@@ -86,6 +88,8 @@ export function ComponentNode({
   stockBadge,
   categoryEmphasis,
   reveal = false,
+  selected = false,
+  onSelect,
 }: ComponentNodeProps) {
   const dot = statusDot(status)
   const showMpn = Boolean(mpn) && (status === 'pass' || status === 'conflict')
@@ -95,8 +99,26 @@ export function ComponentNode({
 
   return (
     <g className={reveal ? 'graph-node-reveal' : undefined}>
-      <g className="cursor-pointer group" transform={`translate(${x}, ${y})`}>
-        <rect className={nodeClassName(status, conflictVariant)} height={height} rx="6" width={width}></rect>
+      <g
+        aria-label={`${title}${mpn ? ` ${mpn}` : ''}`}
+        className="cursor-pointer group"
+        onClick={onSelect}
+        onKeyDown={(event) => {
+          if (onSelect && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault()
+            onSelect()
+          }
+        }}
+        role={onSelect ? 'button' : undefined}
+        tabIndex={onSelect ? 0 : undefined}
+        transform={`translate(${x}, ${y})`}
+      >
+        <rect
+          className={`${nodeClassName(status, conflictVariant)}${selected ? ' node-selected' : ''}`}
+          height={height}
+          rx="6"
+          width={width}
+        ></rect>
 
         <text className="node-text-title" x="10" y="14">
           {truncate(title, 18)}

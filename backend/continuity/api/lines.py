@@ -15,6 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
 
+from . import replay
 from . import review as review_api
 from .auth import current_user, store_of
 from .store import Line, Thread, User
@@ -193,6 +194,52 @@ async def check(
         "not_assessed": sorted({v.rule for v in verdicts if v.status == "not_assessed"}),
         "evidence_missing": sorted({v.rule for v in verdicts if v.status == "evidence_missing"}),
     }
+
+
+@router.get("/{line_id}/reviews")
+async def reviews(
+    line_id: str, request: Request, user: User = Depends(current_user)
+) -> list[dict[str, Any]]:
+    """Every review this product line has been through, with its trace.
+
+    **Reopening a product line shows the working, not just the answer.** A design run is
+    replayable because every frame it emitted is stored; a review kept only its conclusions,
+    so a line that had been reviewed showed a part number and a date. `api/replay` rebuilds
+    the trace out of `decisions.document`, which the run already wrote — nothing new is
+    stored and nothing is invented. See that module for the one line it cannot reproduce.
+
+    Separate from `/overview` for the reason `/check` is: the overview promises to render
+    instantly, and this is a join and an assembly per decision.
+    """
+    store = store_of(request)
+    line = await store.line_for_user(line_id, user.org_id)
+    if line is None:
+        raise HTTPException(404, "no such line")
+
+    decisions = await store.decisions_for_line(line_id, user.org_id)
+    notices = {
+        notice["id"]: notice
+        for notice in await store.notices_for_org(user.org_id)
+    }
+    out: list[dict[str, Any]] = []
+    for decision in decisions:
+        notice = notices.get(decision["notice_id"])
+        if notice is None:
+            # A decision whose notice has been deleted has no trace to tell: the frames
+            # open with what is retiring and why, and both come from the notice.
+            continue
+        out.append(
+            {
+                "decision_id": decision["id"],
+                "notice_id": decision["notice_id"],
+                "state": decision["state"],
+                "proposal": decision["proposal"],
+                "retiring": decision["retiring"],
+                "created_at": decision["created_at"].isoformat(),
+                "frames": replay.frames_from(notice, decision),
+            }
+        )
+    return out
 
 
 @router.get("/{line_id}/overview")

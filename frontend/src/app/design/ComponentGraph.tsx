@@ -3,9 +3,6 @@ import { ComponentNode } from './ComponentNode'
 import type { PositionedNode } from './ComponentGraph.shared'
 import {
   SUPPLY_NODE_ID,
-  TIER_ORDER,
-  VIEW_HEIGHT,
-  VIEW_WIDTH,
   buildGraphLayout,
   clamp,
   cubicPoint,
@@ -33,6 +30,10 @@ type ActiveRepair = {
 
 type ComponentGraphProps = {
   slots: GraphSlot[]
+  /** A control for this pane, in its own header. The workspace's grammar puts a pane's
+   *  controls in the pane's header, and the product line page needs one there to swap this
+   *  picture for the board itself. */
+  action?: React.ReactNode
   animateEdges: boolean
   revealedSlotIds: ReadonlySet<string>
   animatedSlotIds: ReadonlySet<string>
@@ -50,6 +51,9 @@ type ComponentGraphProps = {
   onReleaseRepairHold: (slot: string) => void
   /** The board input. Absent on runs recorded before it was part of the contract. */
   supply?: SupplyNode | null
+  /** Product-line views use this to keep the graph and stored bill focused on one part. */
+  selectedSlotId?: string | null
+  onSelectSlot?: (slotId: string) => void
 }
 
 function nodeMpn(slot: GraphSlot) {
@@ -117,9 +121,21 @@ export function ComponentGraph({
   slotConflictVariant,
   onReleaseRepairHold,
   supply = null,
+  action = null,
+  selectedSlotId = null,
+  onSelectSlot,
 }: ComponentGraphProps) {
-  const { positionedNodes, nodesById, nodeBandTop, columnWidth, left, supply: fullBar } =
-    buildGraphLayout(slots, Boolean(supply))
+  const {
+    positionedNodes,
+    nodesById,
+    nodeBandTop,
+    columnWidth,
+    left,
+    supply: fullBar,
+    width: viewWidth,
+    height: viewHeight,
+    tiers,
+  } = buildGraphLayout(slots, Boolean(supply))
 
   // The bus grows with the board rather than reaching its full height immediately: during
   // the one-at-a-time reveal a full-length bar next to a single node reads as a bar to
@@ -134,12 +150,13 @@ export function ComponentGraph({
   const showSupply = supply !== null && supplyBar !== null
 
   return (
-    <section className="flex-1 flex flex-col panel-border rounded-lg overflow-hidden min-w-[400px]" data-tour="graph">
+    <section className="flex-1 min-w-0 flex flex-col panel-border rounded-lg overflow-hidden" data-tour="graph">
       <header className="h-10 px-md flex items-center justify-between border-b border-outline-variant bg-surface-container-high flex-shrink-0 z-10">
         <div className="flex items-center gap-sm text-on-surface">
           <span className="material-symbols-outlined text-[16px]">account_tree</span>
           <h2 className="font-headline-sm text-[14px] font-semibold tracking-wide">Component Logic Graph</h2>
         </div>
+        {action}
       </header>
 
       <RepairCallout onRelease={onReleaseRepairHold} repair={activeRepair} />
@@ -150,8 +167,7 @@ export function ComponentGraph({
           no number reaches the screen without a source. `cursor-move` went with them: it
           promised a drag that was never implemented. Removed rather than wired, because
           zoom and pan are a feature that does not exist yet, not a disconnected handler. */}
-      <div className="flex-1 bg-grid relative overflow-hidden">
-
+      <div className="flex-1 min-h-0 bg-grid relative overflow-hidden">
         <div className="absolute top-sm right-sm bg-[#16181D] border border-outline-variant rounded p-sm flex flex-col gap-1 z-10 shadow-lg">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-pill bg-[#4ade80]"></span>
@@ -167,18 +183,14 @@ export function ComponentGraph({
           </div>
         </div>
 
-        {/* `meet`, never `none`. `none` stretches the 900×820 layout to whatever box it
-            is given, so the landing hero — 642×388 — scaled x by 0.71 and y by 0.47 and
-            drew the whole board at two thirds of its proper height: flattened nodes,
-            squashed text, edges leaving at the wrong angles. Fitting without distortion
-            costs a little letterboxing when the container's aspect differs, which is the
-            right trade for a graph whose geometry is the product. */}
         <svg
-          className="w-full h-full absolute inset-0"
+          className="block w-full h-full"
+          height="100%"
           preserveAspectRatio="xMidYMid meet"
-          viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+          viewBox={`0 0 ${viewWidth} ${viewHeight}`}
+          width="100%"
         >
-          {TIER_ORDER.slice(1).map((_, index) => {
+          {tiers.slice(1).map((_, index) => {
             const x = left + (index + 1) * columnWidth
             return (
               <line
@@ -187,12 +199,12 @@ export function ComponentGraph({
                 x1={x}
                 x2={x}
                 y1="0"
-                y2={VIEW_HEIGHT}
+                y2={viewHeight}
               ></line>
             )
           })}
 
-          {TIER_ORDER.map((tier, index) => {
+          {tiers.map((tier, index) => {
             const x = left + index * columnWidth + columnWidth / 2
             return (
               <text
@@ -293,13 +305,13 @@ export function ComponentGraph({
                   (conflict.edge === edge.id || conflict.edge === edge.label)))
 
             const labelCenterX = labelText
-              ? clamp(mid.x, 12 + labelWidth / 2, VIEW_WIDTH - 12 - labelWidth / 2)
+              ? clamp(mid.x, 12 + labelWidth / 2, viewWidth - 12 - labelWidth / 2)
               : null
             const labelY = mid.y - 10 + laneOffset
             const badgeText = isConflictEdge ? '⚠' : null
             const badgeWidth = 24
             const badgeHeight = 14
-            const badgeCenterX = clamp(mid.x, 12 + badgeWidth / 2, VIEW_WIDTH - 12 - badgeWidth / 2)
+            const badgeCenterX = clamp(mid.x, 12 + badgeWidth / 2, viewWidth - 12 - badgeWidth / 2)
             const badgeY = resolveBadgeY(mid.y + 24 + laneOffset, badgeCenterX, badgeWidth, badgeHeight, positionedNodes)
 
             return (
@@ -363,10 +375,12 @@ export function ComponentGraph({
               status={node.slot.status}
               stockBadge={availabilityBadge(node.slot, conflict)}
               subtitle={nodeSubtitle(node.slot)}
+              selected={node.slot.id === selectedSlotId}
               title={node.slot.label.toUpperCase()}
               width={node.width}
               x={node.x}
               y={node.y}
+              onSelect={onSelectSlot ? () => onSelectSlot(node.slot.id) : undefined}
             />
             ))}
         </svg>

@@ -11,13 +11,27 @@ export type PositionedNode = {
 }
 
 export const TIER_ORDER: Array<Slot['tier']> = ['power', 'core', 'peripherals', 'passives']
+
+/** The widest and tallest this diagram is ever drawn, which is the four-tier board it was
+ *  laid out for. Both are ceilings now rather than the size: see `buildGraphLayout`. */
 export const VIEW_WIDTH = 900
 export const VIEW_HEIGHT = 820
+
 export const GRAPH_LEFT = 24
 const TOP = 24
 const BOTTOM = 28
 const NODE_WIDTH = 152
 const NODE_HEIGHT = 58
+
+/** One tier's column, at the width four of them plus the supply gutter came to. */
+const COLUMN_WIDTH = 195
+
+/** Vertical room per part.
+ *
+ *  Rows are spaced `contentHeight / (rows + 1)`, so the content box is sized from the pitch
+ *  rather than the other way round. A three-part product line laid out in the full 820 put
+ *  three nodes at 25%, 50% and 75% of it and left the rest empty. */
+const ROW_PITCH = 120
 
 /** Matches `topology.SUPPLY_NODE_ID`. Power edges out of the board input point at it. */
 export const SUPPLY_NODE_ID = '__supply'
@@ -88,10 +102,11 @@ export function resolveBadgeY(
   width: number,
   height: number,
   nodes: PositionedNode[],
+  viewHeight: number = VIEW_HEIGHT,
 ) {
   const candidates = [0, -26, 26, -52, 52, -78, 78]
   const minY = 12 + height / 2
-  const maxY = VIEW_HEIGHT - 12 - height / 2
+  const maxY = viewHeight - 12 - height / 2
 
   for (const offset of candidates) {
     const y = clamp(preferredY + offset, minY, maxY)
@@ -110,16 +125,34 @@ export function tierLabel(tier: Slot['tier']) {
   return 'PASSIVES'
 }
 
+/**
+ * Where every node sits, and how big the picture has to be to hold them.
+ *
+ * **The size comes from the content.** It used to be a constant 900 × 820 whatever was on
+ * the board, which is right for the eight-part design run it was laid out for and wrong for
+ * a three-part product line: an entirely empty PERIPHERALS column taking a quarter of the
+ * width, and three nodes spread down 820 pixels because the rows divide whatever height
+ * they are given. A tier with nothing in it is not drawn, and the height follows the number
+ * of rows up to the same ceiling as before — so a full design board is laid out exactly as
+ * it always was, and a small board is drawn small instead of drawn sparse.
+ */
 export function buildGraphLayout(slots: GraphSlot[], hasSupply = false) {
   const slotGroups = TIER_ORDER.map((tier) => ({
     tier,
     slots: slots.filter((slot) => slot.tier === tier),
-  }))
+  })).filter((group) => group.slots.length > 0)
 
   const left = hasSupply ? SUPPLY_GUTTER : GRAPH_LEFT
-  const columnWidth = (VIEW_WIDTH - left - GRAPH_LEFT) / 4
+  const columnWidth = COLUMN_WIDTH
+  const width = left + Math.max(slotGroups.length, 1) * columnWidth + GRAPH_LEFT
   const contentTop = TOP + 34
-  const contentHeight = VIEW_HEIGHT - contentTop - BOTTOM
+  const rows = Math.max(slots.length, 1)
+  const contentHeight = clamp(
+    (rows + 1) * ROW_PITCH,
+    ROW_PITCH * 3,
+    VIEW_HEIGHT - contentTop - BOTTOM,
+  )
+  const height = contentTop + contentHeight + BOTTOM
   const orderedSlots = slotGroups.flatMap((group) => group.slots)
   const rowIndexBySlotId = new Map(orderedSlots.map((slot, index) => [slot.id, index]))
   const rowCount = Math.max(orderedSlots.length, 1)
@@ -171,5 +204,9 @@ export function buildGraphLayout(slots: GraphSlot[], hasSupply = false) {
     columnWidth,
     left,
     supply,
+    width,
+    height,
+    /** The tiers actually drawn, in order, so the caller can label the columns it has. */
+    tiers: slotGroups.map((group) => group.tier),
   }
 }

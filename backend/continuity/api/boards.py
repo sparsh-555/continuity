@@ -22,9 +22,11 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import hashlib
 import logging
 import shutil
 import tempfile
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +37,7 @@ from .auth import current_user, store_of
 from .store import User
 from ..kicad import board as board_module
 from ..kicad import bom as bom_module
-from ..kicad import catalogue, project, runner
+from ..kicad import catalogue, project, render as render_module, runner
 
 log = logging.getLogger(__name__)
 
@@ -309,6 +311,130 @@ def _consequence(raw: bytes, retiring: str, candidate: str) -> dict[str, Any]:
         raise HTTPException(502, "KiCad could not complete that substitution") from error
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
+
+
+_DRAWN: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+_DRAWN_LIMIT = 12
+"""Boards already drawn, by content.
+
+A render is three KiCad invocations — export the picture, export the schematic bill, inspect
+the placements — and about three seconds on this machine. The answer is a pure function of
+the stored project and the part being pointed at, and a stored project does not change
+between two presses of the same button, so the second press has nothing to recompute. It was
+three seconds every time, which on a toggle reads as broken rather than slow.
+
+Keyed on the bundle's digest rather than the line id: replacing a board changes the digest,
+and two product lines that somehow carried the same file would share the work.
+"""
+
+
+def _drawn(key: str) -> dict[str, Any] | None:
+    found = _DRAWN.get(key)
+    if found is not None:
+        _DRAWN.move_to_end(key)
+    return found
+
+
+def _remember(key: str, picture: dict[str, Any]) -> dict[str, Any]:
+    _DRAWN[key] = picture
+    while len(_DRAWN) > _DRAWN_LIMIT:
+        _DRAWN.popitem(last=False)
+    return picture
+
+
+CONTENT_MARGIN_MM = 8.0
+"""Room around the outermost footprint, so the board's edge is not flush with the frame."""
+
+
+def _extent(placements: Any) -> "render_module.Crop | None":
+    """The rectangle the placed footprints occupy, in board millimetres.
+
+    A footprint's origin rather than its outline, which under-reads the true edge by a
+    pad or two — that is what the margin is for. Reading the real board outline means
+    parsing `Edge.Cuts` out of the SVG, and a picture that is eight millimetres generous
+    is not worth a parser that can be wrong.
+    """
+    points = [(one.x_mm, one.y_mm) for one in placements]
+    if not points:
+        return None
+    xs = [x for x, _ in points]
+    ys = [y for _, y in points]
+    return render_module.Crop(
+        x=min(xs) - CONTENT_MARGIN_MM,
+        y=min(ys) - CONTENT_MARGIN_MM,
+        width=(max(xs) - min(xs)) + CONTENT_MARGIN_MM * 2,
+        height=(max(ys) - min(ys)) + CONTENT_MARGIN_MM * 2,
+    )
+
+
+def _render(raw: bytes, mark: str | None) -> dict[str, Any]:
+    """The board as it is, and where one part sits on it.
+
+    Separate from `_consequence` because it answers a question that does not involve a
+    substitute: *show me the board*. Before a review has proposed anything there is nothing
+    to place, and a picture of the product's actual PCB is a real answer where a disabled
+    control is not.
+
+    `mark` is a part number to locate — the retiring one, normally. It is optional and its
+    absence is not an error: a product line with no notice against it still has a board.
+    """
+    kicad = _needs_kicad()
+    workdir = Path(tempfile.mkdtemp(prefix="continuity-kicad-"))
+    try:
+        found = _unpacked(raw, workdir)
+        picture = render_module.svg(
+            kicad, workdir=found.root, board=found.board_name, out="kicad-board.svg"
+        )
+        # Always, because the picture is otherwise unusable. KiCad is asked for the *page*
+        # rather than the board — deliberately, so a before and an after share coordinates —
+        # and a 46 mm board on a 297 mm page is a stamp in the middle of a black rectangle.
+        # The footprints are where the board is, so their extent is what to look at.
+        placed = board_module.placements(found, kicad)
+        content = _extent(placed.values()) or render_module.Crop(
+            x=0.0, y=0.0, width=picture.width_mm, height=picture.height_mm
+        )
+
+        crop: str | None = None
+        refdes: str | None = None
+        if mark:
+            carrying = bom_module.read(found, kicad).carrying(mark)
+            if carrying:
+                one = placed.get(carrying[0].refdes)
+                if one is not None:
+                    refdes = one.refdes
+                    crop = render_module.around(one.x_mm, one.y_mm).view_box
+        return {
+            "svg": picture.svg,
+            "page": {"width": picture.width_mm, "height": picture.height_mm},
+            "content": content.view_box,
+            "marked": refdes,
+            "crop": crop,
+        }
+    except runner.KicadFailed as error:
+        log.warning("kicad could not render a board: %s", error)
+        raise HTTPException(502, "KiCad could not render that board") from error
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+@router.get("/{line_id}/board/render")
+async def board_render(
+    line_id: str,
+    request: Request,
+    mark: str | None = None,
+    user: User = Depends(current_user),
+) -> dict[str, Any]:
+    """A picture of this product line's board, with one part located on it."""
+    await _owned(request, line_id, user.org_id)
+    stored = await store_of(request).board_bundle(line_id, user.org_id)
+    if stored is None:
+        raise HTTPException(404, "no board is stored for that line")
+    _needs_kicad()
+    key = f"{hashlib.sha256(stored[1]).hexdigest()}:{mark or ''}"
+    already = _drawn(key)
+    if already is not None:
+        return already
+    return _remember(key, await asyncio.to_thread(_render, stored[1], mark))
 
 
 @router.post("/{line_id}/board/consequence")

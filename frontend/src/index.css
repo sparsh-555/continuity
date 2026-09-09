@@ -126,6 +126,11 @@
     stroke-dasharray: 4 3;
   }
 
+  .node-selected {
+    @apply stroke-[3px];
+    filter: drop-shadow(0 0 6px rgba(242, 162, 92, 0.45));
+  }
+
   .edge {
     @apply stroke-outline-variant stroke-2 fill-none;
   }

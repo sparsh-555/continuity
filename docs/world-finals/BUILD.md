@@ -1008,6 +1008,43 @@ synthesis run that never happened.
 It is `change_circle`: a notice arrives, a request is written, a change is applied, and the
 envelope described only the first third.
 
+### What the second pass changed, and why the first was wrong
+
+Repurposing the design page meant *using its components in its grammar*, and the first two
+attempts used its components in a layout of my own. Sparsh's words: **"You are literally
+redesigning a good UI component and making it shittier in the process."** He was right.
+
+- **The notice is a conflict, so it opens where a conflict opens.** `design/ConflictPanel`
+  replaces `design/BomTable` on the right when a board has something wrong with it. An
+  end-of-life notice against a product line is exactly that, so it opens there —
+  `review/NoticePanel` — with **REVIEW THIS LINE** inside it and a header button that reads
+  `End of life (n)`, beside the same status chip the design workspace carries. It had been a
+  banner across the page and then a block at the top of the trace, and both were a third
+  place for something this application already has a place for.
+- **A past decision opens in that same drawer.** `RequestCard` moved out of
+  `routes/changes.tsx` into `review/RequestCard.tsx` and both surfaces render the one
+  component. The reasoning that changed *this* product belongs on this product: proposal,
+  every rejection with the sentence that killed it, evidence, the board consequence, cost,
+  and the desks that signed — without leaving the page.
+- **The bill of materials is `design/BomTable`'s table**, sticky head, zebra rows, and the
+  conflict row lit red with the part it is about. The two panes used to disagree: a part red
+  on the graph was an ordinary row in the bill.
+- **The board toggle is always there** once a project is attached, in the middle pane's own
+  header. It used to appear only when a live review had a candidate and vanish on reload,
+  so *show me the board* was answerable for about a minute a day. `GET /lines/{id}/board/render`
+  draws the board as it is; with a candidate — from a run or from an earlier decision — it is
+  `BoardConsequence`'s before and after.
+- **REPLACE BOARD and the BOARD panel are gone.** A project arrives with the design; the row
+  menu on `/lines` already has *Attach board* for the case where it did not. The panel said
+  a filename and a byte count, which is not something anybody looks at a product to learn.
+
+**The graph is one size now.** It filled whatever box it was given, so the same three parts
+drew at 0.47× on a laptop and 1.2× on a projector. `buildGraphLayout` sizes the picture from
+its own content instead — a tier with nothing in it is not drawn, and the height follows the
+row count to the same ceiling as before — and the pane scrolls rather than shrinking. A full
+design board is laid out exactly as it always was; a three-part product line is drawn small
+instead of drawn sparse.
+
 **Verified in a browser** on the seeded world, twice end to end. Gateway: TLV1117LV33DCYR, 35
 °C spare, board clean at U1 SOT-223 → SOT-223, applied, Rev C → **Rev D**, banner gone, three
 parts green. Sensor node: NCP1117ST33T3G, 84 °C spare, applied, **Rev D**, U1 onsemi. Cabinet
@@ -1017,8 +1054,32 @@ controller: NCP1117ST33T3G, 11 °C spare. The position holds cyan for the full r
 product line**, so the page a demo opens with was painted entirely by its fallbacks. See
 `parts/dossier._FLOAT_FIELDS`.
 
-**Test** a seeded line with no thread renders the graph, the trace panel and the bill, and a
-review started from the banner finishes without leaving the page.
+**Test** a seeded line renders the graph, the trace panel and the bill, and a review started
+from the notice panel finishes without leaving the page.
+
+## 25a · Every seeded product line arrives already described — **done 9 Sep**
+
+**Files** `tools/seed_world.py`, `api/app.py`
+
+**Done when** `/design/:lineId` on a seeded product line opens a finished run rather than the
+brief screen, because a product that ships did not arrive by somebody being asked *"What are
+you building?"*.
+
+**What it records.** Not a synthesis. A product line enters Continuity by having its bill of
+materials and its operating profile entered — RUNNER step 2 — and that is the run this
+writes: the parts the company recorded, the rails the profile states, and **every check from
+`rules.evaluate` on the board those two make**, which is the same call `/lines/{id}/check`
+makes when the page opens. Seeding a synthesis would be inventing work that never happened.
+
+**The trace is the record; the checkpoint is a cache.** Restoring a run read LangGraph's
+checkpointer and gave up when it could not, even though every frame the client draws the
+board from is in `run_events` — which is how the live client draws it in the first place.
+`_board_from_frames` rebuilds slots, edges and the supply from the stored `plan` and
+`selection` frames. That is what lets the seed write a run without executing a graph, and it
+also means a run whose checkpoint was lost no longer loses its board.
+
+**Test** every seeded line has exactly one finished run of 36 frames, and its board restores
+from the frames alone with three parts, their supply and their edges.
 
 ## 26 · The seeded world ships with its boards attached — **done 9 Sep**
 
@@ -1111,7 +1172,7 @@ which made it worse.
 **Note** the name. A change notice arrives, a change request is produced, a change is applied.
 One word carries the whole vocabulary, and `/notices` describes only the first third.
 
-## 30 · Three lanes, not three columns
+## 30 · Three lanes, not three columns — **done 9 Sep**
 
 **Files** `review/ReviewColumns.tsx` → `review/ReviewLanes.tsx`
 
@@ -1126,8 +1187,51 @@ verdicts read down a column, which is the comparison worth pointing at. Any lane
 place for the product worth going deep on. It also survives five affected lines, where five
 columns would not.
 
+**What shipped.** `review/ReviewColumns.tsx` → `review/ReviewLanes.tsx`. One row per affected
+product line: the product, the newest thing that board has said, and its verdict. The
+verdicts align down a single column, which is the comparison the whole scenario exists to
+point at — NCP1117ST33T3G on one row and TLV1117LV33DCYR on the next, seen without reading
+anything. A row expands in place and the others stay as they are.
+
+**The question stays out of the fold.** A decision waiting on a desk is the one thing on
+that page nobody should have to expand a row to find, so it renders under its lane whether
+or not the trace is open.
+
+**Verified in a browser** on the seeded world: two affected lines advancing together on one
+stream, two different answers, expanding one leaving the other collapsed.
+
 **Test** three lanes advance together on one stream and end in three readable verdicts, and
 expanding one shows its full trace without collapsing the others.
+
+## 30a · A finished review can be read back — **done 9 Sep**
+
+**Files** `api/replay.py`, `api/lines.py`, `api/store.py`, `review/useLineReview.ts`
+
+**Done when** reopening a product line shows the trace of the review that changed it, in the
+left pane, the way reopening a design run shows its own.
+
+**The asymmetry this fixes.** Every frame a design run emits is written to `run_events`; a
+review streamed its reasoning to whoever was watching and kept only its conclusions. So a
+line that had been reviewed showed a part number and a date — the answer with none of the
+working — on a product whose whole claim is that a person can see why a substitution was
+chosen.
+
+**Nothing new is stored.** `decisions.document` already holds every candidate the run tried,
+the sentence that settled each, and the winner's verdicts; `api/replay.frames_from`
+reassembles the trace from it, and the frames go through the same reducer a live run goes
+through. One thing is *not* reconstructed and is not invented: each candidate's origin —
+*"recommended by the notice"*, *"found in the distributor's catalogue"* — is not stored per
+attempt, so a replayed line reads "Trying LD1117-3.3." where the live one said more.
+
+**The change request is demoted, not removed.** Clicking a notice used to open the change
+request in the drawer, which duplicated `/changes` — that page lists the same document for
+every affected line. The trace is *how* this board reached its answer and belongs in the
+left pane; the change request is the document somebody signs, and it is one line at the end
+of the trace.
+
+**Test** a line that has been reviewed replays its trace ending in `line_done` with the
+proposal it chose, and a line that has never been reviewed replays nothing.
+
 
 ---
 

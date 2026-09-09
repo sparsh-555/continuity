@@ -1460,6 +1460,26 @@ class Store:
             )
             return await cursor.fetchone()
 
+    async def decisions_for_line(self, line_id: str, org_id: str) -> list[dict[str, Any]]:
+        """Every decision recorded against this product line, newest first.
+
+        The product line page's own record of what has been reviewed here. `decisions` is
+        already the fullest account a review leaves — every candidate it tried and the
+        sentence that settled each — and nothing was reading it per line.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT d.*, p.name AS line_name
+                  FROM decisions d
+                  JOIN product_lines p ON p.id = d.line_id AND p.org_id = d.org_id
+                 WHERE d.line_id = %s AND d.org_id = %s
+              ORDER BY d.created_at DESC
+                """,
+                (line_id, org_id),
+            )
+            return await cursor.fetchall()
+
     async def decisions_for_notice(self, notice_id: str, org_id: str) -> list[dict[str, Any]]:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(

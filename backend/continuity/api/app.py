@@ -588,6 +588,52 @@ def _board_bom(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _board_from_frames(trace: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The board a run drew, rebuilt from the frames it sent.
+
+    **The trace is the record; the checkpoint is a cache.** Restoring a run reads LangGraph's
+    checkpointer, and when that cannot be read the board is gone — even though every frame
+    the client used to draw it is sitting in `run_events`, which is how the live client
+    builds the same picture in the first place. The three fallbacks above this all end in
+    *board could not be restored* for a run whose board is fully described in the database.
+
+    It is also what lets a product line arrive already described. A run recorded frame by
+    frame needs no checkpoint to be reopened, so `tools/seed_world` can write the run in
+    which a product line was entered — its parts, its rails and the engine's verdicts on
+    them — without a graph having to execute.
+    """
+    plan = next((frame for frame in reversed(trace) if frame.get("type") == "plan"), None)
+    if plan is None or not plan.get("slots"):
+        return None
+
+    slots: dict[str, dict[str, Any]] = {}
+    for entry in plan["slots"]:
+        slots[entry["id"]] = {**entry, "status": "pending", "part": None, "repair_count": 0}
+    edges = list(plan.get("edges") or [])
+
+    for frame in trace:
+        kind = frame.get("type")
+        if kind == "slot_added" and isinstance(frame.get("slot"), dict):
+            entry = frame["slot"]
+            slots.setdefault(
+                entry["id"], {**entry, "status": "pending", "part": None, "repair_count": 0}
+            )
+            edges.extend(frame.get("edges") or [])
+        elif kind == "selection" and frame.get("slot") in slots:
+            slots[frame["slot"]]["part"] = frame.get("part")
+            slots[frame["slot"]]["status"] = "pass"
+        elif kind == "check" and frame.get("slot") in slots and frame.get("status") == "failed":
+            # A failure that was later accepted is still a failure the board carries, and
+            # `accepted` travels on the frame for a reader to see.
+            slots[frame["slot"]]["status"] = "conflict"
+
+    return {
+        "slots": list(slots.values()),
+        "edges": edges,
+        "supply": plan.get("supply"),
+    }
+
+
 def _bom_only_board(
     thread: Any,
     trace: list[dict[str, Any]] | None = None,
@@ -604,13 +650,18 @@ def _bom_only_board(
     question reported its board as lost, and a genuinely lost board looked equally normal.
     """
     rows = thread.bom if thread.bom is not None else BOMS.get(thread.id, [])
+    rebuilt = _board_from_frames(trace or [])
     return {
         "status": thread.status,
         "summary": thread.summary,
-        "slots": [],
-        "edges": [],
+        "slots": rebuilt["slots"] if rebuilt else [],
+        "edges": rebuilt["edges"] if rebuilt else [],
+        **({"supply": rebuilt["supply"]} if rebuilt and rebuilt["supply"] else {}),
         "bom": _board_bom(rows),
-        "checkpoint": checkpoint,
+        # Said accurately: the checkpoint really is unavailable, and the board is here
+        # anyway. A reader deciding whether a run can be *resumed* needs the first fact;
+        # a reader looking at the board needs the second.
+        "checkpoint": "from_trace" if rebuilt else checkpoint,
         "trace": trace or [],
         "question": question,
         "resumable": resumable,

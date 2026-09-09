@@ -586,6 +586,22 @@ export function answerDecision(decisionId: string, approve: boolean, rationale =
  *  A separate call from the overview on purpose: this one resolves parts against a
  *  distributor and takes seconds, and the overview promises to render offline and
  *  instantly. The page loads grey and settles. */
+/** A review this product line has already been through, with the trace it left. */
+export type StoredReview = {
+  decision_id: string
+  notice_id: string
+  state: 'pending' | 'approved' | 'declined'
+  proposal: string
+  retiring: string
+  created_at: string
+  /** The run's own frames, rebuilt from what it recorded. See `api/replay`. */
+  frames: ReviewFrame[]
+}
+
+export function listLineReviews(lineId: string) {
+  return request<StoredReview[]>(`/lines/${encodeURIComponent(lineId)}/reviews`)
+}
+
 export function checkLine(lineId: string) {
   return request<LineCheck>(`/lines/${encodeURIComponent(lineId)}/check`, { method: 'POST' })
 }
@@ -615,6 +631,25 @@ export function putBoard(lineId: string, filename: string, bundleBase64: string,
     method: 'PUT',
     body: { filename, bundle: bundleBase64, adopt: adopt ?? null },
   })
+}
+
+export type BoardPicture = {
+  svg: string
+  page: { width: number; height: number }
+  /** The rectangle the placed footprints occupy, in the same millimetres. KiCad draws the
+   *  page, not the board, so this is what to actually look at. */
+  content: string
+  /** The reference designator the board itself gives the part asked about, when it has one.
+   *  A board's designators are its own and need not match the company's bill. */
+  marked: string | null
+  /** A viewBox in board millimetres around that part, for pointing at it. */
+  crop: string | null
+}
+
+/** The board as it is, with no substitution in it. */
+export function boardRender(lineId: string, mark?: string | null) {
+  const query = mark ? `?mark=${encodeURIComponent(mark)}` : ''
+  return request<BoardPicture>(`/lines/${encodeURIComponent(lineId)}/board/render${query}`)
 }
 
 export function boardConsequence(lineId: string, retiring: string, candidate: string) {

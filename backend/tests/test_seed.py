@@ -447,3 +447,68 @@ def test_every_affected_line_has_its_own_board_and_no_two_are_the_same():
     # The two that ship a part nobody is retiring have no project, which is an ordinary
     # state for a company and better said than pretended.
     assert boards["Bench supply"] is None and boards["Handheld meter"] is None
+
+
+def test_every_seeded_line_arrives_already_described():
+    """A product that ships did not arrive by somebody asking what to build.
+
+    `/design/:lineId` opened the brief screen — *"What are you building?"* — for a product
+    line with a revision, a bill of materials and a KiCad project, because no run had ever
+    been recorded against it. Seeding a *synthesis* would be inventing work that never
+    happened; this records the work the seed is actually doing, and every check in it is
+    `rules.evaluate` on the board the stored bill and profile make.
+    """
+
+    async def go():
+        async with empty() as store:
+            world = await seed_world.seed(store)
+            found = {}
+            for line_id, label, _mpn in world["lines"]:
+                threads = await store.threads_for_line(line_id, world["org_id"])
+                assert len(threads) == 1, f"{label} has {len(threads)} runs"
+                found[label] = (threads[0], await store.run_events(threads[0].id))
+            return found
+
+    described = run(go())
+
+    assert len(described) == 5
+    for label, (thread, frames) in described.items():
+        assert thread.status == "done", label
+        assert thread.summary["placed"] == 3, label
+        kinds = [frame["type"] for frame in frames]
+        assert kinds.count("plan") == 1, label
+        assert kinds.count("selection") == 3, label
+        # The checks are real, so there are as many as the engine produced.
+        assert kinds.count("check") >= 20, f"{label} recorded {kinds.count('check')} checks"
+        assert kinds[-1] == "done", label
+
+
+def test_a_seeded_run_restores_its_board_without_a_checkpoint():
+    """The trace is the record; the checkpoint is a cache.
+
+    Restoring a run reads LangGraph's checkpointer, and a seeded run has no entry in it —
+    nor does any run whose checkpoint was lost, which this codebase already has three
+    fallbacks for. Every frame the client draws the board from is in `run_events`.
+    """
+    from continuity.api.app import _board_from_frames
+
+    async def go():
+        async with empty() as store:
+            world = await seed_world.seed(store)
+            line_id = world["lines"][0][0]
+            threads = await store.threads_for_line(line_id, world["org_id"])
+            return await store.run_events(threads[0].id)
+
+    frames = run(go())
+    rebuilt = _board_from_frames(frames)
+
+    assert rebuilt is not None
+    assert [slot["id"] for slot in rebuilt["slots"]] == ["u1", "u2", "c1"]
+    assert all(slot["part"] is not None for slot in rebuilt["slots"])
+    assert all(slot["status"] == "pass" for slot in rebuilt["slots"])
+    assert rebuilt["supply"] is not None, "the input rail travels with the board"
+    assert rebuilt["edges"], "a power tree with no edges is three floating parts"
+
+    # Without a `plan` frame there is no board, and saying so is what lets the caller
+    # report an unrestorable run rather than an empty one.
+    assert _board_from_frames([f for f in frames if f["type"] != "plan"]) is None

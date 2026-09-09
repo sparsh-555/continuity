@@ -225,19 +225,28 @@ async def board_for_line(store: Any, line_id: str, org_id: str):
     if stored is None or not stored.profile:
         return None, "no operating profile is stored for this product line", []
     rows = await store.bom_for_line(line_id, org_id)
+    fitted = [row for row in rows if row["populated"]]
+
+    async def resolved(row: dict[str, Any]) -> PartSpec | None:
+        part = await _resolve_quietly(row["mpn"], row.get("manufacturer"))
+        if part is not None:
+            return part
+        # The distributor could not answer. A product line that already ships still has to
+        # be checkable, and the company's own datasheet readings are better evidence than a
+        # listing — that is what lets them override one. What they lack is the commercial
+        # half, which no rule here asks for.
+        recorded = (await store.part_facts([row["mpn"]])).get(row["mpn"], [])
+        return dossier.part_from_facts(row["mpn"], row.get("manufacturer"), recorded)
+
+    # Together, not one after another. Each row is an independent network call, and doing
+    # three in sequence made the page a reader is waiting on three times slower than the
+    # slowest of them — which is also most of the quiet stretch before a review says
+    # anything about a board.
+    found = await asyncio.gather(*(resolved(row) for row in fitted))
+
     specs: dict[str, PartSpec] = {}
     unresolved: list[dict[str, str]] = []
-    for row in rows:
-        if not row["populated"]:
-            continue
-        part = await _resolve_quietly(row["mpn"], row.get("manufacturer"))
-        if part is None:
-            # The distributor could not answer. A product line that already ships still
-            # has to be checkable, and the company's own datasheet readings are better
-            # evidence than a listing — that is what lets them override one. What they
-            # lack is the commercial half, which no rule here asks for.
-            recorded = (await store.part_facts([row["mpn"]])).get(row["mpn"], [])
-            part = dossier.part_from_facts(row["mpn"], row.get("manufacturer"), recorded)
+    for row, part in zip(fitted, found):
         if part is not None:
             specs[row["mpn"]] = part
         else:
