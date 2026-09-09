@@ -186,3 +186,59 @@ def test_the_dielectrics_a_datasheet_requires_come_back_as_a_tuple():
     keep the difference between "no requirement" and "a requirement of one"."""
     assert dossier.value_from_text("cout_dielectrics", "X5R, X7R") == ("X5R", "X7R")
     assert dossier.value_from_text("cout_dielectrics", "") is None
+
+
+def test_a_capacitance_read_back_is_a_number_the_engine_can_add_up():
+    """Found live, as a 500 on `/lines/{id}/check` for every seeded product line.
+
+    `DOSSIER_FIELDS` says a fact may be stored; `_FLOAT_FIELDS` says what it decodes back
+    into; `ENGINEERING_FIELDS` says whether it outranks a listing. Those are three
+    questions, and `capacitance_uf` was kept out of the second on the grounds that answer
+    the third — a distributor states an MLCC accurately, so a stored figure should not
+    outrank one. True, and no argument at all about what type the string turns into.
+
+    So a recorded capacitance came back as `"22.0"`, reached `PartSpec.capacitance_uf`, and
+    `capacitor_requirements` summed a str into an int. The one passive rule the product
+    ships took down the check the whole product line page is painted from.
+    """
+    assert dossier.value_from_text("capacitance_uf", "22.0") == 22.0
+    assert dossier.value_from_text("capacitance_uf", "not a number") is None
+
+    # The round trip in full, which is what the engine actually depends on.
+    part = PartSpec(
+        mpn="CL31A226KAHNNNE",
+        manufacturer="Samsung Electro-Mechanics",
+        description="22 µF 25 V X5R",
+        category="Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+        capacitance_uf=22.0,
+        dielectric="X5R",
+    )
+    written = {field: value for _, field, value, _ in dossier.facts_from_part(part)}
+    read = {
+        field: dossier.value_from_text(field, value) for field, value in written.items()
+    }
+
+    assert read["capacitance_uf"] == 22.0
+    assert read["dielectric"] == "X5R"
+    assert sum(read["capacitance_uf"] for _ in (1,)) == 22.0, "it has to be addable"
+
+
+def test_every_numeric_dossier_field_decodes_to_a_number():
+    """A guard against the same slip in the next field somebody adds.
+
+    Written against `PartSpec`'s own annotations rather than a hand-kept list, because a
+    hand-kept list is the thing that was wrong.
+    """
+    import typing
+
+    hints = typing.get_type_hints(PartSpec)
+    numeric = {
+        field
+        for field in DOSSIER_FIELDS
+        if "float" in str(hints.get(field, "")) or "int" in str(hints.get(field, ""))
+    }
+
+    for field in sorted(numeric):
+        assert isinstance(dossier.value_from_text(field, "1.5"), float), (
+            f"{field} is a number on PartSpec and decodes as text, so the engine gets a str"
+        )

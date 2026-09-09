@@ -106,13 +106,19 @@ _FLOAT_FIELDS = frozenset(
     {
         "theta_ja", "efficiency", "temp_min", "temp_max", "t_j_max",
         "vmin", "vmax", "vout_min", "vout_max", "i_max",
-        # `cout_min_uf` is a datasheet *requirement* and belongs here. A capacitor's own
-        # `capacitance_uf` does not: a distributor states an MLCC accurately, our seeded
-        # figures came from the JLCPCB listing, and a stored fact outranking a live listing
-        # is exactly what this set exists to gate.
-        "cout_min_uf",
+        "cout_min_uf", "capacitance_uf",
     }
 )
+"""Which stored facts decode back into numbers.
+
+**Every numeric field on `PartSpec` belongs here, without exception.** This set answers one
+question — what type does the stored string turn back into — and it is not the set that
+decides whether a recorded reading outranks a live listing. That is `ENGINEERING_FIELDS`,
+and confusing the two cost a live 500: `capacitance_uf` was kept out of here on the entirely
+correct grounds that a distributor states an MLCC's value accurately, which is an argument
+about precedence and none at all about type. A recorded 22 µF came back as `"22.0"`,
+`capacitor_requirements` summed a str into an int, and `/lines/{id}/check` failed on every
+seeded product line — the call the whole product line page is painted from."""
 
 NOT_STATED = frozenset({"-", "--", "–", "—", "n/a", "na", "none", "null", "tbd", "?"})
 """Values a listing uses to mean "we did not say", which must never become a fact.
