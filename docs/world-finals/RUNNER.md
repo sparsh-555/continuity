@@ -8,7 +8,28 @@ accurate about the design flow. This file is the finals build, end to end.
 
 ---
 
-## 0 · Once, before anything
+## 0 · The short way
+
+```bash
+./demo.sh            # check, seed if the world is missing, run both servers
+./demo.sh --reset    # replace the world and run
+./demo.sh --check    # the checks only, change nothing
+./demo.sh --stop     # stop whatever it started
+```
+
+Everything in §0 and §1 below, in one command, with the reasons kept next to the failures.
+It prints the URL and the two accounts, holds the terminal so ctrl-c stops both servers, and
+writes `.demo/api.log` and `.demo/ui.log`. Then go to §3, which is the demo.
+
+**It always names the database on the command line**, because `backend/.env` points
+`DATABASE_URL` at production Neon and a local run that forgets writes real rows.
+
+Read the rest of §0 and §1 when something it warns about needs fixing, or when you want to
+run the pieces by hand.
+
+---
+
+## 0a · Once, before anything
 
 ```bash
 pg_isready                              # expect: accepting connections
@@ -91,8 +112,19 @@ DATABASE_URL=postgresql:///continuity_demo CONTINUITY_KICAD=docker \
   ../.venv/bin/python -m uvicorn continuity.api.app:app --port 8000
 ```
 
-Expect `persistence: postgres` in the startup lines. If it says single-user and in-memory,
-`DATABASE_URL` did not reach it and there are no accounts at all.
+**There is no startup line to look for.** Nothing configures logging, so the API's own
+`persistence: postgres` never reaches the console under uvicorn's default config — an earlier
+version of this document told you to expect it, and it has never appeared. Ask instead:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"engineer@northwind.example","password":"continuity-demo-2026"}'
+```
+
+`200` means it is on the seeded database. Anything else means `DATABASE_URL` did not reach
+it, and in single-user in-memory mode there are no accounts at all. `./demo.sh` does this
+check for you.
 
 **If the notice is to arrive by email**, `backend/.env` also needs the line that says whose
 mailbox it is:
@@ -501,31 +533,26 @@ PYTHONPATH=. ../.venv/bin/python tools/seed_world.py postgresql:///continuity_de
 It reseeds five product lines, three boards, both standing lists, and **a described design run
 against every line** — which is what step 2 opens. Expect it to print all five with their ids.
 
-**Then deal with the mailbox, because the reset alone leaves the demo already spoiled.**
+**The mailbox no longer needs dealing with.** It used to: `mail_cursor` cascades off the
+organisation, so a reset wiped the read position, the poller saw a mailbox it had never read,
+and within fifteen seconds the last run-through's notice was back — a fresh world that had
+already received its change notice, with step 4 left nothing to show. The documented fix was
+to delete the notices afterwards or the message beforehand, and both were a person
+remembering to undo something the machine had just done.
 
-`mail_cursor` cascades off the organisation, so a reset wipes the read position. The message
-from the last run-through is still in the inbox, the poller sees a mailbox it has never read,
-and within fifteen seconds the notice is back. You sign in to a fresh world that has already
-received its change notice, and step 4 has nothing left to show. **This was confirmed again on
-9 September**: a reset was followed by a clean `notices` table, and the next page load showed
-`1 end of life`.
+The seed now moves the read position to the end of the folder, because a company that has
+just been created has not read its mail. It says so when it does:
 
-Two ways to fix it, and the second is better:
-
-```bash
-# Either: throw away what was auto-read, and leave the cursor where it is.
-psql postgresql:///continuity_demo -c "DELETE FROM notices"
-
-# Or: delete the message from the mailbox first, then reseed. Nothing to re-read.
+```
+mailbox: read position moved past UID 4, so only new mail arrives
 ```
 
-Either way, forward a **new** message for step 4. It gets the next UID and is read live, which
-is the thing being demonstrated.
+Forward a **new** message for step 4 and it is read live, which is the thing being
+demonstrated. Pass `--read-mail` to seed the old way if you ever want the inbox re-read.
 
-This is also why the demo database can end up with two `AMS1117-3.3` notices, one mailed and
-one uploaded, each recording how it arrived. That is correct rather than a duplicate — but two
-identical notices render as two rows in the drawer and two lanes' worth of confusion, so clear
-them between passes.
+The demo database can still end up with two `AMS1117-3.3` notices if you both forward one and
+upload one — each records how it arrived, which is correct rather than a duplicate, but two
+identical notices render as two rows in the drawer, so pick one per pass.
 
 **`--reset` used to fail on any world that had been used.** It was fixed on 8 September, and
 the cause is in [DEFERRED.md](DEFERRED.md) under the seed. If it ever fails again with a

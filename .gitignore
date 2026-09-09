@@ -24,3 +24,4 @@ fixtures/*.live.json
 /docs/BUILD_STEPS.md
 /docs/STATUS.md
 /docs/specs/
+.demo/

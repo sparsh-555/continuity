@@ -244,6 +244,47 @@ def deliveries(
     return validity, found
 
 
+def latest_uid() -> tuple[str | None, int | None]:
+    """The folder's `UIDVALIDITY` and the highest UID in it, fetching no message bodies.
+
+    `box.uids()` asks the server for identifiers only, which is the difference between
+    learning where the end of the mailbox is and downloading it.
+    """
+    from imap_tools import MailBox
+
+    host = os.environ["CONTINUITY_MAIL_HOST"]
+    user = os.environ["CONTINUITY_MAIL_USER"]
+    password = os.environ["CONTINUITY_MAIL_PASSWORD"]
+
+    with MailBox(host, port=IMAP_SSL_PORT, timeout=CONNECT_TIMEOUT_S).login(user, password) as box:
+        validity = _validity(box)
+        found = [int(uid) for uid in box.uids() if str(uid).isdigit()]
+    return validity, (max(found) if found else None)
+
+
+async def catch_up(store: Any, org_id: str) -> int | None:
+    """Move the read position to the end of the mailbox without reading anything.
+
+    **What a reseeded world should do with a mailbox it has never read.** `mail_cursor`
+    cascades off the organisation, so a reset wipes the position; the poller then sees a
+    mailbox with no history, reads the last run-through's message again, and the demo opens
+    on a company that has already received its change notice. The documented workaround was
+    to delete the notices afterwards or the message beforehand, and both are a person
+    remembering to undo something the machine just did.
+
+    A company that has just been created has not read its mail. Saying so — the position is
+    the end of the folder — is the honest state, and it leaves a *newly* forwarded message
+    arriving live, which is the thing being demonstrated.
+    """
+    import asyncio
+
+    validity, highest = await asyncio.to_thread(latest_uid)
+    if highest is None:
+        return None
+    await store.save_mail_cursor(org_id, validity=validity or "", uid=highest)
+    return highest
+
+
 def _validity(box: Any) -> str | None:
     """The folder's `UIDVALIDITY`, or nothing when the server does not volunteer it."""
     try:

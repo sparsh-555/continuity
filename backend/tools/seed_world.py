@@ -44,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from psycopg_pool import AsyncConnectionPool
 
+from continuity import env, mail
 from continuity.api.store import Store
 from continuity.parts import dossier
 from tools.eol_differential import (
@@ -416,13 +417,39 @@ async def main() -> None:
     parser.add_argument(
         "--reset", action="store_true", help="replace the demo company if it already exists"
     )
+    parser.add_argument(
+        "--read-mail",
+        action="store_true",
+        help=(
+            "leave the mailbox unread, so the poller reads whatever is already in it. "
+            "Without this the read position is moved to the end of the folder."
+        ),
+    )
     args = parser.parse_args()
 
+    # **Inside `main`, never at module scope.** `backend/.env` sets `DATABASE_URL` to
+    # production Neon, `env.load` fills in anything the environment has not already set,
+    # and the test suite imports this module. Loading it on import would put a production
+    # URL into the environment of every test run that does not happen to set one.
+    env.load()
+
+    caught_up = None
     async with AsyncConnectionPool(args.database, min_size=1, max_size=3, open=False) as pool:
         await pool.open()
         store = Store(pool)
         await store.setup()
         world = await seed(store, reset=args.reset)
+
+        # A company that has just been created has not read its mail. `mail_cursor`
+        # cascades off the organisation, so without this the poller sees a mailbox with no
+        # history and reads the last run-through's notice back within fifteen seconds — a
+        # fresh world that has already received its change notice, which is the one thing
+        # the demo's fourth step exists to show happening live.
+        if not args.read_mail and mail.configured():
+            try:
+                caught_up = await mail.catch_up(store, world["org_id"])
+            except Exception as unreachable:  # noqa: BLE001
+                print(f"  mailbox not reachable, so its position is unset: {unreachable}")
 
     print(f"{COMPANY} — organisation {world['org_id']}")
     print(f"  {ENGINEER[0]} (engineering)")
@@ -433,6 +460,8 @@ async def main() -> None:
     for line_id, label, mpn in world["lines"]:
         carries = " ← carries the retired part" if mpn == AMS1117.mpn else ""
         print(f"  {label:22} {line_id}  {mpn}{carries}")
+    if caught_up is not None:
+        print(f"  mailbox: read position moved past UID {caught_up}, so only new mail arrives")
 
 
 if __name__ == "__main__":
