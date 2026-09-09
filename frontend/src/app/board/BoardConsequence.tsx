@@ -110,9 +110,14 @@ export function BoardConsequence({
   if (!candidate) return null
 
   return (
-    <section className="space-y-sm border-t border-outline-variant pt-md">
+    <section className={auto ? 'space-y-sm' : 'space-y-sm border-t border-outline-variant pt-md'}>
       <div className="flex items-center justify-between gap-md">
-        <h4 className="font-data-tabular text-[10px] text-on-surface-variant">THE BOARD</h4>
+        {/* Not when `auto`: the caller is a pane that has already named this, and two
+            headings for one picture is what a change request and a product line page
+            printed side by side. */}
+        {auto ? <span /> : (
+          <h4 className="font-data-tabular text-[10px] text-on-surface-variant">THE BOARD</h4>
+        )}
         <button
           className="h-7 px-md border border-outline-variant rounded font-data-tabular text-[10px] text-on-surface-variant hover:bg-surface-variant transition-colors disabled:opacity-40"
           disabled={busy}

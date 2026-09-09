@@ -170,8 +170,14 @@ Click **Sensor node**.
   the picture and there must not be.
 - **Bill of materials**: `U1 AMS1117-3.3`, with the manufacturer and the footprint.
 - **Board**: the KiCad project this product line already carries.
-- On the notice banner, **REVIEW THIS LINE** and **THE NOTICE**. Do not press the first one
-  yet: the company-wide run in step 5 is the beat, and this page's own review is step 7a.
+- **Three panes, filling the screen**: the review on the left, the power tree in the middle,
+  the bill and the board on the right. This is the design workspace pointed at a product that
+  already exists, and it is the same layout `/design` has.
+- In the review pane, **REVIEW THIS LINE** and **THE NOTICE** under what is coming for this
+  product. Do not press the first one yet: the company-wide run in step 5 is the beat, and
+  this page's own review is step 7a.
+- On a product line with no notice against it — **Bench supply**, **Handheld meter** — the
+  review pane reads *"22 checks, nothing failed"*. That is the number behind the green.
 
 **Would be a bug:** the words *"What are you building?"*; a status computed from whether
 somebody has run a design here; a grey part; or any sentence on this page about what could
@@ -180,7 +186,8 @@ parts must never open by naming the ones it did not. See BUILD.md's second gover
 
 **Also a bug:** the banner navigating away when you click it. It used to be one button that
 went to `/changes`, and a whole run-through was spent looking for a review that was on
-another page.
+another page. And a bug: content in a narrow strip with an empty field around it, which is
+what this page looked like before it became a workspace.
 
 ### Step 2 · How a product line gets here
 
@@ -321,10 +328,11 @@ one product somebody wants to go deep on.
 - **U1 turns cyan the instant you press it** and holds for the whole run. Red was the notice's
   statement, cyan is work in progress, and green is a verdict — three colours, three different
   kinds of claim.
-- The trace panel arriving beside the power tree. **Narration is neutral and only a rule's
-  verdict is coloured**: green ticks for satisfied, a red cross for a failure, a dash for the
-  three rules that decline to answer on any board.
-- **COMPONENTS / BOARD** appearing once there is a part to place. Press **BOARD**: the real
+- The trace filling the review pane. **Narration is neutral and only a rule's verdict is
+  coloured**: green ticks for satisfied, a red cross for a failure, a dash for the three rules
+  that decline to answer on any board.
+- **COMPONENTS / BOARD** appearing in the middle pane's header once there is a part to place.
+  Press **BOARD**: the real
   OpenJBOD project, before and after, cropped to the same rectangle around the regulator, and
   *"No connections break … SOT-223 → SOT-223."* The board names it **U2** while the power
   tree beside it names **U1**, and that is not a fault: the bill this company keeps and the

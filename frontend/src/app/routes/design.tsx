@@ -1,12 +1,54 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
 import { BriefEntry } from '../design/BriefEntry'
 import { Workspace, WorkspaceView } from '../design/Workspace'
 import { useDesignSession } from '../hooks/useDesignSession'
 import { ApiError, getThreadBoard, listLineThreads, type LineThread } from '../lib/api'
 
-type LineMode = 'loading' | 'brief' | 'workspace'
+type LineMode = 'loading' | 'none' | 'brief' | 'workspace'
+
+/**
+ * A product line reached from DESIGN RUNS that has never had one.
+ *
+ * The brief screen used to render here, which asked *"What are you building?"* about a
+ * product that ships today, has a revision, a bill of materials and a KiCad project. Every
+ * seeded product line is in exactly that state, so the menu item looked broken. Seeding a
+ * design thread for a shipping product would be worse — it would be inventing a synthesis
+ * run that never happened — so the honest answer is that there are none, and a way to start
+ * one for somebody who actually wants to.
+ */
+function NoRuns({ lineId, onStart }: { lineId: string; onStart: () => void }) {
+  return (
+    <div className="min-h-screen bg-transparent text-on-background flex items-center justify-center p-lg">
+      <div className="border border-outline-variant bg-surface-container rounded-lg p-lg max-w-md space-y-md">
+        <p className="m-0 font-label-caps text-label-caps uppercase text-on-surface">
+          NO DESIGN RUNS ON THIS PRODUCT LINE
+        </p>
+        <p className="font-data-tabular text-[11px] text-on-surface-variant leading-relaxed">
+          A design run synthesises a board from a brief. This product line was described by
+          its bill of materials and its operating profile instead, which is how a product
+          that already ships gets here.
+        </p>
+        <div className="flex gap-sm">
+          <button
+            className="h-8 px-md border border-primary-container rounded font-data-tabular text-[11px] text-primary-container hover:bg-surface-variant transition-colors"
+            onClick={onStart}
+            type="button"
+          >
+            START ONE
+          </button>
+          <Link
+            className="h-8 px-md border border-outline-variant rounded font-data-tabular text-[11px] text-on-surface-variant hover:bg-surface-variant transition-colors flex items-center"
+            to={`/lines/${lineId}`}
+          >
+            THE PRODUCT LINE
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 type StartedRequest = {
   brief: string
@@ -112,11 +154,12 @@ function RestoredWorkspace({ lineId, thread }: { lineId: string; thread: LineThr
 }
 
 /**
- * One route, two states.
+ * One route, three states.
  *
- * A line with no runs yet shows the brief screen; once a run exists it shows the
- * workspace. They are the same URL because they are the same thing at two moments — a
- * line begins by being described.
+ * A line with runs shows the workspace. A line with none says so — see `NoRuns`, and note
+ * that it used to open the brief screen, which asked what somebody was building about a
+ * product that already ships. Asking for a brief is now something a person chooses from
+ * there rather than something a menu item does to them.
  *
  * The started brief is held *here* rather than inside `BriefEntry` on purpose. Starting
  * the run in the child and then swapping components would unmount `Workspace` a moment
@@ -157,7 +200,7 @@ export default function DesignRoute() {
         const threads = await listLineThreads(id)
         if (active) {
           setLatestThread(threads[0] ?? null)
-          setMode(threads.length === 0 ? 'brief' : 'workspace')
+          setMode(threads.length === 0 ? 'none' : 'workspace')
         }
       } catch {
         // 404 means it is not this user's line. Anything else means we cannot tell
@@ -185,6 +228,10 @@ export default function DesignRoute() {
   // already has a board is worse than a beat of blankness.
   if (mode === 'loading') {
     return null
+  }
+
+  if (mode === 'none') {
+    return <NoRuns lineId={lineId} onStart={() => setMode('brief')} />
   }
 
   if (mode === 'brief') {

@@ -141,11 +141,6 @@ export function useLineReview({
     )
   }, [lineId, say])
 
-  const stop = useCallback(() => {
-    abort.current?.()
-    setStatus('done')
-  }, [])
-
   const answer = useCallback(
     async (approve: boolean) => {
       if (!question) return
@@ -191,7 +186,6 @@ export function useLineReview({
     answering,
     error,
     start,
-    stop,
     answer,
   }
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { ReasoningLine } from '../design/ReasoningLine'
+import type { LineCheck, LineNotice, LineRequest } from '../lib/api'
 import type { EventStatus } from '../lib/types'
 import type { LineReview, TraceItem } from './useLineReview'
 
@@ -41,62 +42,163 @@ function label(item: TraceItem): { icon: string; tone: string; text: string; det
   }
 }
 
+function Verdict({ review }: { review: LineReview }) {
+  if (review.status === 'running') {
+    return (
+      <span className="font-data-tabular text-[10px] text-primary-container">
+        {review.trying ? `TRYING ${review.trying}` : 'CHECKING…'}
+      </span>
+    )
+  }
+  if (review.proposal) {
+    return (
+      <span
+        className={`font-data-tabular text-[10px] px-sm py-0.5 border rounded ${
+          review.settled === 'approved'
+            ? 'border-[#4ade80] text-[#4ade80]'
+            : review.conditional
+              ? 'border-tertiary-container text-tertiary-container'
+              : 'border-outline-variant text-[#4ade80]'
+        }`}
+      >
+        {review.proposal}
+      </span>
+    )
+  }
+  if (review.status === 'done') {
+    return (
+      <span className="font-data-tabular text-[10px] px-sm py-0.5 border border-error rounded text-error">
+        NO VIABLE PART
+      </span>
+    )
+  }
+  return null
+}
+
 /**
  * The review, beside the board it is about.
  *
- * The same panel the design workspace puts next to its graph, reading a review's frames
- * instead of a design run's. The decision lands here because this is where the person
- * watching already is: on the product, next to the picture of the part being replaced.
+ * The design workspace's trace panel, reading a review's frames instead of a design run's.
+ * The decision lands here because this is where the person watching already is: on the
+ * product, next to the picture of the part being replaced.
+ *
+ * **It is a pane, not a popover, so it does not close.** It briefly had a CLOSE button,
+ * which made the workspace's left third vanish and took the board toggle with it — a
+ * control that removes a third of the screen and part of another is not a control anybody
+ * wants. What is coming for this product goes at the top of it, because the notice is the
+ * reason to run anything and it belongs in the pane a reader is already in rather than in a
+ * banner across the page.
  */
-export function ReviewTrace({ review, onDismiss }: { review: LineReview; onDismiss: () => void }) {
+export function ReviewTrace({
+  review,
+  check,
+  notices,
+  requests,
+  onStart,
+  onOpenNotice,
+}: {
+  review: LineReview
+  /** What the engine found on this product line as it stands, from the per-visit check. */
+  check: LineCheck | null
+  notices: LineNotice[]
+  requests: LineRequest[]
+  onStart: (notice: LineNotice) => void
+  onOpenNotice: (noticeId: string) => void
+}) {
   const tail = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    tail.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    if (review.trace.length > 0) {
+      tail.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
   }, [review.trace.length, review.question, review.applied])
 
+  const idle = review.status === 'idle'
+  const failing = Object.entries(check?.slots ?? {}).filter(
+    ([, slot]) => slot.status === 'conflict',
+  )
+
   return (
-    <aside className="w-[400px] flex-shrink-0 flex flex-col border border-outline-variant rounded bg-surface-container-low overflow-hidden">
-      <header className="px-md py-sm border-b border-outline-variant flex items-center justify-between gap-sm">
+    <aside className="w-[400px] flex-shrink-0 flex flex-col min-h-0 panel-border rounded-lg overflow-hidden bg-surface-container-low">
+      <header className="h-10 px-md flex items-center justify-between gap-sm border-b border-outline-variant bg-surface-container-high flex-shrink-0">
         <h2 className="font-label-caps text-label-caps uppercase text-on-surface-variant">
           THE REVIEW
         </h2>
-        <div className="flex items-center gap-sm">
-          {review.status === 'running' ? (
-            <span className="font-data-tabular text-[10px] text-primary-container">
-              {review.trying ? `TRYING ${review.trying}` : 'CHECKING…'}
-            </span>
-          ) : review.proposal ? (
-            <span
-              className={`font-data-tabular text-[10px] px-sm py-0.5 border rounded ${
-                review.settled === 'approved'
-                  ? 'border-[#4ade80] text-[#4ade80]'
-                  : review.conditional
-                    ? 'border-tertiary-container text-tertiary-container'
-                    : 'border-outline-variant text-[#4ade80]'
-              }`}
-            >
-              {review.proposal}
-            </span>
-          ) : review.status === 'done' ? (
-            <span className="font-data-tabular text-[10px] px-sm py-0.5 border border-error rounded text-error">
-              NO VIABLE PART
-            </span>
-          ) : null}
-          <button
-            className="font-data-tabular text-[10px] text-on-surface-variant hover:text-on-surface"
-            onClick={() => {
-              review.stop()
-              onDismiss()
-            }}
-            type="button"
-          >
-            CLOSE
-          </button>
-        </div>
+        <Verdict review={review} />
       </header>
 
       <div className="flex-1 overflow-y-auto p-sm flex flex-col gap-xs bg-[#0B0C0E]">
+        {/* What is coming for this product, and the only button that matters on this page. */}
+        {notices.map((notice) => (
+          <div
+            className="flex-shrink-0 border border-error/60 bg-error-container/10 rounded p-sm space-y-sm"
+            key={notice.id}
+          >
+            <div>
+              <p className="font-data-tabular text-[11px] text-error leading-relaxed">
+                {notice.mpn} at {notice.refdes.join(', ').toUpperCase()} is end of life
+                {notice.effective_date ? ` · last order ${notice.effective_date}` : ''}
+              </p>
+              <p className="font-data-tabular text-[10px] text-on-surface-variant mt-1 leading-relaxed">
+                {notice.manufacturer ?? 'manufacturer not stated'}
+                {notice.replacement_mpn ? ` recommends ${notice.replacement_mpn}` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-sm">
+              <button
+                className="h-7 px-md border border-primary-container rounded font-data-tabular text-[10px] text-primary-container hover:bg-surface-variant transition-colors disabled:opacity-40"
+                disabled={review.status === 'running'}
+                onClick={() => onStart(notice)}
+                type="button"
+              >
+                {review.status === 'running'
+                  ? 'RUNNING…'
+                  : review.trace.length > 0
+                    ? 'REVIEW AGAIN'
+                    : 'REVIEW THIS LINE'}
+              </button>
+              <button
+                className="h-7 px-md border border-outline-variant rounded font-data-tabular text-[10px] text-on-surface-variant hover:bg-surface-variant transition-colors"
+                onClick={() => onOpenNotice(notice.id)}
+                type="button"
+              >
+                THE NOTICE
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* What the engine found on this product as it stands.
+            
+            Two jobs. It gives the green picture a number a reader can hold — the colour is
+            computed and this says what computed it — and it is where a **failure** finally
+            gets a sentence: a rule failing used to paint a part red and say nothing
+            anywhere, which is a red nobody can act on. It goes only when nothing is
+            running, because once a review starts the trace is the better account.
+
+            Note what is deliberately *not* here: what could not be checked. Coverage
+            honesty belongs in the change request, where somebody is deciding whether to
+            sign. See BUILD.md's second governing rule. */}
+        {idle && check ? (
+          failing.length > 0 ? (
+            failing.map(([refdes, slot]) => (
+              <ReasoningLine
+                detail={slot.detail ?? undefined}
+                icon="cancel"
+                iconClassName="text-error"
+                key={refdes}
+                text={`${refdes.toUpperCase()} fails a check on this product line`}
+              />
+            ))
+          ) : (
+            <ReasoningLine
+              icon="check_circle"
+              iconClassName="text-[#4ade80]"
+              text={`${check.checked} checks, nothing failed`}
+            />
+          )
+        ) : null}
+
         {review.trace.map((item, index) => {
           const { icon, tone, text, detail } = label(item)
           const last = index === review.trace.length - 1 && review.status === 'running'
@@ -178,6 +280,31 @@ export function ReviewTrace({ review, onDismiss }: { review: LineReview; onDismi
 
         {review.error ? (
           <p className="font-data-tabular text-[11px] text-error px-sm py-2">{review.error}</p>
+        ) : null}
+
+        {/* What has already been decided here, when nothing is running. Stored, and until
+            now written by every review and read by nothing. */}
+        {idle && requests.length > 0 ? (
+          <div className="flex-shrink-0 mt-sm space-y-1">
+            <h3 className="font-data-tabular text-[10px] text-on-surface-variant/70 px-sm uppercase">
+              Already decided here
+            </h3>
+            {requests.map((request) => (
+              <button
+                className="w-full text-left px-sm py-1 rounded hover:bg-surface-variant/50 transition-colors"
+                key={request.id}
+                onClick={() => request.notice_id && onOpenNotice(request.notice_id)}
+                type="button"
+              >
+                <span className="font-data-tabular text-[11px] text-on-surface">
+                  {request.proposal ?? 'no viable part'}
+                </span>
+                <span className="block font-data-tabular text-[10px] text-on-surface-variant">
+                  {new Date(request.created_at).toLocaleDateString()}
+                </span>
+              </button>
+            ))}
+          </div>
         ) : null}
 
         <div ref={tail} />

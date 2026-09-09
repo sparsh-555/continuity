@@ -957,6 +957,23 @@ cannot drift into meaning different things by a review. `useLineReview` holds th
 `ReviewTrace` renders it beside the graph, using the design workspace's own `ReasoningLine` so
 the two panels are the same panel to look at.
 
+**It is the design workspace, not a page that borrows from it.** The first attempt put the
+panes into `Page` — the constrained, scrolling container `/lines` and `/matrix` use — which on
+a wide screen is a narrow strip of content in the middle of an empty field, and which was a
+second implementation of a layout this application already had. `shell/workspace.ts` now owns
+the one answer to *is this route locked to the viewport*, `AppFrame` and `AppShell` both ask
+it, and `/lines/:id` is in it. Three panes, full height: the trace, the picture, the bill.
+
+**The trace is a pane, not a popover.** It briefly had a CLOSE button, which made the left
+third of the workspace vanish and took the board toggle with it. What is coming for this
+product lives at the top of that pane rather than in a banner across the page, because the
+notice is the reason to run anything and it belongs where the reader already is.
+
+**The idle pane carries the check the page already runs** — *"22 checks, nothing failed"* —
+which gives the green picture the number that computed it, and is where a **failing** rule
+finally gets a sentence. That was logged 🟡: a check failing painted a part red and said
+nothing anywhere. What is deliberately not there is what could not be checked.
+
 **The banner is no longer a link away.** It was one button that navigated to `/changes`, which
 is how a whole run-through was spent looking for a review that was on another page. It now
 carries **REVIEW THIS LINE** and, beside it, **THE NOTICE** for the document.
@@ -981,7 +998,15 @@ rendering the same fact — so the run starts from it and the engine's own answe
 
 **Note** the row menu on `/lines` gains **DESIGN RUNS**, opening `/design/:lineId`. Clicking
 the row still opens the product. The design flow is reachable, and it is no longer the thing
-you get by accident.
+you get by accident. `/design/:lineId` on a line with no runs used to open the **brief
+screen**, which asked *"What are you building?"* about a product that ships today — every
+seeded line is in exactly that state, so the menu item looked broken. It says there are none
+and offers to start one. Seeding a design thread for a shipping product would be inventing a
+synthesis run that never happened.
+
+**Note** the rail icon for `/changes` was still `mark_email_unread`, the one `/notices` had.
+It is `change_circle`: a notice arrives, a request is written, a change is applied, and the
+envelope described only the first third.
 
 **Verified in a browser** on the seeded world, twice end to end. Gateway: TLV1117LV33DCYR, 35
 °C spare, board clean at U1 SOT-223 → SOT-223, applied, Rev C → **Rev D**, banner gone, three

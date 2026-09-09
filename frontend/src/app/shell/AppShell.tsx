@@ -1,10 +1,11 @@
 import { Outlet, useLocation } from 'react-router'
 
 import { SideRail } from './SideRail'
+import { isWorkspacePath } from './workspace'
 
 export function AppShell() {
   const location = useLocation()
-  const isWorkspace = location.pathname === '/design' || location.pathname.startsWith('/design/')
+  const isWorkspace = isWorkspacePath(location.pathname)
 
   return (
     <div className={isWorkspace ? 'h-[100dvh] overflow-hidden bg-background text-on-background' : 'min-h-screen bg-transparent text-on-background'}>
