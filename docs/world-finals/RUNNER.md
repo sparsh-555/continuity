@@ -164,15 +164,17 @@ Click **Sensor node**.
 **Look for**, on `/lines/:id`, in this order down the page:
 
 - The subtitle: `Rev C · 3 parts · 25 °C ambient` and the rails.
-- **The power tree.** Which part makes each rail and what that rail feeds, drawn from the
-  operating profile the line states. The caption says plainly that nothing here has read a
-  schematic, because the picture would otherwise be taken for one.
+- **The power tree, every part green.** Which part makes each rail and what that rail feeds.
+  Green because this product ships and the engine confirms it: the page runs a check against
+  the line's own ambient, rail and load on every visit. There is no explanatory prose under
+  the picture and there must not be.
 - **Bill of materials**: `U1 AMS1117-3.3`, with the manufacturer and the footprint.
-- **Board**: whether a KiCad project is attached.
+- **Board**: the KiCad project this product line already carries.
 
-**Would be a bug:** the words *"What are you building?"*, or a status computed from whether
-somebody has run a design here. A product line is not a run. Both were true in the build
-before 8 September and both are what Phase 5 exists to have fixed.
+**Would be a bug:** the words *"What are you building?"*; a status computed from whether
+somebody has run a design here; a grey part; or any sentence on this page about what could
+not be checked. The last one is not a style note — a product whose pitch is that it checks
+parts must never open by naming the ones it did not. See BUILD.md's second governing rule.
 
 ### Step 2 · How a product line gets here
 
@@ -185,22 +187,28 @@ ships. Press escape and go back.
 **Then say the line that frames everything after it:** *these are Northwind's five product
 lines, and three of them carry the same regulator.*
 
-### Step 3 · Attach a board to the Sensor node
+### Step 3 · The boards are already there
 
-Do this before the notice, so the board view has something to answer with.
+Nothing to do. Each affected product line ships with a real KiCad project, attached by the
+seed, because a company that ships five products has its CAD. This used to be a step where
+you zipped a fixture and uploaded it, which was an accident of the seeded world landing
+before the KiCad work and nobody joining them.
 
-```bash
-cd backend/fixtures/kicad && zip -r ~/ProPico.zip propico && cd -
-```
+| Product line | Project | Licence | Regulator at |
+|---|---|---|---|
+| Sensor node | [ProPico](https://github.com/diminDDL/ProPico) | MIT | **U3** |
+| Gateway | [WS2812Controller](https://github.com/klein0r/pcb-ws2812-wifi-controller) | MIT | **U1** |
+| Cabinet controller | [OpenJBOD-RP2040](https://github.com/OpenJBOD/rp2040) | CERN-OHL-P-2.0 | **U2** |
 
-On `/lines/Sensor node` press **ATTACH BOARD** and pick `~/ProPico.zip`.
+Three different designs drawn by three people who have never heard of us, each carrying a
+real AMS1117-3.3 in SOT-223, each at a **different reference designator**. That last part is
+worth saying out loud if anyone asks how the substitution finds the part: it resolves the
+position per board, because no two products put the same chip in the same place.
 
-That is [ProPico](https://github.com/diminDDL/ProPico), MIT licensed, drawn in KiCad 7 by
-somebody who has never heard of us, carrying a real AMS1117-3.3 in SOT-223 at U3.
+**Worth knowing:** OpenJBOD carries 687 copper zones and found two defects the day it
+arrived, both fixed. See `backend/fixtures/kicad/README.md`.
 
-**Look for:** *"ProPico attached to Sensor node. The line already had a bill of materials, so
-it was kept."* **Would be a bug:** the seeded bill replaced without being asked, or a silent
-success with no sentence.
+**Would be a bug:** a product line reporting no board, or two of them reporting the same one.
 
 ### Step 4 · The notice arrives by email
 

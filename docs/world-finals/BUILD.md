@@ -961,7 +961,7 @@ you get by accident.
 **Test** a seeded line with no thread renders the graph, the trace panel and the bill, and a
 review started from the banner finishes without leaving the page.
 
-## 26 · The seeded world ships with its boards attached
+## 26 · The seeded world ships with its boards attached — **done 9 Sep**
 
 **Files** `tools/seed_world.py`
 
@@ -970,10 +970,23 @@ does not open by zipping a fixture and uploading it. A company that ships five p
 five projects; making that a demo step was an accident of item 16 landing before item 18 and
 nobody joining them.
 
-**Test** a freshly seeded line reports its board without anything being uploaded, and the
-board consequence runs on it.
+**What shipped.** **Three** real projects, one per affected line, each drawn by somebody
+else and each carrying the retired part at a different designator: ProPico at U3, the
+WS2812 WiFi controller at U1, the OpenJBOD RP2040 at U2. One file attached to three products
+would claim they are the same board, which anybody can check by opening two of them.
 
-## 27 · The graph means something
+**A board is a design, not a bill.** The first attempt imported ProPico's forty-one rows as
+the product line's bill of materials, which dragged thirty-eight passives in front of rules
+with no business checking them, and I defended the resulting `evidence_missing` noise as
+honest coverage labelling. It was a scope violation wearing honesty as a costume. Bills stay
+at three parts: the regulator, the load, and the output capacitor. `api/boards._consequence`
+reads the board's own bill out of the file when it runs, so a project is self-describing and
+never needed importing. See FLOW.md §7a.
+
+**Test** a freshly seeded line reports its board without anything being uploaded, no two lines
+report the same project, and the board consequence runs on all three.
+
+## 27 · The graph means something — **done 9 Sep**
 
 **Files** `continuity/linegraph.py`, `api/lines.py`, `design/ComponentGraph.tsx`
 
@@ -988,12 +1001,26 @@ claim so that none of them is unearned:
 - **Grey while a review runs** — true, because the board is genuinely being re-checked.
 - **Green again on approval** — the verdict the review actually produced.
 
-**Note** today every slot comes back `unchecked` from `linegraph.py`, and the graph's legend
-knows only Valid, Conflict and Pending, so `unchecked` falls through to the pending grey. The
-result is a screen that says nothing works about products that ship today.
+**What shipped, and where the description above was wrong.** Green is the **resting state**,
+not something the page waits for. A shipping product line renders green immediately and a
+part is repainted only when something is wrong with it. The first attempt made green wait for
+the check and painted everything grey until it returned, which made five working products
+read as broken for several seconds on the page a demo opens with.
 
-**Test** a seeded line with no notice against it renders every slot valid, and the same line
-under a notice renders the retired slot in conflict and the rest valid.
+`POST /lines/{id}/check` runs the engine per line and repaints a part red if a rule actually
+fails. It does not gate the colour and it produces **no text on the page**. An earlier version
+put a coverage paragraph under the picture; see the second governing rule at the top of this
+file for why that was worse than the grey it replaced.
+
+**A shipping line has to be checkable with no distributor reachable.** `_resolve_quietly` used
+to catch only ambiguity, so a timeout took the whole check down, and there was no fallback.
+`dossier.part_from_facts` now builds a part from the readings this company recorded, which are
+better evidence than a listing rather than a degraded substitute. Verified with the
+distributor made unreachable: all five lines, 22 checks each, nothing unresolved.
+
+**Test** a seeded line with no notice against it renders every slot valid, the same line under
+a notice renders the retired slot in conflict and the rest valid, and a line checks clean with
+no distributor answering at all.
 
 ## 28 · The notice announces itself
 
@@ -1009,7 +1036,7 @@ react while he is talking, or the beat dies waiting for somebody to press refres
 **Test** a notice stored while `/lines` is open changes the affected rows and raises the
 notification without a navigation.
 
-## 29 · `/notices` becomes `/changes`, and stops being a page for uploading
+## 29 · `/notices` becomes `/changes`, and stops being a page for uploading — **done 9 Sep**
 
 **Files** `routes/notices.tsx` → `routes/changes.tsx`, `main.tsx`, `shell/`
 
