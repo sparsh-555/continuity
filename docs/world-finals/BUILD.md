@@ -1020,9 +1020,14 @@ envelope described only the first third.
 - **The page header is 64 px, not 48.** At 48 with a 10 px subtitle the product's name was
   a strip of grey nobody could read across a room. The KiCad project's name moved out of
   that subtitle and into the board pane's own header, which is the pane it is about.
-- **`design/BomTable` stopped printing why a disabled control is disabled.** *"This part
-  has no package, so a thermal table column cannot be selected"* ran down the whole column
-  on every seeded design run. It is the `title` on the control now.
+- **`design/BomTable` offers the datasheet control only where it can be used.** A row whose
+  listing states no package rendered the same *Attach PDF* as every other one, disabled —
+  identical text, identical styling, `disabled` on a visually hidden input — so it read as a
+  control and did nothing when pressed. The explanation sat underneath as body text, which
+  ran a sentence about thermal table columns down the whole column, and then as a `title`,
+  which nobody hovers. Three presentations of one fact; not drawing an unavailable
+  affordance is better than all of them, and what is left points at the rows where a
+  datasheet would actually change a verdict.
 
 ### What the second pass changed, and why the first was wrong
 

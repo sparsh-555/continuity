@@ -248,11 +248,9 @@ export function BomTable({ bom, slots }: BomTableProps) {
               const rowKey = `${row.slot}-${row.mpn}`
               const upload = datasheetUploads[rowKey]
               const isUploading = upload?.status === 'reading' || upload?.status === 'uploading'
-              const unavailableReason = !part
-                ? 'No placed part is available for this BOM row.'
-                : !packageName
-                  ? 'This part has no package, so a thermal table column cannot be selected.'
-                  : null
+              // A datasheet reading is bound to a package, so both are needed before one can
+              // be offered. See the note beside the control.
+              const canAttach = Boolean(part && packageName)
 
               const rowClassName = isConflict
                 ? 'bg-error-container/20 border-l-2 border-error hover:bg-error-container/30 transition-colors'
@@ -281,31 +279,44 @@ export function BomTable({ bom, slots }: BomTableProps) {
                     {row.unit_price === null ? '—' : formatMoney(row.unit_price, row.currency)}
                   </td>
                   <td className="px-sm py-2 align-top whitespace-normal min-w-[180px]">
-                    <label
-                      className="inline-flex items-center gap-1 text-[10px] text-on-surface-variant hover:text-primary-container cursor-pointer disabled:cursor-not-allowed"
-                      title={unavailableReason ?? 'Attach a .pdf datasheet'}
-                    >
-                      <input
-                        accept="application/pdf,.pdf"
-                        aria-label={`Attach datasheet PDF for ${row.mpn}`}
-                        className="sr-only"
-                        disabled={Boolean(unavailableReason) || isUploading}
-                        onChange={(event) => handleDatasheetChange(rowKey, row.mpn, packageName, event)}
-                        type="file"
-                      />
-                      <span className="material-symbols-outlined text-[14px]">attach_file</span>
-                      {upload?.status === 'reading'
-                        ? 'Reading PDF…'
-                        : upload?.status === 'uploading'
-                          ? 'Extracting…'
-                          : 'Attach PDF'}
-                    </label>
-                    {/* Why the control is disabled belongs on the control, not under it.
-                        Printed as body text it ran down the whole column — every module
-                        with no package on its listing carrying a sentence about thermal
-                        table columns, on a bill of materials nobody opened to read about
-                        that. It is the `title` on the label above, where a reader who
-                        wonders will find it. */}
+                    {/* **Offered only where it can be used.**
+                    
+                        A datasheet is matched to a thermal table by package, so a row whose
+                        listing states none has nothing to match against. That row used to
+                        render the same "Attach PDF" as every other, disabled — identical
+                        text, identical styling, `disabled` on a visually hidden input — so
+                        it read as a control and did nothing when pressed. The explanation
+                        was underneath as body text, which ran a sentence about thermal
+                        table columns down the whole column, and then as a `title`, which
+                        nobody hovers.
+                    
+                        Three ways to present the same fact, and the fourth is better than
+                        all of them: an affordance that is not available is not drawn. What
+                        is left points at the rows where a datasheet would actually change a
+                        verdict — on this world, the regulator the whole scenario is about. */}
+                    {canAttach ? (
+                      <label
+                        className="inline-flex items-center gap-1 text-[10px] text-on-surface-variant hover:text-primary-container cursor-pointer"
+                        title="Attach a .pdf datasheet"
+                      >
+                        <input
+                          accept="application/pdf,.pdf"
+                          aria-label={`Attach datasheet PDF for ${row.mpn}`}
+                          className="sr-only"
+                          disabled={isUploading}
+                          onChange={(event) =>
+                            handleDatasheetChange(rowKey, row.mpn, packageName, event)
+                          }
+                          type="file"
+                        />
+                        <span className="material-symbols-outlined text-[14px]">attach_file</span>
+                        {upload?.status === 'reading'
+                          ? 'Reading PDF…'
+                          : upload?.status === 'uploading'
+                            ? 'Extracting…'
+                            : 'Attach PDF'}
+                      </label>
+                    ) : null}
                     {upload?.status === 'error' ? (
                       <p className="mt-1 text-[10px] text-error">{upload.message}</p>
                     ) : null}
