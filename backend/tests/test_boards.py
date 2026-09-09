@@ -393,3 +393,39 @@ def test_a_board_full_of_copper_zones_reports_no_break_we_did_not_cause():
     assert body["package"] == {"from": "SOT-223", "to": "SOT-223"}
     assert body["broke_connections"] is False, body["added"]
     assert body["added"] == [], "a drop-in adds nothing"
+
+
+@needs_kicad
+def test_a_smaller_package_still_breaks_a_board_full_of_zones():
+    """The other direction of the net-keyed comparison, and the reason it exists.
+
+    Keying unconnected findings on the net rather than the witness pads makes a break
+    *harder* to see, and everything verified when that landed was that false alarms
+    stopped. This is the test that it still catches a true one, on the board that forced
+    the change: OpenJBOD, 687 copper zones, where a same-package drop-in is clean.
+
+    Measured 9 Sep: seven added findings, including a GND pad shorting the `/+3.3vSB`
+    track and a dangling `/+5vSB` track, and pads 3 and 4 reported unwired because a
+    SOT-23-5 has five pads and a three-pin part wires three.
+    """
+
+    async def go():
+        async with a_store():
+            async with a_line() as (http, line_id):
+                await http.put(
+                    f"/lines/{line_id}/board",
+                    json={"filename": "OpenJBOD.zip", "bundle": any_bundle("openjbod")},
+                )
+                return await http.post(
+                    f"/lines/{line_id}/board/consequence",
+                    json={"retiring": "AMS1117-3.3", "candidate": "ME6211C33M5G-N"},
+                )
+
+    response = run(go())
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["package"] == {"from": "SOT-223", "to": "SOT-23-5"}
+    assert body["broke_connections"] is True, "a five-pad part on a three-pad land pattern"
+    assert body["added"], "the delta has to name what it found"
+    assert body["wiring"]["unwired_pads"] == ["3", "4"], "reported, never guessed at"
