@@ -178,3 +178,34 @@ def test_a_line_with_no_profile_still_shows_every_part_it_has():
 
     assert len(drawn.slots) == len(REAL_BOARD_BOM)
     assert drawn.off_tree == 0
+
+
+# ── a retired part is red, and that is a fact rather than a verdict ───────────
+
+
+def test_the_part_a_notice_retires_is_marked_on_the_graph():
+    """Red here is not a compatibility verdict, which is why it needs nothing computed.
+
+    The notice says this part is going away. That is the manufacturer's statement about the
+    part, true on every board that carries it, and it is the only colour on this picture
+    that can be painted before any rule has run.
+    """
+    drawn = graph_from(GATEWAY_PROFILE, GATEWAY_BOM, retired={"u1"})
+
+    by_id = {slot["id"]: slot for slot in drawn.slots}
+    assert by_id["u1"]["status"] == "conflict"
+    assert by_id["u2"]["status"] == "unchecked", "nothing else is claimed either way"
+
+
+def test_nothing_is_marked_when_no_notice_reaches_the_line():
+    drawn = graph_from(GATEWAY_PROFILE, GATEWAY_BOM)
+
+    assert {slot["status"] for slot in drawn.slots} == {"unchecked"}
+
+
+def test_a_retired_designator_that_is_not_on_the_bill_marks_nothing():
+    """A notice reaches a line by part number, and the caller passes the designators it
+    found. One that is not fitted is not on the picture, and must not invent a node."""
+    drawn = graph_from(GATEWAY_PROFILE, GATEWAY_BOM, retired={"u9"})
+
+    assert {slot["status"] for slot in drawn.slots} == {"unchecked"}

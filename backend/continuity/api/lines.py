@@ -15,9 +15,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
 
+from . import review as review_api
 from .auth import current_user, store_of
 from .store import Line, Thread, User
+from ..engine import rules
 from ..linegraph import graph_from
+from ..parts import normalize
 from ..profile import OperatingProfile
 
 router = APIRouter(prefix="/lines", tags=["lines"])
@@ -127,6 +130,68 @@ async def get_line(
     return _view(line)
 
 
+@router.post("/{line_id}/check")
+async def check(
+    line_id: str, request: Request, user: User = Depends(current_user)
+) -> dict[str, Any]:
+    """Run the engine over a product line as it stands, under its own stored conditions.
+
+    **Why this is its own call.** The graph on a product line used to be entirely grey,
+    because every slot came back `unchecked` and that was the truthful answer: no rule had
+    looked at the board. The result was a screen saying nothing works about products that
+    ship today. Painting it green without running anything would be worse, since an
+    unearned verdict is the one thing this system must not produce. So it runs the engine,
+    and green means green because it was computed.
+
+    Separate from `/overview` because resolving parts reaches a distributor and the
+    overview promises to render offline and instantly. The page loads grey and settles.
+
+    Nothing here is a substitution. It places nothing and proposes nothing: it checks the
+    parts the line already has, which is the question "is this product, as it ships, sound
+    under the conditions its own profile states".
+    """
+    store = store_of(request)
+    line = await store.line_for_user(line_id, user.org_id)
+    if line is None:
+        raise HTTPException(404, "no such line")
+
+    # The company's own verified readings, in the engine's hands before anything resolves.
+    # Without this every SOT-223 part falls back to the package table's single figure and to
+    # whatever the distributor's parametric blob says, and the green this endpoint paints
+    # would be graded against a listing rather than against the datasheets somebody read.
+    # The same omission in the review made NCP1117 clear the Gateway.
+    async def facts_for(mpn: str) -> list[dict[str, Any]]:
+        return (await store.part_facts([mpn])).get(mpn, [])
+
+    token = normalize.set_dossier_lookup(facts_for)
+    try:
+        board, why_not = await review_api.board_for_line(store, line_id, user.org_id)
+    finally:
+        normalize.reset_dossier_lookup(token)
+    if board is None:
+        raise HTTPException(409, why_not or "this product line cannot be checked")
+
+    verdicts = rules.evaluate(board)
+    per_slot: dict[str, dict[str, Any]] = {}
+    for slot_id in board.slots:
+        mine = [v for v in verdicts if v.subject == slot_id]
+        failed = [v for v in rules.blocking(mine)]
+        per_slot[slot_id] = {
+            "status": "conflict" if failed else "pass",
+            "checked": len(mine),
+            "detail": failed[0].detail if failed else None,
+        }
+
+    return {
+        "slots": per_slot,
+        "checked": len(verdicts),
+        # Green means nothing failed, not that everything was checkable. Naming the two
+        # separately is the whole reason there are five coverage labels rather than three.
+        "not_assessed": sorted({v.rule for v in verdicts if v.status == "not_assessed"}),
+        "evidence_missing": sorted({v.rule for v in verdicts if v.status == "evidence_missing"}),
+    }
+
+
 @router.get("/{line_id}/overview")
 async def overview(
     line_id: str, request: Request, user: User = Depends(current_user)
@@ -148,10 +213,15 @@ async def overview(
     notices = await store.notices_reaching_line(line_id, user.org_id)
     requests = await store.change_requests_for_line(line_id, user.org_id)
 
+    # Every designator a notice has named on this line. The graph paints those in
+    # conflict, which is the manufacturer's statement rather than a verdict of ours, and is
+    # the only colour that can be painted before a rule has run.
+    retired = {designator for notice in notices for designator in notice["refdes"]}
+
     return {
         "line": _view(line).model_dump(),
         "parts": parts,
-        "graph": graph_from(line.profile, parts).to_json(),
+        "graph": graph_from(line.profile, parts, retired=retired).to_json(),
         "board": (
             {
                 "filename": board["filename"],

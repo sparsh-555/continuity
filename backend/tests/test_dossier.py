@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from continuity.engine.models import PartSpec
+from continuity.parts import dossier
 from continuity.parts.dossier import DOSSIER_FIELDS, facts_from_part
 
 
@@ -28,11 +29,17 @@ def test_facts_from_part_keeps_only_known_nonempty_part_properties():
     # and an ambient grade is not a junction limit — a part graded to 125 °C ambient and
     # rated to 150 °C at the junction would have been checked 25 °C too harshly, with a
     # verdict that read as entirely reasonable.
+    # `cout_min_uf` and `cout_dielectrics` joined for the same reason, and their absence
+    # had teeth too: they could not reach the engine on any live path, so
+    # `capacitor_requirements` reported *evidence missing* on a product line whose datasheet
+    # readings the company had recorded. That is the one passive check the product ships.
     assert DOSSIER_FIELDS == frozenset(
         {
             "package", "theta_ja", "topology", "synchronous", "efficiency",
             "temp_min", "temp_max", "t_j_max",
             "vmin", "vmax", "vout_min", "vout_max", "i_max",
+            "cout_min_uf", "cout_dielectrics",
+            "capacitance_uf", "dielectric",
         }
     )
     assert facts_from_part(part) == [
@@ -116,3 +123,66 @@ def test_only_engineering_fields_are_marked_verifiable():
     for commercial in ("stock", "unit_price", "lifecycle", "lead_time_days", "distributor"):
         assert commercial not in ENGINEERING_FIELDS
         assert commercial not in DOSSIER_FIELDS, "a listing fact must not become durable"
+
+
+# ── the capacitor requirement, which could not travel ─────────────────────────
+
+
+def test_a_regulators_output_capacitor_requirement_is_a_fact_about_the_part():
+    """It is true of the MPN on every board, which is this module's own criterion.
+
+    Left out, it could not reach the engine on any live path: `capacitor_requirements`
+    reported *evidence missing* on a seeded product line whose datasheet readings the
+    company had actually recorded. The rule is the one passive check the product ships, and
+    SPEC names it "the first thing a hardware engineer attacks on an LDO substitution", so
+    it firing only in an offline fixture was the gap between what we claim and what runs.
+    """
+    part = PartSpec(
+        mpn="TLV1117LV33DCYR",
+        manufacturer="Texas Instruments",
+        description="3.3 V LDO",
+        category="LDO Regulator",
+        package="SOT-223",
+        cout_min_uf=0.5,
+        cout_dielectrics=("X5R", "X7R"),
+        cout_source_line="Effective output capacitance … 0.5 µF",
+    )
+
+    written = {field: value for _, field, value, _ in dossier.facts_from_part(part)}
+
+    assert written["cout_min_uf"] == "0.5"
+    assert "X5R" in written["cout_dielectrics"] and "X7R" in written["cout_dielectrics"]
+
+
+def test_a_capacitors_own_value_is_a_fact_about_the_part_too():
+    """Both sides of the capacitor rule had to be able to travel, and neither could.
+
+    A regulator states what it needs; a capacitor states what it is. With `capacitance_uf`
+    absent from this list, the capacitor resolved live carried no value, so the rule
+    reported evidence missing however many datasheet readings the regulator had. Adding one
+    side without the other would have changed nothing.
+
+    They are *not* engineering fields: a distributor states an MLCC's capacitance and
+    dielectric accurately and our own seeded values came from the JLCPCB listing, so these
+    fill a blank rather than outrank a listing.
+    """
+    part = PartSpec(
+        mpn="CL31A226KAHNNNE",
+        manufacturer="Samsung Electro-Mechanics",
+        description="22 µF 25 V X5R",
+        category="Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+        package="1206",
+        capacitance_uf=22.0,
+        dielectric="X5R",
+    )
+
+    written = {field: value for _, field, value, _ in dossier.facts_from_part(part)}
+
+    assert written["capacitance_uf"] == "22.0" and written["dielectric"] == "X5R"
+
+
+def test_the_dielectrics_a_datasheet_requires_come_back_as_a_tuple():
+    """Empty means the datasheet named none, not that any will do, so the round trip has to
+    keep the difference between "no requirement" and "a requirement of one"."""
+    assert dossier.value_from_text("cout_dielectrics", "X5R, X7R") == ("X5R", "X7R")
+    assert dossier.value_from_text("cout_dielectrics", "") is None

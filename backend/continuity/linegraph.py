@@ -29,7 +29,7 @@ what turns those green or red.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Collection, Mapping, Sequence
 
 SUPPLY_ID = "__supply"
 
@@ -118,19 +118,29 @@ class LineGraph:
 
 
 def graph_from(
-    profile: Mapping[str, Any] | None, bom: Sequence[Mapping[str, Any]]
+    profile: Mapping[str, Any] | None,
+    bom: Sequence[Mapping[str, Any]],
+    *,
+    retired: Collection[str] = (),
 ) -> LineGraph:
     """A product line's power tree, or as much of one as it has described.
 
     Everything is derived from stored fields and nothing is fetched. A line with no profile
     still gets its parts as unconnected nodes, which is the honest picture of a bill of
     materials nobody has described the power tree of yet.
+
+    `retired` is the reference designators a change notice has named on this line. They come
+    back as `conflict`, and that is **not a compatibility verdict**: it is the manufacturer
+    saying the part is going away, true of the part on every board that carries it. It is
+    the only colour this picture can carry before any rule has run, which is why it is the
+    one thing this function is allowed to assert.
     """
     rails: Mapping[str, Mapping[str, Any]] = (profile or {}).get("rails") or {}
     sources = {
         str(rail["source"]) for rail in rails.values() if rail.get("source")
     }
 
+    retired_here = {str(designator) for designator in retired}
     fitted = [row for row in bom if row.get("populated", True) and row.get("refdes")]
 
     # **A bill of materials is not a power tree.** Every seeded line stated three parts, so
@@ -166,9 +176,10 @@ def graph_from(
                 "tier": _tier(refdes, description, is_source=refdes in sources),
                 "pinned": True,
                 # Fitted, shipping, and looked at by no rule in this session. A run is what
-                # turns these green or red, and claiming `pass` before one would be the
-                # system asserting a verdict nobody produced.
-                "status": "unchecked",
+                # turns these green, and claiming `pass` before one would be the system
+                # asserting a verdict nobody produced. `conflict` here is the exception and
+                # is not a verdict: a notice said this exact part is going away.
+                "status": "conflict" if refdes in retired_here else "unchecked",
                 "part": {
                     "mpn": mpn,
                     "manufacturer": row.get("manufacturer"),

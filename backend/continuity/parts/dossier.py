@@ -27,6 +27,10 @@ DOSSIER_FIELDS: frozenset[str] = frozenset(
         "vout_min",
         "vout_max",
         "i_max",
+        "cout_min_uf",
+        "cout_dielectrics",
+        "capacitance_uf",
+        "dielectric",
     }
 )
 """Properties that remain true for this MPN on every board.
@@ -48,6 +52,7 @@ ENGINEERING_FIELDS: frozenset[str] = frozenset(
         "theta_ja", "t_j_max", "temp_min", "temp_max",
         "vmin", "vmax", "vout_min", "vout_max", "i_max",
         "package", "topology", "synchronous", "efficiency",
+        "cout_min_uf", "cout_dielectrics",
     }
 )
 """Facts about the part, where the manufacturer's datasheet is the specification of record.
@@ -101,6 +106,7 @@ _FLOAT_FIELDS = frozenset(
     {
         "theta_ja", "efficiency", "temp_min", "temp_max", "t_j_max",
         "vmin", "vmax", "vout_min", "vout_max", "i_max",
+        "cout_min_uf", "capacitance_uf",
     }
 )
 
@@ -133,9 +139,22 @@ def facts_from_part(
         value = getattr(part, field)
         if value is None or (isinstance(value, str) and not value.strip()):
             continue
+        if isinstance(value, tuple):
+            if not value:
+                # Empty means the datasheet named none, which is not the same as a
+                # requirement of nothing, and storing it would turn a silence into a claim.
+                continue
+            value = ", ".join(str(item) for item in value)
         if not _is_stated(value):
             continue
-        source = part.theta_ja_source_line if field == "theta_ja" else part.provenance.get(field)
+        # The two fields whose evidence sentence lives on the part rather than in its
+        # provenance map, because both were read out of a datasheet by hand.
+        if field == "theta_ja":
+            source = part.theta_ja_source_line
+        elif field in ("cout_min_uf", "cout_dielectrics"):
+            source = part.cout_source_line
+        else:
+            source = part.provenance.get(field)
         source = original_source(source)
         if verified and field in ENGINEERING_FIELDS:
             source = verified_source(source)
@@ -155,6 +174,9 @@ def value_from_text(field: str, value: str) -> Any | None:
         return parsed if math.isfinite(parsed) else None
     if field == "synchronous":
         return {"True": True, "False": False}.get(value)
+    if field == "cout_dielectrics":
+        named = tuple(item.strip() for item in value.split(",") if item.strip())
+        return named or None
     return value.strip() or None
 
 

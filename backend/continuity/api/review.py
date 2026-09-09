@@ -190,6 +190,15 @@ async def _catalogue_search(retiring: PartSpec) -> list[PartSpec]:
     return found
 
 
+async def board_for_line(store: Any, line_id: str, org_id: str):
+    """One product line assembled into a board the engine can check.
+
+    The same assembly a review uses, named so that `api/lines.check` can ask for it without
+    reaching into this module's internals or building a second one that drifts.
+    """
+    return await _board_for(store, {"line_id": line_id}, org_id)
+
+
 async def _board_for(store: Any, line: dict[str, Any], org_id: str):
     """One product line's board, out of the database, or `None` with the reason logged."""
     stored = await store.line_for_user(line["line_id"], org_id)
