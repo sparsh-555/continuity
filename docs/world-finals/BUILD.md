@@ -11,6 +11,39 @@ test, so a test cannot drift away from the item it proves.
 outside scope. It is never cover for something skipped. A judge who finds a label hiding an
 unbuilt feature asks about it first, and "we ran out of time" costs the room.
 
+## The second rule, learned the hard way on 9 Sep
+
+**Continuity's entire pitch is that it checks parts. A surface that says it could not check
+one destroys that claim in seconds, and no amount of correctness underneath buys it back.**
+
+What happened: a distributor lookup failed on a product line page, one part rendered grey
+beside two green ones, and the fix shipped was a sentence on the page reading *"Not checked,
+because no distributor listing was found."* Beside it, another paragraph explained which
+rules had no published figure and which were outside what the engine answers. Every word of
+it was true. All of it was a product whose one claim is that it checks parts, opening with
+the parts it did not check.
+
+Three things follow, and they are not the same thing said three ways.
+
+**A failure to check is a bug to fix, not a state to render.** The distributor is a network
+call and a venue's network is not ours, so a shipping product line must be checkable without
+one. It is: `dossier.part_from_facts` builds a part from the readings this company recorded,
+which are better evidence than a listing rather than a degraded substitute. Reach for the fix
+before reaching for the caption.
+
+**Coverage honesty belongs in the change request, not on a browsing surface.** The five labels
+are real and they matter, and the place they matter is the ECR packet, where somebody is
+deciding whether to sign. That reader is interrogating one decision and wants to know exactly
+what was and was not established. A person looking at a product line for five seconds is not
+that reader, and telling them what we could not do answers a question nobody asked.
+
+**Limitations answer questions. They do not open pitches.** This is a standing instruction
+from Sparsh, given more than once, and it was broken by putting a disclaimer above the fold on
+the main demo page. The caption there also read *"Not a netlist — nothing here has read a
+schematic"*, which teaches a room to doubt a picture before they have looked at it. Say what
+the thing is. The limitation is available the moment anyone asks, and answering well then is
+worth more than volunteering it badly first.
+
 ## Order, and why
 
 Three dependencies drive it. The **operating profile** determines what every θJA claim and

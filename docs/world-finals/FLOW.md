@@ -18,6 +18,17 @@ described as behaviour.
 
 ---
 
+# Before anything else
+
+**Continuity's entire pitch is that it checks parts. A surface that says it could not check
+one destroys that claim in seconds.** A failure to check is a bug to fix, not a state to
+render: a shipping product line must be checkable with no distributor reachable, and it is.
+Coverage honesty belongs in the change request, where somebody is deciding whether to sign,
+never on a page a person looks at for five seconds. See BUILD.md, "The second rule, learned
+the hard way on 9 Sep", for what shipping the caption instead cost.
+
+---
+
 # Part one · The machine
 
 ## Where a model is, and where one is not
