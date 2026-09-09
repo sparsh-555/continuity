@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useLocation } from 'react-router'
 
 import { BoardConsequence } from '../board/BoardConsequence'
 import { ReviewColumns } from '../review/ReviewColumns'
 import { Page } from '../shell/Page'
 import {
   ApiError,
+  exposureTo,
   listChangeRequests,
   listNotices,
   receiveNotice,
+  type AffectedLine,
   type ChangeRequest,
   type Notice,
   type ReceivedNotice,
@@ -155,12 +158,13 @@ const ARRIVALS_MS = 10_000
  *  seconds is under the server's own fifteen, so a forwarded notice shows up within about
  *  a poll of being read rather than a poll plus a refresh. */
 
-export default function NoticesRoute() {
+export default function ChangesRoute() {
   const [notices, setNotices] = useState<Notice[]>([])
   const [selected, setSelected] = useState<Notice | null>(null)
   const [received, setReceived] = useState<ReceivedNotice | null>(null)
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [skipped, setSkipped] = useState<string[]>([])
+  const [affected, setAffected] = useState<AffectedLine[] | null>(null)
   const [candidates, setCandidates] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -233,14 +237,35 @@ export default function NoticesRoute() {
     setReceived(null)
     setError(null)
     setSkipped([])
+    setAffected(null)
     try {
       setRequests(await listChangeRequests(notice.id))
     } catch {
       setRequests([])
     }
+    // Asked for rather than assumed. A notice that arrived by email carries no upload
+    // reply, and "affects three product lines" is the sentence this screen turns on.
+    try {
+      setAffected(await exposureTo(notice.mpn))
+    } catch {
+      setAffected(null)
+    }
   }, [])
 
+  // Whatever arrived most recently, already open — or the one the caller named. A mailed
+  // notice used to land as an unselected ten-pixel chip beside copy reading "Receive a
+  // change notice to begin", which is false once one has been received and is why the
+  // review looked missing. Arriving from a product line's banner was worse: it navigated
+  // here about a specific notice and then selected none of them.
+  const wanted = new URLSearchParams(useLocation().search).get('notice')
+  useEffect(() => {
+    if (notices.length === 0) return
+    if (selected || received) return
+    void open(notices.find((notice) => notice.id === wanted) ?? notices[0])
+  }, [notices, open, received, selected, wanted])
+
   const active = received?.notice ?? selected
+  const reaches = received?.affected ?? affected
 
   return (
     <Page
@@ -248,7 +273,7 @@ export default function NoticesRoute() {
         <label className="font-data-tabular text-[11px] text-primary-container border border-primary-container rounded px-md py-1 cursor-pointer hover:bg-surface-variant transition-colors">
           {/* Reading a notice is a model call against a PDF and takes a few seconds. A
               button that looks inert for that long reads as a button that did nothing. */}
-          {busy ? 'READING…' : 'RECEIVE A NOTICE'}
+          {busy ? 'READING…' : 'UPLOAD ONE INSTEAD'}
           <input
             accept=".pdf,.txt,text/plain,application/pdf"
             className="hidden"
@@ -261,26 +286,49 @@ export default function NoticesRoute() {
           />
         </label>
       }
-      title="CHANGE NOTICES"
+      title="CHANGES"
       width="reading"
     >
 
+      {/* A list, not a row of ten-pixel chips. What arrived, when, how, and what it
+          retires — enough to pick one without having already known which to pick. The old
+          shape was a button that did not look like a button, holding the only route to
+          the review. */}
       {notices.length > 0 ? (
-        <div className="flex flex-wrap gap-sm">
-          {notices.map((notice) => (
-            <button
-              className={`px-sm py-0.5 border rounded font-data-tabular text-[10px] transition-colors ${
-                (selected?.id ?? received?.id) === notice.id
-                  ? 'border-primary-container text-primary-container'
-                  : 'border-outline-variant text-on-surface-variant'
-              }`}
-              key={notice.id}
-              onClick={() => void open(notice)}
-              type="button"
-            >
-              {notice.mpn}
-            </button>
-          ))}
+        <div className="flex flex-col gap-1">
+          {notices.map((notice) => {
+            const open_ = (selected?.id ?? received?.id) === notice.id
+            return (
+              <button
+                className={`text-left border rounded px-md py-sm transition-colors ${
+                  open_
+                    ? 'border-primary-container bg-surface-container-low'
+                    : 'border-outline-variant hover:border-on-surface-variant'
+                }`}
+                key={notice.id}
+                onClick={() => void open(notice)}
+                type="button"
+              >
+                <span className="flex items-baseline justify-between gap-md">
+                  <span
+                    className={`font-data-tabular text-data-tabular ${
+                      open_ ? 'text-primary-container' : 'text-on-surface'
+                    }`}
+                  >
+                    {notice.mpn}
+                  </span>
+                  <span className="font-data-tabular text-[10px] text-outline shrink-0">
+                    {notice.source}
+                  </span>
+                </span>
+                <span className="block font-data-tabular text-[10px] text-on-surface-variant mt-0.5">
+                  {notice.manufacturer ?? 'manufacturer not stated'}
+                  {notice.effective_date ? ` · last order ${notice.effective_date}` : ''}
+                  {notice.replacement_mpn ? ` · recommends ${notice.replacement_mpn}` : ''}
+                </span>
+              </button>
+            )
+          })}
         </div>
       ) : null}
 
@@ -300,11 +348,11 @@ export default function NoticesRoute() {
             read from: “{active.mpn_line}”
           </p>
 
-          {received ? (
+          {reaches ? (
             <p className="font-data-tabular text-[11px] text-on-surface">
-              {received.affected.length === 0
+              {reaches.length === 0
                 ? 'This part is not on any product line you ship.'
-                : `Affects ${received.affected.length} product line${received.affected.length === 1 ? '' : 's'}: ${received.affected.map((line) => line.name).join(', ')}.`}
+                : `Affects ${reaches.length} product line${reaches.length === 1 ? '' : 's'}: ${reaches.map((line) => line.name).join(', ')}.`}
             </p>
           ) : null}
 
@@ -325,9 +373,10 @@ export default function NoticesRoute() {
         </section>
       ) : (
         <p className="font-data-tabular text-[11px] text-on-surface-variant">
-          Receive a change notice to begin. Continuity reads the part number out of the
-          document, finds the products that carry it, and checks every substitute against
-          each product’s own operating conditions.
+          Nothing has arrived yet. Forward a change notice to the mailbox, or upload one.
+          Continuity reads the part number out of the document, finds the products that
+          carry it, and checks every substitute against each product’s own operating
+          conditions.
         </p>
       )}
 

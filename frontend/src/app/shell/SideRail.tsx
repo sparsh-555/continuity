@@ -78,7 +78,7 @@ export function SideRail() {
         <RailButton active={location.pathname === '/lines'} icon="folder_open" label="All product lines" onClick={() => navigate('/lines')} />
         {/* `grid_view` — a grid of candidates against product lines, which is what it is. */}
         {/* `mark_email_unread` — a notice arriving is where the enterprise flow starts. */}
-        <RailButton active={location.pathname === '/notices'} icon="mark_email_unread" label="Change notices" onClick={() => navigate('/notices')} />
+        <RailButton active={location.pathname === '/changes'} icon="mark_email_unread" label="Changes" onClick={() => navigate('/changes')} />
         <RailButton active={location.pathname === '/matrix'} icon="grid_view" label="Substitution matrix" onClick={() => navigate('/matrix')} />
         {/* `hub` — nodes and the links between them, which is literally what /memory shows.
             It was `memory`, a chip glyph, sitting one rail away from the wordmark's

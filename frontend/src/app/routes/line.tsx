@@ -158,7 +158,7 @@ export default function LineRoute() {
             <button
               className="w-full text-left border border-error/60 bg-error-container/10 rounded p-md hover:bg-error-container/20 transition-colors"
               key={notice.id}
-              onClick={() => navigate('/notices')}
+              onClick={() => navigate(`/changes?notice=${encodeURIComponent(notice.id)}`)}
               type="button"
             >
               <p className="font-data-tabular text-[11px] text-error">

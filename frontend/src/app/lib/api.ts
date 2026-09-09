@@ -525,6 +525,16 @@ export function listNotices() {
   return request<Notice[]>('/notices')
 }
 
+/** Which product lines carry a part, and where on each of them.
+ *
+ *  The upload reply carries this for a notice somebody just handed us. A notice that
+ *  arrived by email has no such reply, and "affects three product lines" is the sentence
+ *  the whole screen turns on, so it is asked for rather than shown only to whoever
+ *  happened to do the uploading. */
+export function exposureTo(mpn: string) {
+  return request<AffectedLine[]>(`/exposure?mpn=${encodeURIComponent(mpn)}`)
+}
+
 /** `filename` becomes the notice's recorded source, so memory can cite the document a
  *  person actually recognises rather than the word `api`. */
 export function receiveNotice(documentBase64: string, filename?: string) {
