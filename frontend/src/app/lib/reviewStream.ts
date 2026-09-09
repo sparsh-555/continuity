@@ -20,9 +20,16 @@ const STALL_TIMEOUT_MS = 45_000
  * heartbeat and are skipped — but they still prove the connection is alive, which is the one
  * job they have.
  */
+export type ReviewRequest = {
+  noticeId: string
+  candidates: string[]
+  /** One product line rather than every line the notice reaches. The product line page
+   *  asks the same question about itself; the change page asks it about the company. */
+  lineId?: string
+}
+
 export function runReview(
-  noticeId: string,
-  candidates: string[],
+  { noticeId, candidates, lineId }: ReviewRequest,
   onFrame: (frame: ReviewFrame) => void,
   onError: (message: string) => void,
   onClose: () => void,
@@ -38,7 +45,7 @@ export function runReview(
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ candidates }),
+          body: JSON.stringify({ candidates, line_id: lineId ?? null }),
           signal: controller.signal,
         },
       )

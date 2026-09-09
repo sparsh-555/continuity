@@ -141,7 +141,7 @@ recommendation right for one product and wrong for another.
 
 ## 3 · The run-through
 
-This is the beat in the order it is told. Nine steps, about twenty minutes at a walk.
+This is the beat in the order it is told. Ten steps, about twenty-five minutes at a walk.
 
 The story it tells: a company's products are described here, a change notice arrives by
 email, Continuity finds every product that carries the retired part, re-checks all of them
@@ -170,11 +170,17 @@ Click **Sensor node**.
   the picture and there must not be.
 - **Bill of materials**: `U1 AMS1117-3.3`, with the manufacturer and the footprint.
 - **Board**: the KiCad project this product line already carries.
+- On the notice banner, **REVIEW THIS LINE** and **THE NOTICE**. Do not press the first one
+  yet: the company-wide run in step 5 is the beat, and this page's own review is step 7a.
 
 **Would be a bug:** the words *"What are you building?"*; a status computed from whether
 somebody has run a design here; a grey part; or any sentence on this page about what could
 not be checked. The last one is not a style note — a product whose pitch is that it checks
 parts must never open by naming the ones it did not. See BUILD.md's second governing rule.
+
+**Also a bug:** the banner navigating away when you click it. It used to be one button that
+went to `/changes`, and a whole run-through was spent looking for a review that was on
+another page.
 
 ### Step 2 · How a product line gets here
 
@@ -296,8 +302,46 @@ and a change:
 Go to `/lines` → **Sensor node**.
 
 **Look for:** the subtitle now reads **Rev D**, the bill of materials shows `U1
-NCP1117ST33T3G` with onsemi beside it, and the power tree draws the new part making the 3.3 V
-rail.
+NCP1117ST33T3G` with onsemi beside it, the power tree draws the new part making the 3.3 V
+rail, **every part is green, and the notice banner is gone entirely**. The banner is joined to
+the fitted bill, so applying the change takes it away rather than leaving a warning about a
+part the board no longer carries.
+
+### Step 7a · The same review, on one product
+
+Go to `/lines` → **Cabinet controller**, which has not been approved yet, and press
+**REVIEW THIS LINE** on the banner.
+
+This is the same endpoint, the same engine and the same frames as step 5, narrowed to one
+board. The difference is who it is for: step 5 is the company view, and this is the view for
+one product somebody wants to go deep on.
+
+**Look for**, in order:
+
+- **U1 turns cyan the instant you press it** and holds for the whole run. Red was the notice's
+  statement, cyan is work in progress, and green is a verdict — three colours, three different
+  kinds of claim.
+- The trace panel arriving beside the power tree. **Narration is neutral and only a rule's
+  verdict is coloured**: green ticks for satisfied, a red cross for a failure, a dash for the
+  three rules that decline to answer on any board.
+- **COMPONENTS / BOARD** appearing once there is a part to place. Press **BOARD**: the real
+  OpenJBOD project, before and after, cropped to the same rectangle around the regulator, and
+  *"No connections break … SOT-223 → SOT-223."* The board names it **U2** while the power
+  tree beside it names **U1**, and that is not a fault: the bill this company keeps and the
+  project somebody else drew are two documents, and the substitution finds the position in
+  each on its own terms. It is the same point step 3 makes about three boards and three
+  designators, and this is where it is visible in one picture.
+- **Action Required** in the panel, with *engineering decides* above the buttons, ending in
+  **NCP1117ST33T3G on the Cabinet controller. Clears every check on this board, with 11 °C to
+  spare.**
+
+**Would be a bug:** the regulator staying red for the whole run; a green tick beside a
+sentence about a part that failed; the review opening a different page; or the toggle offering
+BOARD before anything has been found to put on it.
+
+**Known:** about twenty-five seconds pass between the candidate list and the first line about
+this board, while the line's own parts are resolved against the distributor. It is logged in
+[DEFERRED.md](DEFERRED.md) with the measurement.
 
 **Would be a bug:** the applied part with no manufacturer or no footprint. Resolving a part by
 MPN alone is ambiguous — three manufacturers list AMS1117-3.3 — and this is the screen where
@@ -434,7 +478,7 @@ foreign key error on `decisions`, that is the same bug and the fix is in `tools/
 | `/` | landing |
 | `/signup`, `/login` | email and password, no verification, no reset |
 | `/lines` | every product line this company ships |
-| `/lines/:id` | one product: revision, power tree, bill of materials, board, what is coming |
+| `/lines/:id` | one product: revision, power tree, bill of materials, board, what is coming — and where its own review runs |
 | `/design/:lineId` | brief entry, then the workspace |
 | `/design` | single-user local mode, no account |
 | `/notices` | notices received, the review, the decisions, the change requests, the board |

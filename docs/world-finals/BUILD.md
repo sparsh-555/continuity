@@ -940,23 +940,57 @@ The beat this serves, in his words: all product lines functional, show how a lin
 say an important part is going end of life and send the email on stage, Continuity announces
 it, then go to the product and show the graph with the retired part in red.
 
-## 25 · The product line page is the workspace
+## 25 · The product line page is the workspace — **done 9 Sep**
 
-**Files** `routes/line.tsx`, `design/` components, `routes/lines.tsx`
+**Files** `api/review.py`, `review/useLineReview.ts`, `review/ReviewTrace.tsx`,
+`routes/line.tsx`, `routes/lines.tsx`, `board/BoardConsequence.tsx`
 
 **Done when** `/lines/:id` renders with the workspace's own components rather than a second
 implementation of them: the component graph, the trace panel beside it, the bill of materials.
 The notice banner carries **REVIEW THIS LINE** and the review runs *on this page*, so the
 question and **APPROVE AND APPLY** arrive in the trace panel where a person is already looking.
 
-**Note** this is cheaper than it looks. `api/review.py` already emits the workspace's own
-event vocabulary — `stream.reasoning`, `stream.candidate`, `stream.check`, `stream.question`
-— plus `review_started` and `line_done`. The panel that renders a design run can render a
-review with little more than a source change.
+**What shipped.** `POST /notices/{id}/review/run` takes an optional **`line_id`**, and that is
+the whole of the backend change. One endpoint, one engine, one set of frames: the product line
+page asks the question about itself and `/changes` asks it about the company, and the two
+cannot drift into meaning different things by a review. `useLineReview` holds the run and
+`ReviewTrace` renders it beside the graph, using the design workspace's own `ReasoningLine` so
+the two panels are the same panel to look at.
+
+**The banner is no longer a link away.** It was one button that navigated to `/changes`, which
+is how a whole run-through was spent looking for a review that was on another page. It now
+carries **REVIEW THIS LINE** and, beside it, **THE NOTICE** for the document.
+
+**The toggle.** Once the run has a part to place, **COMPONENTS / BOARD** swaps the graph for
+`BoardConsequence` on this product line's real project, before and after, placed on arrival
+rather than behind a second button — choosing BOARD is already the request.
+
+**Colour in the trace panel means a rule's verdict and nothing else.** The first version gave
+every line the design workspace's green tick, which put the mark of a pass beside *"159 °C
+junction against a 150 °C limit"* — the single most important sentence in the whole flow.
+Narration is neutral now, and the five coverage labels have five marks. Same discipline as
+item 27's colours.
+
+**Cyan is seeded from the notice, and had to be.** The intended middle act — the position goes
+cyan while the engine works on it — never rendered. Measured on screen: the run's own first
+mention of the position arrives with the burst of per-line frames at the *very end*, because
+everything before it is discovery about the part rather than about this board. Waiting for the
+engine to name the slot showed it for a fraction of a second, sixty seconds after the button.
+The notice already says where the part sits, needs nothing computed, and the banner above is
+rendering the same fact — so the run starts from it and the engine's own answer replaces it.
 
 **Note** the row menu on `/lines` gains **DESIGN RUNS**, opening `/design/:lineId`. Clicking
 the row still opens the product. The design flow is reachable, and it is no longer the thing
 you get by accident.
+
+**Verified in a browser** on the seeded world, twice end to end. Gateway: TLV1117LV33DCYR, 35
+°C spare, board clean at U1 SOT-223 → SOT-223, applied, Rev C → **Rev D**, banner gone, three
+parts green. Sensor node: NCP1117ST33T3G, 84 °C spare, applied, **Rev D**, U1 onsemi. Cabinet
+controller: NCP1117ST33T3G, 11 °C spare. The position holds cyan for the full run.
+
+**Found while verifying, and fixed:** `/lines/{id}/check` was returning **500 on every seeded
+product line**, so the page a demo opens with was painted entirely by its fallbacks. See
+`parts/dossier._FLOAT_FIELDS`.
 
 **Test** a seeded line with no thread renders the graph, the trace panel and the bill, and a
 review started from the banner finishes without leaving the page.

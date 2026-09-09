@@ -76,11 +76,20 @@ flow rather than a gesture."""
 
 class ReviewRun(BaseModel):
     candidates: list[str] = Field(default_factory=list, max_length=20)
+    """Extra parts to try, named by a person. The notice's own recommendation and the
+    approved list are found without being asked for."""
+
     annual_volume: int | None = Field(default=None, ge=0, le=100_000_000)
     """Units a year, for the recurring half of the cost. Absent rather than assumed: an
     invented volume makes a plausible number out of nothing."""
-    """Extra parts to try, named by a person. The notice's own recommendation and the
-    approved list are found without being asked for."""
+
+    line_id: str | None = None
+    """One product line rather than every line the notice reaches.
+
+    The same run, narrowed. A product line's own page asks the question about itself and
+    has no room for two other boards' traces, while the change page asks it about the
+    whole company. Both are the same stream, the same engine and the same frames, so the
+    two surfaces cannot drift into disagreeing about what a review is."""
 
 
 def _decision_text(line_name: str, proposal: review.Proposal) -> str:
@@ -448,7 +457,9 @@ async def _run_line(
 async def run_review(
     notice_id: str, body: ReviewRun, request: Request, user: User = Depends(current_user)
 ) -> StreamingResponse:
-    """Re-check every product line this notice reaches, at the same time."""
+    """Re-check every product line this notice reaches, at the same time.
+
+    `line_id` narrows it to one of them without changing anything else about the run."""
     store = store_of(request)
     notice = await store.notice_for_org(notice_id, user.org_id)
     if notice is None:
@@ -457,6 +468,11 @@ async def run_review(
     exposed = await store.lines_exposed_to(user.org_id, notice["mpn"])
     if not exposed:
         raise HTTPException(409, "that notice does not reach any product line you ship")
+
+    if body.line_id is not None:
+        exposed = [line for line in exposed if line["line_id"] == body.line_id]
+        if not exposed:
+            raise HTTPException(409, "that notice does not reach this product line")
 
     approved = await store.approved_lists(user.org_id)
     fitted_manufacturer = await store.manufacturer_of(user.org_id, notice["mpn"])

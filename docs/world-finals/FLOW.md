@@ -174,6 +174,12 @@ The three product lines run **concurrently on one stream** (`api/review.py`). On
 because browsers cap around six connections per origin and three sequence spaces would race,
 and the client drops anything at or below its high-water mark.
 
+**One review, two surfaces.** `POST /notices/{id}/review/run` takes an optional `line_id`,
+and that is the only difference between the two places a review is started from: `/changes`
+asks the question about the whole company, and a product line page asks it about itself.
+Same endpoint, same engine, same frames, so a review cannot come to mean one thing on one
+screen and something else on another.
+
 ## 6 · Who is asked
 
 Every candidate lands in one of three states, and this is the routing the whole scenario is
@@ -331,6 +337,11 @@ Point at the date: four dates on that page and only one ends ordering.
 
 Two answers, three products, and the rejections are different physics on each. A single
 manufacturer-wide recommendation cannot express this, and neither can a parametric search.
+
+The same run is on each product's own page under **REVIEW THIS LINE**, where the trace sits
+beside that board's power tree and a toggle swaps it for the board itself, before and after.
+Which one to open is a question about who is watching: the company view for the beat above,
+the product view for one board somebody wants to go deep on.
 
 ## 5 · The decision that is not yours
 

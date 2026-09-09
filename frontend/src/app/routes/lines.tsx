@@ -473,6 +473,18 @@ export default function LinesRoute() {
                             >
                               Attach board
                             </button>
+                            {/* The design flow, still reachable and no longer the thing you
+                                get by accident. Clicking the row opens the product. */}
+                            <button
+                              className="w-full text-left px-sm py-xs font-body-sm text-body-sm text-on-surface hover:bg-surface-container-highest"
+                              onClick={() => {
+                                setOpenMenuLineId(null)
+                                navigate(`/design/${line.id}`)
+                              }}
+                              type="button"
+                            >
+                              Design runs
+                            </button>
                             <button
                               className="w-full text-left px-sm py-xs font-body-sm text-body-sm text-error hover:bg-surface-container-highest"
                               onClick={() => {

@@ -62,10 +62,16 @@ export function BoardConsequence({
   lineId,
   retiring,
   candidate,
+  auto = false,
 }: {
   lineId: string
   retiring: string
   candidate: string | null
+  /** Place it as soon as this is on screen. The change request asks first, because it is a
+   *  document somebody is reading; a toggle on the product line page has already asked —
+   *  choosing BOARD *is* the request, and a second button inside it would be the same
+   *  question twice. */
+  auto?: boolean
 }) {
   const [outcome, setOutcome] = useState<Consequence | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -95,6 +101,12 @@ export function BoardConsequence({
     }
   }, [candidate, lineId, retiring])
 
+  // Guarded on the part rather than on a "have run" flag: `check` changes identity when the
+  // candidate does, which is exactly when the board should be placed again.
+  useEffect(() => {
+    if (auto) void check()
+  }, [auto, check])
+
   if (!candidate) return null
 
   return (
@@ -107,7 +119,7 @@ export function BoardConsequence({
           onClick={() => void check()}
           type="button"
         >
-          {busy ? 'PLACING…' : `PLACE ${candidate} ON THIS BOARD`}
+          {busy ? 'PLACING…' : auto ? 'PLACE IT AGAIN' : `PLACE ${candidate} ON THIS BOARD`}
         </button>
       </div>
 

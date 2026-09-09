@@ -116,8 +116,7 @@ export function ReviewColumns({
     setRunning(true)
 
     abort.current = runReview(
-      noticeId,
-      candidates,
+      { noticeId, candidates },
       (frame: ReviewFrame) => {
         switch (frame.type) {
           case 'review_started':

@@ -612,3 +612,54 @@ def test_the_applied_part_keeps_the_manufacturer_it_was_evaluated_as():
 
     assert fitted["u1"]["manufacturer"], "a bill row with no manufacturer is a row nobody can buy"
     assert fitted["u1"]["footprint"], "and production needs the land pattern"
+
+
+# ── one product line, on its own page ─────────────────────────────────────────
+
+
+def test_a_review_can_be_narrowed_to_one_product_line():
+    """The product line page runs the same review about itself.
+
+    Same endpoint, same engine, same frames — the page just says which board it is asking
+    about. A second endpoint for one line would be a second place for the review to mean
+    something slightly different, and the two would drift.
+    """
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, notice_id):
+                every = await frames_of(http, notice_id)
+                gateway = next(
+                    line["line_id"]
+                    for line in every[0]["lines"]
+                    if line["name"] == "Gateway"
+                )
+                return gateway, await frames_of(http, notice_id, line_id=gateway)
+
+    gateway, frames = run(go())
+
+    started = frames[0]
+    assert [line["name"] for line in started["lines"]] == ["Gateway"]
+    # `review_started` carries no `line_id` at all: it is about the review, not a board.
+    assert {frame["line_id"] for frame in frames if frame.get("line_id")} == {gateway}
+    # It still ends, and it still ends with an answer rather than merely stopping.
+    assert [frame for frame in frames if frame["type"] == "line_done"]
+
+
+def test_narrowing_to_a_line_the_notice_does_not_reach_is_refused():
+    """Silently checking every line instead would be the worst of the three answers: the
+    page would fill with two other products' traces and read as though it were its own."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, notice_id):
+                spare = (await http.post("/lines", json={"name": "Nothing fitted"})).json()
+                return await http.post(
+                    f"/notices/{notice_id}/review/run",
+                    json={"candidates": [], "line_id": spare["id"]},
+                )
+
+    response = run(go())
+
+    assert response.status_code == 409
+    assert "this product line" in response.json()["detail"]

@@ -141,7 +141,6 @@ export type ReviewFrame =
   | {
       type: 'review_started'
       seq: number
-      line_id: null
       notice_id: string
       mpn: string
       lines: Array<{ line_id: string; name: string }>
@@ -152,10 +151,15 @@ export type ReviewFrame =
       type: 'check'
       seq: number
       line_id: string
+      slot: string
       rule: string
+      /** What the rule was applied to, when one rule speaks about several things. */
+      scope: string | null
       status: EventStatus
       detail: string
       margin: string | null
+      /** A failure somebody has already decided to live with. */
+      accepted: boolean
     }
   | {
       type: 'question'
