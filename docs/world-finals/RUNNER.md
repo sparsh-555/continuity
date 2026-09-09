@@ -71,6 +71,18 @@ Add `--reset` to replace a world that is already there. It prints what it built,
 the five product lines and their ids. **If it prints nothing about an AML, stop** — the
 qualification gate is half the story.
 
+It also records **a described design run against every line**, which is what step 2 opens.
+Confirm one landed:
+
+```bash
+psql postgresql:///continuity_demo -t -c \
+  "select l.name, t.status, count(r.*) from threads t
+     join product_lines l on l.id = t.line_id
+     left join run_events r on r.thread_id = t.id group by 1,2 order by 1"
+```
+
+Expect five rows, each `done` with 36 frames.
+
 ### The API
 
 ```bash
@@ -143,64 +155,72 @@ recommendation right for one product and wrong for another.
 
 This is the beat in the order it is told. Ten steps, about twenty-five minutes at a walk.
 
-The story it tells: a company's products are described here, a change notice arrives by
-email, Continuity finds every product that carries the retired part, re-checks all of them
-at once, reaches a different answer for each, asks the desk that owns the failing rule, and
-on approval changes the part in the bill of materials, on the power tree and on the board.
+The story it tells: a company describes what it ships, a change notice arrives **by email**,
+Continuity finds every product carrying the retired part, re-checks all of them at once,
+reaches a different answer for each, asks the desk that owns the failing rule, and on approval
+changes the part in the bill of materials, on the power tree and on the board.
+
+**Two surfaces, and knowing which is which is the whole navigation.** `/changes` is the
+company view: what arrived, what it reaches, and every affected line running together.
+`/lines/:id` is one product: its power tree, its bill, its board, and its own review. The same
+endpoint runs both, narrowed by `line_id`, so they cannot come to disagree about what a review
+is.
 
 ### Step 1 · Sign in, and what a product line is
 
 `http://localhost:5173` → **GET_STARTED** → sign in as the engineer.
 
-You land on `/lines`. There is no tour and no first-run redirect; both were deleted with the
-walkthrough on 8 September.
+You land on `/lines`. Five rows, each a thing Northwind ships. Click **Gateway**.
 
-**Say what this is.** Five product lines. Each one is a thing Northwind ships: a revision, a
-bill of materials by reference designator, an operating profile, and a KiCad project. That
-is what a company knows about its own products, and it is what everything after this reads.
+`/lines/:id` is **the design workspace pointed at a product that already exists**: the same
+three panes, the same proportions, the same components as `/design`. Left to right:
 
-Click **Sensor node**.
+| Pane | What it is |
+|---|---|
+| **THE REVIEW** | what has been said about this board |
+| **Component Logic Graph** | the power tree, with **COMPONENTS / BOARD** in its header |
+| **Bill of Materials** | what the product is made of |
 
-**Look for**, on `/lines/:id`, in this order down the page:
+**Look for**, in this order:
 
-- The subtitle: `Rev C · 3 parts · 25 °C ambient` and the rails.
-- **The power tree, every part green.** Which part makes each rail and what that rail feeds.
-  Green because this product ships and the engine confirms it: the page runs a check against
-  the line's own ambient, rail and load on every visit. There is no explanatory prose under
-  the picture and there must not be.
-- **Bill of materials**: `U1 AMS1117-3.3`, with the manufacturer and the footprint.
-- **Board**: the KiCad project this product line already carries.
-- **Three panes, filling the screen**: the review on the left, the power tree in the middle,
-  the bill and the board on the right. This is the design workspace pointed at a product that
-  already exists, and it is the same layout `/design` has.
-- In the review pane, **REVIEW THIS LINE** and **THE NOTICE** under what is coming for this
-  product. Do not press the first one yet: the company-wide run in step 5 is the beat, and
-  this page's own review is step 7a.
-- On a product line with no notice against it — **Bench supply**, **Handheld meter** — the
-  review pane reads *"22 checks, nothing failed"*. That is the number behind the green.
+- The header: `Rev C · 3 parts · 45 °C ambient · 3V3 at 420 mA · 5 V · WS2812Controller`.
+- The chip beside it: **`1 end of life · 22 checks`**, and the **End of life (1)** button.
+- **The power tree, every part green except U1.** Green because this product ships and the
+  engine confirms it — the page runs a check against the line's own ambient, rail and load on
+  every visit. U1 is red because a notice retires it, which is a manufacturer's statement
+  rather than a verdict of ours.
+- In the review pane, under **THE ENGINE, ON THE PARTS FITTED TODAY**: *22 checks, nothing
+  failed*. That heading is load-bearing. Beside a red part it would otherwise read as a
+  contradiction, and it is not one — the notice is about 2027, and no rule fails on the board
+  as it ships today.
+- **The bill lights the same part red**, with a warning glyph beside `AMS1117-3.3`. The graph
+  and the bill are two views of one board and must never disagree about it.
 
-**Would be a bug:** the words *"What are you building?"*; a status computed from whether
-somebody has run a design here; a grey part; or any sentence on this page about what could
-not be checked. The last one is not a style note — a product whose pitch is that it checks
-parts must never open by naming the ones it did not. See BUILD.md's second governing rule.
+**Would be a bug:** the words *"What are you building?"*; a grey part; content in a narrow
+strip with an empty field around it; a part red on the graph and ordinary in the bill; or any
+sentence on this page about what could not be checked. The last one is not a style note — a
+product whose pitch is that it checks parts must never open by naming the ones it did not. See
+BUILD.md's second governing rule.
 
-**Also a bug:** the banner navigating away when you click it. It used to be one button that
-went to `/changes`, and a whole run-through was spent looking for a review that was on
-another page. And a bug: content in a narrow strip with an empty field around it, which is
-what this page looked like before it became a workspace.
+**Also a bug:** anything on this page navigating to `/changes`. A whole run-through was once
+spent looking for a review that was on another page.
 
-### Step 2 · How a product line gets here
+### Step 2 · How a product line got here
 
-Back to `/lines` → **NEW PRODUCT LINE**.
+Back to `/lines`. On the **Gateway** row, the three-dot menu → **Design runs**.
 
-You do not have to finish this. The point is to show the way in: an engineer describes the
-product, or uploads a bill of materials, and from then on Continuity knows what the company
-ships. Press escape and go back.
+A finished workspace opens: the validation trace on the left, the board in the middle, the
+bill with prices on the right, and *Complete — 3/3 placed*. **The seed records the run in
+which each product line was described** — its parts, its rails, and every check
+`rules.evaluate` produced on the board those two make. It is not a synthesis and does not
+pretend to be: a product that ships did not arrive by somebody being asked what to build.
 
-**If anyone asks what that produces**, the three-dot menu on any row has **DESIGN RUNS**.
-Every seeded line has one, because the seed records the run in which the line was described:
-its parts, its rails, and the engine's verdicts on them. It is the design workspace with a
-finished board in it, and it is where the product line page's layout comes from.
+Say the way in while it is on screen: an engineer describes the product, or uploads a bill of
+materials, and from then on Continuity knows what the company ships. **NEW PRODUCT LINE** on
+`/lines` is that door; you do not have to walk through it here.
+
+**Would be a bug:** *"NO DESIGN RUNS ON THIS PRODUCT LINE"* on a seeded line, or a brief screen
+asking what you are building about a product with a revision and a KiCad project.
 
 **Then say the line that frames everything after it:** *these are Northwind's five product
 lines, and three of them carry the same regulator.*
@@ -208,9 +228,7 @@ lines, and three of them carry the same regulator.*
 ### Step 3 · The boards are already there
 
 Nothing to do. Each affected product line ships with a real KiCad project, attached by the
-seed, because a company that ships five products has its CAD. This used to be a step where
-you zipped a fixture and uploaded it, which was an accident of the seeded world landing
-before the KiCad work and nobody joining them.
+seed, because a company that ships five products has its CAD.
 
 | Product line | Project | Licence | Regulator at |
 |---|---|---|---|
@@ -218,23 +236,27 @@ before the KiCad work and nobody joining them.
 | Gateway | [WS2812Controller](https://github.com/klein0r/pcb-ws2812-wifi-controller) | MIT | **U1** |
 | Cabinet controller | [OpenJBOD-RP2040](https://github.com/OpenJBOD/rp2040) | CERN-OHL-P-2.0 | **U2** |
 
-Three different designs drawn by three people who have never heard of us, each carrying a
-real AMS1117-3.3 in SOT-223, each at a **different reference designator**. That last part is
-worth saying out loud if anyone asks how the substitution finds the part: it resolves the
-position per board, because no two products put the same chip in the same place.
+Three different designs drawn by three people who have never heard of us, each carrying a real
+AMS1117-3.3 in SOT-223, each at a **different reference designator**. That last part is worth
+saying out loud if anyone asks how the substitution finds the part: it resolves the position
+per board, because no two products put the same chip in the same place.
 
-**Worth knowing:** OpenJBOD carries 687 copper zones and found two defects the day it
-arrived, both fixed. See `backend/fixtures/kicad/README.md`.
+Press **BOARD** in the graph pane's header now if you want it early — the real PCB is drawn by
+KiCad and the page warms it on arrival, so the toggle is a switch rather than a wait.
 
-**Would be a bug:** a product line reporting no board, or two of them reporting the same one.
+**Worth knowing:** OpenJBOD carries 687 copper zones and found two defects the day it arrived,
+both fixed. See `backend/fixtures/kicad/README.md`.
+
+**Would be a bug:** a product line reporting no board, two of them reporting the same one, or
+the toggle missing before a review has run.
 
 ### Step 4 · The notice arrives by email
 
-This is the trigger, and it is the step that changed most.
+This is the trigger.
 
-Open `/notices` and leave it on screen. Then, from your own mail, forward
-`docs/world-finals/notices/PCN-2026-114.pdf` to the mailbox in `backend/.env`, **with a
-subject line**.
+Open `/changes` — the rail's third icon, a circle of arrows — and leave it on screen. Then,
+from your own mail, forward `docs/world-finals/notices/PCN-2026-114.pdf` to the mailbox in
+`backend/.env`, **with a subject line**.
 
 Within about fifteen seconds the server reads it, and within ten more the screen shows it
 without anybody pressing anything.
@@ -248,8 +270,8 @@ over that proof.
 
 - `AMS1117-3.3`, `ADVANCED MONOLITHIC SYSTEMS`, **last order 2027-03-31**, recommends
   `NCP1117ST33T3G`.
-- *read from: "Affected part: AMS1117-3.3 (SOT-223)"* — the line the part number came from,
-  in the document's own words.
+- *read from: "Affected part: AMS1117-3.3 (SOT-223)"* — the line the part number came from, in
+  the document's own words.
 - *Affects 3 product lines: Cabinet controller, Gateway, Sensor node.*
 
 **Would be a bug:** 2027-09-30 as the last order date. That is the last time **ship** date and
@@ -257,11 +279,11 @@ it is the mistake this document was built to catch. Also a bug: nothing appearin
 which almost always means the message went to spam. `../.venv/bin/python tools/check_mail.py`
 says so in one line.
 
-**The fallback, if the mailbox cannot be reached:** press **RECEIVE A NOTICE** and pick the
+**The fallback, if the mailbox cannot be reached:** press **UPLOAD ONE INSTEAD** and pick the
 same PDF. Everything after this point is identical, and nothing downstream knows or cares how
 the notice arrived.
 
-### Step 5 · The review, and three different answers
+### Step 5 · Three lanes, one stream
 
 Press **START THE REVIEW**.
 
@@ -270,34 +292,40 @@ saying so is the point: the notice's own recommendation first, then the approved
 list in the same category, then the distributor's catalogue in the same package. That box is
 an override for a part somebody wants tried anyway, and it is deliberately not the way in.
 
-Three columns run **at the same time**, on one stream, and the discovery lines above them are
-said once because the same part is retired on every board. About a minute against live
-sourcing.
+Discovery is said once, above the lanes, because the same part is retired on every board. Then
+**three lanes advance together** — one row per product, each showing the newest thing that
+board has said and its state. About a minute against live sourcing.
 
-| Product line | Answer | Why |
+| Product line | Answer | Why the obvious one lost |
 |---|---|---|
 | Cabinet controller | **NCP1117ST33T3G** | clears everything with 11 °C to spare |
-| Gateway | **TLV1117LV33DCYR** | 35 °C to spare, after NCP1117 reaches **159 °C against a 150 °C limit** |
+| Gateway | **TLV1117LV33DCYR** | NCP1117 reaches **159 °C against a 150 °C limit** |
 | Sensor node | **NCP1117ST33T3G** | 84 °C to spare |
 
-That is the whole argument in one screen. The manufacturer's own recommended replacement is
-right for two of these products and would cook the third, and the third survives on a
-different part for a reason that is about that board and no other.
+**Point at the right-hand column.** The three verdicts stack vertically and disagree, and that
+disagreement is the whole argument: the manufacturer's own recommended replacement is right
+for two of these products and would cook the third, and the third survives on a different part
+for a reason that is about that board and no other.
 
-**Look for:** every rejection carrying the sentence that killed it, the desk named above each
-question before the buttons rather than after, and `LD1117-3.3` surfacing from the catalogue
-as *electrically fine here, and not on the approved manufacturer list*.
+Expand one lane. Its full trace opens in place and **the other two stay as they are** — every
+rejection carrying the sentence that killed it, including `LD1117-3.3` surfacing from the
+catalogue as *electrically fine here, and not on the approved manufacturer list*.
 
-**Would be a bug:** three identical answers, a rejection with no sentence, or the columns
-sitting on CHECKING with nothing above them for forty seconds.
+**Look for:** the desk named above each question before the buttons rather than after, and the
+question sitting outside the fold — a decision waiting on somebody should never need a row
+expanded to be found.
 
-**Known, and worth saying before a judge asks:** every column currently ends at engineering,
+**Would be a bug:** three identical answers; three columns of streaming monospace side by
+side; a rejection with no sentence; expanding one lane collapsing another; or the lanes sitting
+on CHECKING with nothing above them for forty seconds.
+
+**Known, and worth saying before a judge asks:** every lane currently ends at engineering,
 because TLV1117 is on the AML and clears the Gateway. The *"this is not your decision"* beat
 does not fire in the seeded world. It is logged 🟡 in [DEFERRED.md](DEFERRED.md).
 
 ### Step 6 · Approve, and watch the product change
 
-In the **Sensor node** column, press **APPROVE AND APPLY**.
+In the **Sensor node** lane, press **APPROVE AND APPLY**.
 
 **Look for:** *Applied · U1 is NCP1117ST33T3G · Rev D*.
 
@@ -309,82 +337,97 @@ and a change:
 - the approval was recorded with who signed it and why,
 - and the **successful precedent** was written, so the next notice does not re-litigate it.
 
+Under the lanes, the change requests appear — one per affected product line. That is the
+document somebody signs: proposal, every rejection with its sentence, evidence, the two
+coverage admissions, cost, and the desks required.
+
 ### Step 7 · The product line, changed
 
 Go to `/lines` → **Sensor node**.
 
-**Look for:** the subtitle now reads **Rev D**, the bill of materials shows `U1
-NCP1117ST33T3G` with onsemi beside it, the power tree draws the new part making the 3.3 V
-rail, **every part is green, and the notice banner is gone entirely**. The banner is joined to
-the fitted bill, so applying the change takes it away rather than leaving a warning about a
-part the board no longer carries.
+**Look for:** the header now reads **Rev D**, the bill shows `U1 NCP1117ST33T3G` with onsemi
+beside it, the power tree draws the new part making the 3.3 V rail, **every part is green, the
+bill's red row is gone, and the End of life button reads (0)**. The notice is joined to the
+fitted bill, so applying the change takes it away rather than leaving a warning about a part
+the board no longer carries.
 
-### Step 7a · The same review, on one product
+**And the left pane now holds the whole review that changed it** — replayed from what the run
+recorded, ending in the part it chose. Reopening a reviewed product line shows the working,
+not just the answer.
 
-Go to `/lines` → **Cabinet controller**, which has not been approved yet, and press
-**REVIEW THIS LINE** on the banner.
+**Would be a bug:** the applied part with no manufacturer or no footprint. Resolving a part by
+MPN alone is ambiguous — three manufacturers list AMS1117-3.3 — and this is the screen where
+that failure shows. Also a bug: the verdict chip reading **NO VIABLE PART** on a board that
+shipped.
+
+### Step 8 · The same review, on one product
+
+Go to `/lines` → **Cabinet controller**, which has not been approved yet.
+
+Press **End of life (1)** in the header. The notice opens in the drawer on the right, **where
+a design run puts its conflict**, taking the bill's place. Inside it: the part, the
+manufacturer, the last order date, the recommendation, the reason the manufacturer gave, and
+**REVIEW THIS LINE**. Press that.
 
 This is the same endpoint, the same engine and the same frames as step 5, narrowed to one
-board. The difference is who it is for: step 5 is the company view, and this is the view for
-one product somebody wants to go deep on.
+board. The difference is who it is for: step 5 is the company view, this is the view for one
+product somebody wants to go deep on.
 
 **Look for**, in order:
 
 - **U1 turns cyan the instant you press it** and holds for the whole run. Red was the notice's
-  statement, cyan is work in progress, and green is a verdict — three colours, three different
+  statement, cyan is work in progress, green is a verdict — three colours, three different
   kinds of claim.
 - The trace filling the review pane. **Narration is neutral and only a rule's verdict is
   coloured**: green ticks for satisfied, a red cross for a failure, a dash for the three rules
   that decline to answer on any board.
-- **COMPONENTS / BOARD** appearing in the middle pane's header once there is a part to place.
-  Press **BOARD**: the real
-  OpenJBOD project, before and after, cropped to the same rectangle around the regulator, and
-  *"No connections break … SOT-223 → SOT-223."* The board names it **U2** while the power
-  tree beside it names **U1**, and that is not a fault: the bill this company keeps and the
-  project somebody else drew are two documents, and the substitution finds the position in
-  each on its own terms. It is the same point step 3 makes about three boards and three
-  designators, and this is where it is visible in one picture.
-- **Action Required** in the panel, with *engineering decides* above the buttons, ending in
+- **Action Required** at the end, with *engineering decides* above the buttons:
   **NCP1117ST33T3G on the Cabinet controller. Clears every check on this board, with 11 °C to
   spare.**
 
-**Would be a bug:** the regulator staying red for the whole run; a green tick beside a
-sentence about a part that failed; the review opening a different page; or the toggle offering
-BOARD before anything has been found to put on it.
+Then press **BOARD** in the graph pane's header. The real OpenJBOD project, before and after,
+cropped to the same rectangle around the regulator, and *"No connections break … SOT-223 →
+SOT-223."* The two pictures are all but identical, which is the correct answer for a true
+drop-in: the pads it lands on are the pads that are already there.
 
-**Known:** about twenty-five seconds pass between the candidate list and the first line about
-this board, while the line's own parts are resolved against the distributor. It is logged in
-[DEFERRED.md](DEFERRED.md) with the measurement.
-
-**Would be a bug:** the applied part with no manufacturer or no footprint. Resolving a part by
-MPN alone is ambiguous — three manufacturers list AMS1117-3.3 — and this is the screen where
-that failure shows.
-
-### Step 8 · The board
-
-Back on `/notices`, inside the **Sensor node** change request, find **THE BOARD** and press
-**PLACE NCP1117ST33T3G ON THIS BOARD**. About forty seconds.
-
-**Look for:** *No connections break at U3, SOT-223 → SOT-223*, two crops of the same twelve
-millimetres of board before and after, and the datasheet line the pin functions were read
-from. The two pictures are all but identical, which is the correct answer for a true drop-in:
-the pads it lands on are the pads that are already there.
+The board names the part **U2** while the power tree beside it names **U1**, and that is not a
+fault: the bill this company keeps and the project somebody else drew are two documents, and
+the substitution finds the position in each on its own terms. It is step 3's point, visible in
+one picture.
 
 The other half of that argument is in the tests, because no SOT-23-5 part is a sourced
-candidate yet: placing an `ME6211C33M5G-N` at the same position takes unconnected items from
-1 to 4 and adds four shorting items and three clearance violations. See
+candidate yet: placing an `ME6211C33M5G-N` at the same position takes unconnected items from 1
+to 4 and adds four shorting items and three clearance violations. See
 `backend/tests/test_boards.py::test_a_smaller_package_breaks_connections_on_this_board`.
 
-**Would be a bug:** a picture not centred on U3, or a board consequence for a part with no
-pinout on file. Ask for `LD1117S33TR` and it refuses by name, because ST publishes its pin
-connections as a figure and a figure is not extractable text.
+**Would be a bug:** the regulator staying red for the whole run; a green tick beside a sentence
+about a part that failed; the review opening a different page; a board picture that is a stamp
+in the middle of a black rectangle; or a board consequence for a part with no pinout on file.
+Ask for `LD1117S33TR` and it refuses by name, because ST publishes its pin connections as a
+figure and a figure is not extractable text.
 
-### Step 9 · Memory, which is the company's record
+**Known:** the run is quiet for a stretch between the candidate list and the first line about
+this board, while the line's own parts resolve. It is logged in [DEFERRED.md](DEFERRED.md).
+
+### Step 9 · The document, one click from the product
+
+Still on a product line that has been reviewed, look at the bottom of the review pane:
+**Change request · NCP1117ST33T3G**. Press it and the document opens in the right-hand drawer.
+
+Two artefacts, deliberately kept apart. The **trace** is how this board reached its answer and
+lives in the left pane, because that is what somebody on this product wants. The **change
+request** is what somebody signs — cost, approvals, the board consequence, and the two coverage
+admissions — and it is one line at the end rather than the answer to every click. `/changes`
+lists the same document for every affected line, which is the company view of it.
+
+**Would be a bug:** clicking a notice opening the change request instead of the notice.
+
+### Step 10 · Memory, which is the company's record
 
 `/memory`.
 
-Search `AMS1117`. The retired part sorts first, marked **NRND** because its last order date
-has not passed yet, carrying the notice's own words and the boards it is still on.
+Search `AMS1117`. The retired part sorts first, marked **NRND** because its last order date has
+not passed yet, carrying the notice's own words and the boards it is still on.
 
 Search `NCP1117`. **WHAT WAS DECIDED** reads as a history, and every line of it comes from a
 different table:
@@ -420,14 +463,13 @@ cell that only just holds.
 
 ### What the reader refuses to invent
 
-`/notices` → **RECEIVE A NOTICE** → `docs/world-finals/notices/PCN-2026-118.pdf`.
+`/changes` → **UPLOAD ONE INSTEAD** → `docs/world-finals/notices/PCN-2026-118.pdf`.
 
-The preliminary notice withholds the two fields a reader is most tempted to fill: no last
-order date, and the recommendation is the word *none*.
+The preliminary notice withholds the two fields a reader is most tempted to fill: no last order
+date, and the recommendation is the word *none*.
 
-**Would be a bug:** the notice's own issue date of 2026-09-01 appearing as the last order
-date, or a part called `none` being proposed. Both passed every check this system had before
-item 17.
+**Would be a bug:** the notice's own issue date of 2026-09-01 appearing as the last order date,
+or a part called `none` being proposed. Both passed every check this system had before item 17.
 
 ### The design flow, which is the Singapore story
 
@@ -440,10 +482,10 @@ temp and humidity sensor, wifi and ble, usb-c powered with li-ion backup, small 
 Fifty to a hundred and thirty seconds. Inside Northwind the AML is live, so the run stops on
 the first part that is not on it, and the question carries the roles that may answer it.
 
-**A brand-new signup gets its own company with no lists kept**, and there the design flow
-plays as it did in Singapore with no qualification gate at all. `None` for a list that is not
-kept and an empty list that approves nothing are different things, and this is where the
-difference shows.
+**A brand-new signup gets its own company with no lists kept**, and there the design flow plays
+as it did in Singapore with no qualification gate at all. `None` for a list that is not kept
+and an empty list that approves nothing are different things, and this is where the difference
+shows.
 
 ---
 
@@ -456,12 +498,17 @@ cd backend
 PYTHONPATH=. ../.venv/bin/python tools/seed_world.py postgresql:///continuity_demo --reset
 ```
 
+It reseeds five product lines, three boards, both standing lists, and **a described design run
+against every line** — which is what step 2 opens. Expect it to print all five with their ids.
+
 **Then deal with the mailbox, because the reset alone leaves the demo already spoiled.**
 
 `mail_cursor` cascades off the organisation, so a reset wipes the read position. The message
 from the last run-through is still in the inbox, the poller sees a mailbox it has never read,
 and within fifteen seconds the notice is back. You sign in to a fresh world that has already
-received its change notice, and step 4 has nothing left to show.
+received its change notice, and step 4 has nothing left to show. **This was confirmed again on
+9 September**: a reset was followed by a clean `notices` table, and the next page load showed
+`1 end of life`.
 
 Two ways to fix it, and the second is better:
 
@@ -476,7 +523,9 @@ Either way, forward a **new** message for step 4. It gets the next UID and is re
 is the thing being demonstrated.
 
 This is also why the demo database can end up with two `AMS1117-3.3` notices, one mailed and
-one uploaded, each recording how it arrived. That is correct rather than a duplicate.
+one uploaded, each recording how it arrived. That is correct rather than a duplicate — but two
+identical notices render as two rows in the drawer and two lanes' worth of confusion, so clear
+them between passes.
 
 **`--reset` used to fail on any world that had been used.** It was fixed on 8 September, and
 the cause is in [DEFERRED.md](DEFERRED.md) under the seed. If it ever fails again with a
@@ -491,10 +540,10 @@ foreign key error on `decisions`, that is the same bug and the fix is in `tools/
 | `/` | landing |
 | `/signup`, `/login` | email and password, no verification, no reset |
 | `/lines` | every product line this company ships |
-| `/lines/:id` | one product: revision, power tree, bill of materials, board, what is coming — and where its own review runs |
-| `/design/:lineId` | brief entry, then the workspace |
+| `/lines/:id` | one product, as a workspace: power tree or board, bill, its own review, and the notice against it |
+| `/design/:lineId` | the run in which this line was described; a brief screen only if it has none |
 | `/design` | single-user local mode, no account |
-| `/notices` | notices received, the review, the decisions, the change requests, the board |
+| `/changes` | notices received, the company-wide review in lanes, the change requests |
 | `/matrix` | every candidate against every product line |
 | `/memory` | the company's record: parts, boards, notices, and what was decided |
 
@@ -503,6 +552,8 @@ Two endpoints have no screen and are worth knowing about:
 ```bash
 curl -s -b cookies.txt 'http://localhost:8000/exposure?mpn=AMS1117-3.3'
 curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/board/bom'
+curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/reviews'      # a finished review, replayed
+curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/board/render' # the board, cached after the first
 ```
 
 ---
@@ -531,15 +582,15 @@ connection — it is stored — and everything after it replays offline.
 cd backend
 
 # offline, no infrastructure
-../.venv/bin/python -m pytest                                    # 905 passed, 195 skipped, ~9s
+../.venv/bin/python -m pytest                                    # 920 passed, 213 skipped, ~9s
 
 # with a database
 CONTINUITY_TEST_DB=postgresql:///continuity_test \
-  ../.venv/bin/python -m pytest                                  # 1082 passed, 18 skipped, ~25s
+  ../.venv/bin/python -m pytest                                  # 1113 passed, 20 skipped, ~30s
 
 # with a database and KiCad
 CONTINUITY_KICAD=docker CONTINUITY_TEST_DB=postgresql:///continuity_test \
-  ../.venv/bin/python -m pytest                                  # 1092 passed, 8 skipped, ~76s
+  ../.venv/bin/python -m pytest                                  # 1125 passed, 8 skipped, ~130s
 
 # the eight that still skip: five need the network, two need a real model, and one is
 # the answer given when KiCad is absent
@@ -581,7 +632,10 @@ cd ../frontend && bun run build     # tsc first, then the bundle
 |---|---|
 | Every call fails, console shows CORS | Vite is not on 5173 or 5174. Restart with `--strictPort` |
 | `401` on `/auth/me` before signing in | Normal. Two of these on the landing page are expected |
-| The board section says no KiCad is configured | `CONTINUITY_KICAD=docker` was not set on the API, or Docker is not running |
+| The BOARD view says no KiCad is configured | `CONTINUITY_KICAD=docker` was not set on the API, or Docker is not running |
+| BOARD takes three seconds the first time | Expected. The render is cached on the bundle after that, and the page warms it on arrival. A server restart empties the cache |
+| A reviewed line shows a verdict but no trace | The API predates `/lines/:id/reviews`. Restart it |
+| Two identical notices in the drawer | A reseed re-read the mailed message. See §3b |
 | `no matching manifest for linux/arm64` | The `--platform linux/amd64` flag is missing |
 | A notice upload fails with nothing readable | No model key, or no network. The parse is the one step with no offline path |
 | The run finishes fast with no real MPNs | `CONTINUITY_LLM_API_KEY` did not load |
@@ -600,7 +654,7 @@ cd ../frontend && bun run build     # tsc first, then the bundle
 each. The ones you will notice during a run-through, and what to say if a judge notices them
 first:
 
-- **Every column ends at engineering.** TLV1117 is on the AML and clears the Gateway, so the
+- **Every lane ends at engineering.** TLV1117 is on the AML and clears the Gateway, so the
   *"this is not your decision"* beat does not fire in the seeded world. The routing exists and
   is enforced at the HTTP boundary; the seeded world just does not reach it. 🟡
 - **An engineer can qualify a part alone.** `roles.py` addresses `part_qualification` to
@@ -613,7 +667,15 @@ first:
 - **A deployed instance has no KiCad**, so the board section is unavailable anywhere but a
   machine with the container.
 - **The board consequence is not stored**, so it is not part of the change request document
-  and has to be asked for again on a later visit.
+  and is computed again on a later visit. The picture itself is cached per board for as long
+  as the API is up, so it costs about three seconds once and nothing afterwards.
+- **A replayed review cannot say where each candidate came from.** The live trace narrates
+  *"Trying LD1117-3.3 — found in the distributor's catalogue"*; only the manufacturer and
+  package are stored per attempt, so the replay says *"Trying LD1117-3.3."* One field would
+  close it.
+- **A review left waiting on a desk replays without its buttons.** Reopening the line shows
+  its trace and its proposal; whether that decision is still answerable is the decision row's
+  business, and the trace does not re-raise the question.
 - **The AML and AVL have no screen.** The lists are read correctly by the gates and written
   only by the seed and the store. Memory shows what was decided against them, which is the
   part a person asks about.
