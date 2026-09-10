@@ -32,6 +32,17 @@ def run(coro):
     return asyncio.run(coro)
 
 
+@pytest.fixture(autouse=True)
+def reading_goes_to_the_model(monkeypatch):
+    """These tests are about what the reader believes, not about the recording net.
+
+    `CONTINUITY_FIXTURES=1` in the environment would send every read to `fixtures/` and
+    never reach the stubbed model, so a suite run under replay tested nothing here. The
+    three tests that *are* about the net set the variable themselves.
+    """
+    monkeypatch.delenv("CONTINUITY_FIXTURES", raising=False)
+
+
 @pytest.fixture
 def model(monkeypatch):
     """Stub the reading, keeping every check that stands between it and a Notice."""

@@ -1,0 +1,18 @@
+{
+ "tool": "notice_read",
+ "arguments": {
+  "prompt": "4e78ab093990",
+  "document": "64cd5b9e7c3e9dba",
+  "opens": "CONSTRUCTED EXAMPLE. NOT A REAL MANUFACTURER NOTICE."
+ },
+ "response": {
+  "mpn": "AMS1117-3.3",
+  "mpn_line": "Affected part: AMS1117-3.3 (SOT-223)",
+  "manufacturer": "Advanced Monolithic Systems",
+  "effective_date": "2027-03-31",
+  "effective_date_line": "Last time buy: 2027-03-31",
+  "replacement_mpn": "NCP1117ST33T3G",
+  "replacement_line": "Recommended replacement: NCP1117ST33T3G.",
+  "reason": "Closure of the wafer fabrication line that supplies this device."
+ }
+}

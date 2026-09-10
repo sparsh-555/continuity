@@ -21,6 +21,7 @@ job is turning a document into the two or three facts those need.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -28,6 +29,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from . import llm
+from .parts import fixtures
 from .parts.datasheet import text_from_pdf
 
 log = logging.getLogger(__name__)
@@ -195,6 +197,28 @@ def _from_reply(reply: Mapping[str, Any], text: str) -> Notice | None:
     )
 
 
+READ_TOOL = "notice_read"
+"""The recording's name, which is also its filename prefix in `fixtures/`."""
+
+
+def _recording_for(text: str) -> dict[str, Any]:
+    """What identifies one read, small enough to keep in the file it names.
+
+    The document itself is the input, and a whole PCN in every recording's `arguments`
+    would make the fixture unreadable for no gain — the key is a hash either way. The
+    digest is the identity and the opening line is there so a person can tell which notice
+    a file belongs to without decoding anything.
+
+    The instructions are part of it. A recording made under one prompt is not an answer to
+    a different one, which is the same reasoning `normalize._prompt_version` already uses.
+    """
+    return {
+        "prompt": hashlib.sha256(SYSTEM.encode()).hexdigest()[:12],
+        "document": hashlib.sha256(text.encode()).hexdigest()[:16],
+        "opens": text.strip().splitlines()[0][:80] if text.strip() else "",
+    }
+
+
 async def read(document: bytes) -> Notice | None:
     """One notice, or `None` when nothing in it can be trusted.
 
@@ -202,17 +226,39 @@ async def read(document: bytes) -> Notice | None:
     whose part number could not be sourced from the text would start a review of whatever
     the model happened to say. Returning nothing lets the caller say *we could not read
     this*, which is a true and actionable answer.
+
+    **Recorded and replayed like every distributor call**, because this is the first step
+    of the demonstration and it was the only one still making a live call. `CONTINUITY_FIXTURES=1`
+    replays the reading of a document that has been read before and **raises rather than
+    reaching the model** for one that has not: a run that quietly goes to the network is
+    worse than no fixture mode at all, since it looks offline right up until the connection
+    fails. Reading a new notice is a recording run, exactly as sourcing a new part is.
+
+    The verification below happens on the replayed reply too. A recording is the model's
+    answer, not a licence to believe it, so a quoted line that is not in this document is
+    still refused.
     """
     text = text_of(document)
     if not text or not text.strip():
         return None
-    if not llm.available():
-        return None
-    try:
-        reply = await llm.complete_json(SYSTEM, text)
-    except Exception as error:  # noqa: BLE001
-        log.warning("could not read the change notice: %s", error)
-        return None
+
+    call = _recording_for(text)
+    if fixtures.replaying():
+        # Raised, not swallowed into `None`: "nobody recorded this" and "this document
+        # cannot be read" are different answers, and only one of them is about the notice.
+        reply = fixtures.require(READ_TOOL, call)
+    else:
+        if not llm.available():
+            return None
+        try:
+            reply = await llm.complete_json(SYSTEM, text)
+        except Exception as error:  # noqa: BLE001
+            log.warning("could not read the change notice: %s", error)
+            return None
+        # Saved before it is verified, so a rehearsal records what the model actually said
+        # rather than only the readings that happened to pass.
+        fixtures.save(READ_TOOL, call, reply)
+
     if not isinstance(reply, Mapping):
         return None
     return _from_reply(reply, text)

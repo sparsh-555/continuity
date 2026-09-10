@@ -24,7 +24,7 @@ import pytest
 from continuity import llm, reviewer
 from continuity.graph import catalogue, sourcing
 from continuity.planner import plan as planner
-from continuity.parts import datasheet, normalize
+from continuity.parts import datasheet, fixtures, normalize
 from continuity.parts.search import Candidate
 
 LIVE = os.environ.get("CONTINUITY_LIVE") == "1"
@@ -35,6 +35,31 @@ def isolated_part_caches(monkeypatch, tmp_path):
     """Keep normalisation and datasheet facts out of a developer's real cache."""
     monkeypatch.setattr(normalize, "CACHE_DIR", tmp_path / "normalized")
     monkeypatch.setattr(datasheet, "CACHE_DIR", tmp_path / "datasheets")
+
+
+@pytest.fixture(autouse=True)
+def scratch_recordings(monkeypatch, tmp_path):
+    """Keep the suite's own recordings out of the committed `fixtures/` directory.
+
+    Reading is left alone, because the replay tests need the real recordings. Only
+    *writing* is redirected: a test that stubs the model one level below the record-and-
+    replay wrapper takes the live branch, and a suite run then writes its stub payloads
+    into the set the demo replays. That happened, and it put a notice about `LM317T` and
+    one whose document was three null bytes beside the two real change notices.
+    """
+    scratch = tmp_path / "fixtures"
+    real_save = fixtures.save
+
+    def save(tool, arguments, response):
+        original = fixtures.FIXTURE_DIR
+        fixtures.FIXTURE_DIR = scratch
+        try:
+            real_save(tool, arguments, response)
+        finally:
+            fixtures.FIXTURE_DIR = original
+
+    monkeypatch.setattr(fixtures, "save", save)
+    return scratch
 
 
 @pytest.fixture(autouse=True)

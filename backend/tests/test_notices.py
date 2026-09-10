@@ -37,6 +37,17 @@ def run(coro):
     return asyncio.run(coro)
 
 
+@pytest.fixture(autouse=True)
+def reading_goes_to_the_model(monkeypatch):
+    """These tests are about what the reader believes, not about the recording net.
+
+    `CONTINUITY_FIXTURES=1` in the environment would send every read to `fixtures/` and
+    never reach the stubbed model, so a suite run under replay tested nothing here. The
+    three tests that *are* about the net set the variable themselves.
+    """
+    monkeypatch.delenv("CONTINUITY_FIXTURES", raising=False)
+
+
 def reply(**overrides):
     base = {
         "mpn": "AMS1117-3.3",
@@ -135,6 +146,93 @@ def test_a_document_with_no_readable_text_is_refused(model):
 
     assert run(notices.read(b"\x00\x01\x02")) is None
     assert run(notices.read(b"")) is None
+
+
+# ── the safety net reaches the first step ─────────────────────────────────────
+
+
+@pytest.fixture
+def recordings(monkeypatch, scratch_recordings):
+    """Read from where the suite already writes, so a recording made here replays here.
+
+    `scratch_recordings` in `conftest` redirects every write; pointing reads at the same
+    directory is what makes a round trip testable without going near the committed set.
+    """
+    monkeypatch.setattr(notices.fixtures, "FIXTURE_DIR", scratch_recordings)
+    monkeypatch.delenv("CONTINUITY_FIXTURES", raising=False)
+    return scratch_recordings
+
+
+def test_reading_a_notice_is_recorded_and_then_replayed(model, recordings, monkeypatch):
+    """The one step that must work first was the one step with no recorded path.
+
+    Everything after the notice replays from `fixtures/` and never touches the network. The
+    read itself went to the model every time, so the demo's first move depended on a live
+    call that nothing had rehearsed.
+    """
+    calls = []
+
+    async def complete(system, user, **_kwargs):
+        calls.append((system, user))
+        return reply()
+
+    monkeypatch.setattr(notices.llm, "available", lambda: True)
+    monkeypatch.setattr(notices.llm, "complete_json", complete)
+
+    first = run(notices.read(PCN.encode()))
+    assert first is not None and first.mpn == "AMS1117-3.3"
+    assert len(calls) == 1, "recorded on the way past, exactly as a distributor call is"
+    assert list(recordings.glob("notice_read.*.json")), "and written where replay looks"
+
+    monkeypatch.setenv("CONTINUITY_FIXTURES", "1")
+    replayed = run(notices.read(PCN.encode()))
+
+    assert len(calls) == 1, "replaying does not call the model again"
+    assert replayed == first, "and the same document reads the same way"
+
+
+def test_a_notice_nobody_recorded_is_refused_rather_than_fetched(model, recordings, monkeypatch):
+    """The contract the rest of the fixture net keeps. A run that quietly reaches the
+    network is worse than no fixture mode at all, because it looks offline right up until
+    the connection fails."""
+    called = []
+
+    async def complete(_system, _user, **_kwargs):
+        called.append(1)
+        return reply()
+
+    monkeypatch.setattr(notices.llm, "available", lambda: True)
+    monkeypatch.setattr(notices.llm, "complete_json", complete)
+    monkeypatch.setenv("CONTINUITY_FIXTURES", "1")
+
+    with pytest.raises(notices.fixtures.MissingFixture):
+        run(notices.read(PCN.encode()))
+
+    assert called == [], "and it did not ask the model on the way to failing"
+
+
+def test_a_different_document_is_a_different_recording(model, recordings, monkeypatch):
+    """Keyed on what was read, so one recording cannot answer for another notice."""
+
+    async def complete(_system, user, **_kwargs):
+        if "AMS1117" in user:
+            return reply()
+        return reply(
+            mpn="LD1117S33TR",
+            mpn_line="Affected part: LD1117S33TR (SOT-223)",
+        )
+
+    monkeypatch.setattr(notices.llm, "available", lambda: True)
+    monkeypatch.setattr(notices.llm, "complete_json", complete)
+
+    run(notices.read(PCN.encode()))
+    other = PCN.replace("AMS1117-3.3", "LD1117S33TR")
+    run(notices.read(other.encode()))
+
+    assert len(list(recordings.glob("notice_read.*.json"))) == 2
+
+    monkeypatch.setenv("CONTINUITY_FIXTURES", "1")
+    assert run(notices.read(other.encode())).mpn == "LD1117S33TR"
 
 
 def test_without_a_model_nothing_is_guessed(monkeypatch):
