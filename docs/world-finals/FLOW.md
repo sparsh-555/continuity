@@ -65,7 +65,7 @@ The verdicts come from `engine/rules.py`, which is deterministic and takes no mo
 |---|---|---|
 | Product lines, each with a revision | `product_lines` | the engineer |
 | A bill of materials per line, by reference designator | `line_parts` | uploaded, or read out of a KiCad schematic |
-| An operating profile per line — ambient, mounting, rails with `source`, `members`, `i_load` | `product_lines.profile` | the engineer |
+| An operating profile per line — ambient, mounting, rails with `source`, `members`, `i_load`, and the two quantities the money rests on: `build_quantity` for the stock minimum and `annual_volume` for the recurring cost, each with a stated source | `product_lines.profile` | the engineer |
 | The approved manufacturer list and approved vendor list | `approved_parts`, `approved_vendors` | quality and procurement |
 | Verified part facts — datasheet readings that outrank a distributor's table | `part_facts` | whoever read the datasheet; today the seed |
 | A KiCad project per line | `line_boards` | the engineer |
@@ -87,8 +87,8 @@ the `\Seen` flag, so that opening the mailbox in a browser does not make the pol
 message. Attachments are tried before the body. A message that holds no notice is left alone:
 nothing stored, nothing deleted, nothing guessed at.
 
-`notices.py` asks the model for `{mpn, manufacturer, effective_date, replacement_mpn,
-reason}` **and the exact line of the document each was read from**. That ask is recorded and
+`notices.py` asks the model for `{reference, mpn, manufacturer, effective_date,
+replacement_mpn, reason}` **and the exact line of the document each was read from**. That ask is recorded and
 replayed like every distributor call, keyed on a digest of the extracted text and a
 fingerprint of the instructions — so a reworded prompt re-reads rather than believing an
 answer to a question it did not ask, and a document nobody has recorded is refused rather than
@@ -101,6 +101,9 @@ the model's answer, not a licence to believe it. Then code checks:
 - the date is ISO-shaped and is the one that ends *ordering*, not the issue date, the
   response-by date or the last time ship,
 - a word a notice uses for absence — `none`, `to be advised` — is not a part number.
+- the reference number appears *in the line quoted for it*, the same rule the replacement part
+  number lives under. It labels a notice in the list, so one hung off a line that does not carry
+  it is a citation that sources nothing — and on screen it is indistinguishable from a real one.
 
 The same notice arriving twice is one notice. `save_notice` returns the id it already holds
 for this company's `(mpn, effective_date, replacement_mpn)`, so a PCN forwarded to the mailbox
@@ -125,15 +128,28 @@ is not the differentiator and the pitch should not claim it is.
 1. **The manufacturer's own recommendation**, from the notice. First because it is the answer
    everybody in the room already has, and on a board it does not suit, watching it fail is
    the point.
-2. **The approved manufacturer list**, filtered to the same category. The cheap resolution:
+2. **What already resolved this retirement somewhere in the company**, from
+   `store.worked_anywhere` under the signature `eol|{retiring}`. The signature carries no
+   reference designator on purpose: an end-of-life conflict is about the part, and the demo's
+   three boards carry it at U3, U1 and U2, so a refdes-scoped signature could never match
+   across lines. A part that already resolved this is the cheapest answer the company owns,
+   and it says so — *resolved this on the Sensor node*. The beat lands on the **second**
+   notice about a retirement, because the first has no precedent to read.
+3. **The approved manufacturer list**, filtered to the same category. The cheap resolution:
    roughly **$1,281** against **$15,656** to qualify a part from scratch.
-3. **The distributor's catalogue**, searched in the same package. This is the only leg that
+4. **The distributor's catalogue**, searched in the same package. This is the only leg that
    can produce a part nobody here has ever bought, and therefore the only one that can
    produce a decision that belongs to quality rather than to engineering.
-4. **Anything a person typed**, last, as an override. Nobody should have to.
+5. **Anything a person typed**, last, as an override. Nobody should have to.
 
 Minus **what this board already ruled out** (`precedents`, scoped to the line: a part that
 cooks one product says nothing about a cooler one).
+
+**What could not be considered is said and stored.** A candidate that reached `consider` and
+resolved to nothing, or came back ambiguous, is named in the run's preamble with the sentence
+that stopped it and written to `notices.review_skipped` — so the NOT CHECKED panel survives a
+reload rather than living in component state. A catalogue hit the search itself filtered out is
+the search shaping its shortlist, not a skip, and stays out of this.
 
 **Every one of them is asked for by number and manufacturer**, from `store.recorded_manufacturers`
 — this company's own bills first, then its approved list. An MPN alone does not name a part:
@@ -149,7 +165,12 @@ Four things the catalogue leg had to learn, each measured against JLCPCB:
 - The query is built from the rail and the family — *"3.3V LDO regulator"* — never from the
   part's own description, which is a parametric blob and returns the part itself.
 - The pool is 25 deep, because the top of the list is four listings of the retired part and
-  the real alternatives start at the seventh hit.
+  the real alternatives start at the seventh hit. Hits are normalised **a batch at a time and
+  concurrently**, in pool order, stopping as soon as the limit is met — it used to walk all 25
+  sequentially, which was measured at 52 s one day and unfinished after 140 the next. Order is
+  preserved, so the candidate set under replay is unchanged.
+- The search is filtered by the retiring part's own input voltage, so a regulator that cannot
+  take this board's rail is not offered as a substitute for it.
 - Another manufacturer's listing of the retired part number is filtered out before it is
   normalised: it is the part that is going away.
 - A fixed regulator with a different output is not a substitute for this position.
@@ -174,21 +195,26 @@ including the one where it runs 159 °C against onsemi's 150 °C.
 re-check the **whole board**, not the slot. A regulator moves the rail it makes, and a check
 scoped to one position would clear a part that browns out everything downstream.
 
-Fourteen rules run on every board, every time:
+Seventeen rules run on every board, every time:
 
 `voltage_overlap` · `interface_role_match` · `pin_budget` · `current_budget` ·
 `thermal_dissipation` · `availability` · `part_qualification` · `source_approval` ·
 `footprint` · `footprint_compatibility` · `capacitor_requirements` · `temperature_rating` ·
-`energy_budget` · `rail_coverage`
+`energy_budget` · `rail_coverage` · `output_capacitor_stability` · `emc` ·
+`signal_integrity`
 
-A fifteenth entry in `RULES`, `not_assessed`, checks nothing: it declares the three questions
-this engine does not answer for any board — output capacitor stability, EMC and signal
-integrity — so an approver has an honest denominator rather than a board that looks as
-though its emissions had been inspected.
+**The last three were an admission until 11 September.** A fifteenth entry in `RULES` called
+`not_assessed` checked nothing and declared the three questions this engine did not answer for
+any board, so that an approver had an honest denominator. Sparsh overruled keeping it: either
+the three check something real or every mention goes. They are real now — the published
+stability condition per regulator, the regulation type of the candidate against the part it
+replaces, and the rail's worst published deviation against every load's supply window — and
+the `not_assessed` label is deleted from the vocabulary. All three are satisfied on the demo
+world, so none of them takes over the story the other fourteen tell.
 
-Each returns one of five coverage labels — `satisfied`, `failed`, `not_applicable`,
-`not_assessed`, `evidence_missing`. Margin is an attribute of *satisfied*; acceptance is an
-attribute of *failed*. There is no sixth label and no verdict without one.
+Each returns one of four coverage labels — `satisfied`, `failed`, `not_applicable`,
+`evidence_missing`. Margin is an attribute of *satisfied*; acceptance is an attribute of
+*failed*. There is no fifth label and no verdict without one.
 
 The three product lines run **concurrently on one stream** (`api/review.py`). One stream
 because browsers cap around six connections per origin and three sequence spaces would race,
@@ -310,8 +336,8 @@ so a company that had never run a design here had no memory at all.
 - **Rejections**, scoped to the board they happened on, so the next notice does not
   re-litigate them.
 - **Change requests** — the ECR packet: proposal, every rejection with the sentence that
-  killed it, evidence, what was not assessed *and* what could not be checked, the cost split,
-  and the desks that must sign.
+  killed it, evidence, what could not be checked, the cost split, and the desks that must
+  sign.
 - **Approvals** — identity, timestamp, rule, rationale, and the line they were given on.
   Shown on `/memory` under the part they were about.
 - **Successes**, written the moment a substitution is approved rather than proposed. Not
@@ -416,8 +442,8 @@ substitution; a different one is a layout revision, and that inverts which part 
 ## 7 · The packet
 
 One change request per product line: proposal, every rejection with the sentence that killed
-it, evidence with its arithmetic, what was not assessed and what could not be checked kept
-apart, the cost split, and who has to sign. Continuity drafts the ECR. The board decides.
+it, evidence with its arithmetic, what could not be checked, the cost split, and who has to
+sign. Continuity drafts the ECR. The board decides.
 
 ## 8 · The number
 
@@ -450,7 +476,7 @@ industry's own buckets.
   on a part with nothing electrically wrong has to produce a verdict shaped like every other
   verdict. There is no parallel layer.
 - *"Ten rules."* Fifteen.
-- *"Pass / marginal / fail."* Five coverage labels, with margin as an attribute of satisfied.
+- *"Pass / marginal / fail."* Four coverage labels, with margin as an attribute of satisfied.
 - *"Sensor Node and Gateway take ME6211 at $0.0597."* ME6211 is not a candidate in the built
   demo: its datasheet gives 6.5 V absolute maximum, which rules it out on the 12 V product,
   and it was never made a sourced part. The SOT-23-5 beat lives in the KiCad tests instead.

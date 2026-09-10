@@ -106,6 +106,12 @@ approved costs about $1,300. Redesigning the board costs upwards of $950,000. Wh
 them is whether anyone can prove the cheaper option works, and industry averages forty weeks
 over that proof.
 
+The recurring half is on each change request by name, because every affected line now states
+an annual volume on its own operating profile with a source: the Gateway's TLV1117 is
+**$0.1172 a unit against 20,000 a year, so $2,344**, and the two NCP1117 lines are $171.60 and
+$68.64. Nothing is assumed — a line with no stated volume shows no recurring figure rather
+than a plausible number made out of nothing.
+
 **On the Gateway turning red:** nothing was recomputed to make that happen. The notice names a
 part, the bill says the part is fitted, and red is the manufacturer's statement rather than a
 verdict of ours.
@@ -188,9 +194,23 @@ to 4 and adds four shorting items and three clearance violations. It is
 
 Two artefacts, deliberately kept apart. The **trace** is how this board reached its answer and
 lives in the left pane, because that is what somebody on this product wants. The **change
-request** is what somebody signs, with cost, approvals, the board consequence and the two
-coverage admissions, and it is one line at the end rather than the answer to every click.
+request** is what somebody signs, with cost, approvals, the board consequence and whatever
+could not be checked, and that is one line at the end rather than the answer to every click.
 `/changes` lists the same document for every affected line, which is the company view of it.
+
+### Step 4b · When a part is retired twice
+
+A manufacturer often issues a preliminary notice and then a full one for the same part, and
+that is what `PCN-2026-118` and `PCN-2026-114` are. They both retire `AMS1117-3.3` and they do
+not say the same thing: one names a last-order date and a replacement, the other names neither.
+
+So the list labels each by the notice's own number and the day it arrived, and the two read
+`AMS-PCN-2026-118` and `AMS-PCN-2026-114`. A list labelled by part number alone would show two
+identical rows for two different documents, which is the state this was in until 11 September.
+
+Worth saying out loud only if a judge asks how the tool handles a part retiring twice. It is a
+small beat and it is honest: the number is read from the document under the same rule as every
+other field, so it has a line to point at.
 
 ### Step 9a · What each desk owes
 
@@ -275,8 +295,11 @@ outranks a listing, and the reading carries the line it came from.
 with 420 mA through a 5 V rail, NCP1117 reaches 159 °C against a 150 °C limit. That is the
 number on screen, and it is the one that makes the case.
 
-**Can it check a part it could not source?** No, and it says so rather than guessing. The five
-coverage labels are on every cell of the matrix and both admissions are in the change request.
+**Can it check a part it could not source?** No, and it says so rather than guessing. The four
+coverage labels are on every cell of the matrix, and what could not be checked is in the change
+request. There is no longer a rule the engine declines to attempt: `emc`,
+`output_capacitor_stability` and `signal_integrity` were three standing admissions until
+11 September and are now three real checks with published arithmetic behind them.
 
 **How do the three departments actually interact?** Every rule each of them owns is checked on
 every candidate simultaneously, before the first person is asked. Then each department signs

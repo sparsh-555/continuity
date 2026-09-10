@@ -1,5 +1,35 @@
 # Task · DEFERRED pass 2 — the coverage admissions, the replay, and the board in the document
 
+> **Status, 11 Sep.** P1, P2, P3, P4, P5, P10 and P11 landed. **P6, P7 and P8 have not been
+> started** — the notice-level replay, the matrix taking what the review resolved, and the
+> board consequence stored asynchronously. **P9 is in flight and uncommitted.** The order
+> below was written before any of it ran and is kept as it was planned; the plan's premises
+> that turned out to be wrong are corrected inline where they were wrong, and what each item
+> exposed is in [`DEFERRED.md`](../DEFERRED.md) rather than here.
+>
+> **The working tree is red while P9 is in flight: 36 backend failures, all one cause.**
+> `notices.read` now asks for `reference` and `reference_line`, and the `_Notice` and
+> `Preliminary` stub classes in `tests/test_review_api.py` and `tests/test_notices.py` predate
+> it — `AttributeError: '_Notice' object has no attribute 'reference'`. That is the last step
+> of P9, not a regression: P9's own frontend (`noticeIdentity`, its test, the list row, the
+> types) is complete and green, and `HEAD` does not read the field. **Whoever owns P9 should
+> finish it and not hand the stub a bare `None` without thinking** — if the dedupe signature
+> is meant to include the reference, a stub that supplies `None` would make the reproducer
+> pass for the wrong reason, which is the failure mode this repository has hit twice.
+>
+> One thing this plan did not anticipate, and it is a row in DEFERRED: **`signal_integrity` is
+> `evidence_missing` on all three change requests**, because P2 built the rule without the part
+> facts it stacks — its own done-condition said `no_evidence` would be empty, and it is not.
+>
+> The credential incident below closed the same evening: the model key and the mailbox app
+> password were rotated. **No database credential was exposed** — `.env` held a local socket URL
+> with no password in it by then, so this plan's own "the Neon password" was wrong about its
+> incident. Naming the local database removed the hazard; the rotation was the remediation.
+>
+> Changing the reader's prompt invalidates every `notice_read` recording, by design. P9's new
+> `reference` field did exactly that, and both committed recordings were re-made on 11 Sep.
+> [`OPERATING.md`](../OPERATING.md) §5 has the one-liner that tells you before a demo.
+
 **Repository** `~/Documents/GitHub/continuity`. **Baseline** main at `7b2af45`, working tree
 clean. **Suite** 942 offline · 1150 with a database · 1162 with KiCad, ~170 s · 24 frontend
 tests · 619 fixtures (re-count before quoting any of these).

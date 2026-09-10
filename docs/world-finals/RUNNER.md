@@ -65,6 +65,7 @@ click **Gateway**.
 - [ ] The chip beside it reads **`0 end of life · 22 checks`**, and **End of life (0)** is disabled.
 - [ ] Three panes, left to right: **THE REVIEW**, **Component Logic Graph**, **Bill of Materials**.
 - [ ] Every part on the power tree is green.
+- [ ] The legend in the graph's corner names only the states this board is actually in. A resting board offers **Fitted · unchecked**; a row for a state nothing on screen is wearing is a bug.
 - [ ] The review pane reads *22 checks, nothing failed* under **THE ENGINE, ON THE PARTS FITTED TODAY**, and it is on screen the moment the page is.
 - [ ] The bill has three rows and no red.
 - [ ] **COMPONENTS / BOARD** sits in the graph pane's header. Press **BOARD**: the real `WS2812Controller`, drawn by KiCad, named in that pane's own title, in well under a second.
@@ -108,6 +109,7 @@ subject line**.
 - [ ] Within about fifteen seconds the server reads it, and within ten more the screen shows it without anybody pressing anything.
 - [ ] `AMS1117-3.3`, `ADVANCED MONOLITHIC SYSTEMS`, **last order 2027-03-31**, recommends `NCP1117ST33T3G`.
 - [ ] *read from: "Affected part: AMS1117-3.3 (SOT-223)"*, the line the part number came from.
+- [ ] The list row carries the notice's own number and the day it arrived: **`AMS-PCN-2026-114 · received`** and today's date. A row labelled with the part number alone is a bug — that is what made the full notice and the preliminary one indistinguishable.
 - [ ] *Affects 3 product lines: Cabinet controller, Gateway, Sensor node.*
 - [ ] Back on `/lines` → **Gateway**: U1 is red on the power tree and in the bill, and the chip reads `1 end of life`.
 
@@ -115,6 +117,12 @@ subject line**.
 Everything after this point is identical.
 
 - [ ] Doing both leaves **one** notice, not two. The same change arriving twice is one change, and the list shows one row.
+- [ ] The date is **today where you are**, not a UTC date. A reader east of Greenwich before 08:00 would see yesterday from a naive UTC slice.
+
+**For the other notice**, `PCN-2026-118.pdf` is the preliminary one: same part, no last-order
+date, no recommendation. Delivering it leaves **two** rows that are now told apart by their own
+numbers, `AMS-PCN-2026-118` and `AMS-PCN-2026-114`. Worth doing if a judge asks what the list
+looks like when a part is retired twice.
 
 **Reading the notice replays**, as of 10 September, like every distributor call: 1903 ms live
 and 7 ms from `backend/fixtures/`, the same reading either way. It is keyed on the text the
@@ -144,6 +152,7 @@ demonstrate a third, run `./demo.sh --live` and forward it once.
 - [ ] Every rejection carries the sentence that killed it, including `LD1117-3.3` arriving from the catalogue as *electrically fine here, and not on the approved manufacturer list*.
 - [ ] Each question names **every** desk that must sign, above the buttons, and reads *and* rather than *or*. The question sits outside the fold.
 - [ ] The Gateway's lane says procurement is being asked to accept a stock shortfall. The other two failed nothing.
+- [ ] **No lane leads with a rule the engine declined to attempt.** Until 11 September a collapsed lane summarised itself as *NOT ASSESSED · signal integrity*; `emc`, `output_capacitor_stability` and `signal_integrity` are real checks now and all three are satisfied here. A lane leading with an admission is a bug.
 
 ---
 
@@ -205,7 +214,9 @@ in the header, then **REVIEW THIS LINE** inside the drawer.
 **Do.** Still on a reviewed product line, look at the bottom of the review pane: **Change
 request · NCP1117ST33T3G**. Press it.
 
-- [ ] The document opens in the right-hand drawer: the proposal, every rejection with its sentence, **every department that examined the change with its own result**, evidence, the two coverage admissions, cost, the desks required, and what was checked before anybody was asked.
+- [ ] The document opens in the right-hand drawer: the proposal, every rejection with its sentence, **every department that examined the change with its own result**, evidence, anything that could not be checked, cost, the desks required, and what was checked before anybody was asked.
+- [ ] **The recurring cost is a real figure**, because the line's own profile states an annual volume with a source. The Gateway reads **$2,344 a year**, under **+$0.1172 a unit at 20,000/yr**; the Sensor node $171.60 and the Cabinet controller $68.64. *No annual volume stated* would be a bug.
+- [ ] **Known and still open:** `signal_integrity` appears under *could not be checked* on all three requests. The rule is real; the parts do not publish the accuracy figures it stacks. It has its own DEFERRED row, and it is the last coverage admission left.
 - [ ] Clicking a **notice** opens the notice, not the change request.
 
 ---
@@ -263,7 +274,7 @@ merely approve one, so it is the only place this state exists.
 
 - [ ] The grid is already filled when the page opens. Nothing is typed and no button is pressed.
 - [ ] Three boards, and every part the review tried, including the ones it rejected.
-- [ ] Clicking a cell opens the evidence, every cell carrying the five coverage labels.
+- [ ] Clicking a cell opens the evidence, every cell carrying the four coverage labels.
 - [ ] The same part is green on one line and red on another, and a cell that only just holds prints its margin.
 - [ ] Three candidates read *not found at the distributor*. Known, and in DEFERRED: those are the names the package search returns, and the matrix looks a part up by exact number.
 

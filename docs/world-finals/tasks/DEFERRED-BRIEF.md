@@ -15,7 +15,7 @@ at rather than copied.
 >
 > - `docs/world-finals/FLOW.md` — what the product is and where every stage lives.
 > - `docs/world-finals/BUILD.md` — the two governing rules at the top, then the work items.
->   Items 1 to 39 are built except 28.
+>   **Items 1 to 39 are all built**, item 28 last, on 10 September.
 > - `docs/world-finals/DEFERRED.md` — your work list.
 > - `docs/world-finals/RESEARCH-3rd-Passthrough.md` — several DEFERRED rows point into it by
 >   anchor and it has the code reading, the options and the published work for each.
@@ -58,8 +58,9 @@ at rather than copied.
 >
 > ### Order
 >
-> Start with the single 🔴, then work the 🟡s in the live table, then the 🟡s in the 8
-> September section. Several rows are **decisions rather than defects** — they say so — and
+> Start with anything red, then work the 🟡s in the live table, then the 🟡s in the 8
+> September section. **Check the red before working it**: the newest one is a credential
+> rotation, which is a console and not a commit, so the first *code* item may be an amber. Several rows are **decisions rather than defects** — they say so — and
 > those need Sparsh, not you: surface them and move on rather than picking for him.
 >
 > ### Environment
@@ -90,15 +91,28 @@ at rather than copied.
 
 ## What the list looks like right now
 
-**1 🔴, 24 🟡, 27 ⚪, 2 🔵 live**, plus 7 🟡 and 11 ⚪ from the 8 September flow pass. 53
-resolved rows are kept for their reasoning.
+**This section was written on 10 September and the list has moved twice since.** It is kept
+because the *shape* of the advice below still holds — start at the top, work the amber rows,
+leave the decisions to Sparsh — but **do not read its counts or its red as current**. Count
+them from the file.
 
-The 🔴 is **BUILD item 28**: a mailed notice raises no notification, so `/changes` is the only
-screen that reacts to one on its own. `routes/changes.tsx:19,54` is the only poll in the
-product. The item in BUILD carries the sequence it has to serve and the recommended shape,
-which is one provider above the router rather than a second transport.
+As of 11 September the live table holds **14 🟡, 24 ⚪ and 2 🔵**, plus 4 🟡 and 11 ⚪ from the
+8 September pass, with 75 resolved rows kept for their reasoning. No red.
 
-**The 🟡s worth doing first**, in my reading, and the agent should say if it disagrees:
+**The red that was here is closed.** A broad `grep` over `backend/.env` on 11 September put
+the model key and the mailbox app password into a session transcript; both were rotated the
+same evening. No database credential was exposed — `.env` held a local socket URL with no
+password in it by then. The row is kept below with the correction, because the lesson is that
+editing a file to remove a hazard is not the same act as rotating what already leaked.
+
+**BUILD item 28, the red this brief was written for, is built.** A mailed notice now announces
+itself through one provider above the router, and `/changes`, `/lines` and an open product
+line all react to the same signal.
+
+**The 🟡s worth doing first**, in my reading as of 10 September, and the agent should say if
+it disagrees. Four of these five have since been closed — the lanes' traces, the board
+evidencing itself, the memory graph and the matrix's breadcrumb all landed on 10 and 11
+September — so read this as a worked example of how to rank a list rather than as a list:
 
 | | Why it is near the top |
 |---|---|

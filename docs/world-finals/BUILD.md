@@ -494,7 +494,7 @@ cannot depend on failure.
 Built as two engine rules — `part_qualification` and `source_approval` — for exactly that
 reason. A gate that only asked once something else had already failed would clear an
 unqualified part every time it happened to be electrically fine, which is most of the time.
-Being rules, they also appear in every matrix cell and carry the same five coverage labels.
+Being rules, they also appear in every matrix cell and carry the same coverage labels.
 
 **No list is not an empty list.** `organisations.keeps_aml` / `keeps_avl` exist because that
 distinction cannot be derived from an empty table: a company that never set an AML has not
@@ -985,7 +985,7 @@ rather than behind a second button — choosing BOARD is already the request.
 **Colour in the trace panel means a rule's verdict and nothing else.** The first version gave
 every line the design workspace's green tick, which put the mark of a pass beside *"159 °C
 junction against a 150 °C limit"* — the single most important sentence in the whole flow.
-Narration is neutral now, and the five coverage labels have five marks. Same discipline as
+Narration is neutral now, and every coverage label has its own mark. Same discipline as
 item 27's colours.
 
 **Cyan is seeded from the notice, and had to be.** The intended middle act — the position goes

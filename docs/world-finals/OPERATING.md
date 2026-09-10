@@ -176,6 +176,8 @@ naming, because each one has been seen at least once.
 | 9a | The count on the rail disagreeing with the number of rows that can be acted on |
 | 9b | The Gateway's bill reading **JSMSEMI** rather than Texas Instruments; U1 green, or U1 red, where a desk accepted the shortfall; a review pane saying *nothing failed* on a board that has an accepted failure |
 | 10 | A retired part drawn in the same orange as every other, its edges drawn like healthy ones, or a graph with no legend |
+| any | A power-tree legend offering a state nothing on that board is in. It is derived from the slots it was handed, so a board at rest offers *Fitted · unchecked* and a running one offers what it has |
+| any | A change request saying a rule could not be checked. `emc`, `output_capacitor_stability` and `signal_integrity` became real checks on 11 Sep. **`signal_integrity` is the known exception** and has its own DEFERRED row — it declines for want of published accuracy figures on the parts |
 | 10 | Another company's parts on `/memory`, or one approval listed twice |
 | any | The desk switcher offering a session this browser has not signed into, or a switch that does not change what the app says you hold |
 | extras | The PCN-2026-118 issue date of 2026-09-01 appearing as a last order date, or a part called `none` being proposed. Both passed every check this system had before item 17 |
@@ -260,6 +262,23 @@ refused.
 **A notice nobody has recorded is refused, not fetched.** Forwarding some other PDF under
 replay returns *no fixture for notice_read*, which is the same contract every distributor call
 keeps. To demonstrate a new notice, record it first:
+
+**Changing the reader's prompt invalidates every notice recording**, by design — a recording
+made under one prompt is not an answer to a different one. That is not hypothetical: P9 added
+`reference` and `reference_line` to what the reader is asked for on 11 Sep, both committed
+recordings went stale in the same edit, and the demo's first step would have refused. The
+remedy is the command below, run once, and it is worth running whenever `notices.SYSTEM`
+changes. A quick way to tell before starting a demo:
+
+```bash
+cd backend && ../.venv/bin/python -c "
+import pathlib, sys; sys.path.insert(0, '.')
+from continuity import notices
+pdf = pathlib.Path('../docs/world-finals/notices/PCN-2026-114.pdf').read_bytes()
+call = notices._recording_for(notices.text_of(pdf))
+key = notices.fixtures.key_for(notices.READ_TOOL, call)
+print('HIT' if pathlib.Path(f'fixtures/notice_read.{key}.json').exists() else 'MISS — record it')"
+```
 
 ```bash
 ./demo.sh --live      # then forward the new document once
@@ -360,11 +379,12 @@ scoped to `src`. Playwright specs are not bun tests.
 | A reviewed line shows a verdict but no trace | The API predates `/lines/:id/reviews`. Restart it |
 | Two identical notices in the drawer | Both forwarded and uploaded, or a reseed re-read the mailed message |
 | `no matching manifest for linux/arm64` | The `--platform linux/amd64` flag is missing |
-| A notice upload fails saying `no fixture for notice_read` | That document has never been read. `./demo.sh --live`, forward it once, and it replays from then on |
+| A notice upload fails saying `no fixture for notice_read` | That document has never been read **under this prompt**. Changing `notices.SYSTEM` restages every recording. `./demo.sh --live`, forward it once, and it replays from then on |
 | A notice upload fails with nothing readable | No model key under `--live`, or the document genuinely holds no part number backed by a line of its own text |
 | The run finishes fast with no real MPNs | `CONTINUITY_LLM_API_KEY` did not load |
 | A review dies on its second frame saying the part could not be sourced | A distributor call has no recording. `./demo.sh --live` records it |
 | Accounts vanish on restart | The API was started without `DATABASE_URL` |
+| Two notice rows show the same date when they arrived on different days | Fixed 11 Sep. The label rendered a UTC slice; it now renders the reader's own day |
 | Twelve collection errors from pytest | Anaconda's Python. Use `.venv/bin/python` |
 | A forwarded notice never appears | It is in spam. `tools/check_mail.py` says so and names the filter |
 | The mailbox is configured and nothing polls | More than one company and no `CONTINUITY_MAIL_ORG` |

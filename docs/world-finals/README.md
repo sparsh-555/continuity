@@ -31,9 +31,11 @@ Read in this order.
 | [PRELIM-IDEA.md](PRELIM-IDEA.md) | The 200-word submission, and why each line is worded as it is |
 | [COMPETITORS.md](COMPETITORS.md) | What each vendor documents, why Zuken is not the counterexample it looked like, and the questions this prepares for |
 | [WORKBUDDY.md](WORKBUDDY.md) | What WorkBuddy is, and why we are not building on it |
-| **[DEFERRED.md](DEFERRED.md)** | Everything found and not fixed, with a severity against each. Read before the demo, and before claiming anything is complete. |
+| **[DEFERRED.md](DEFERRED.md)** | Everything found and not fixed, with a severity against each. Read before the demo, and before claiming anything is complete. **14 🟡, 24 ⚪, 2 🔵 live** as of 11 Sep. No red. |
 | **[RESEARCH-3rd-Passthrough.md](RESEARCH-3rd-Passthrough.md)** | The third walk through the built product, 10 Sep. What the code actually does behind each finding, the options, and the published work on the same problem. DEFERRED's newest rows point into it. |
 | [tasks/](tasks/) | Implementation briefs, one per BUILD item, written to be handed to a coding agent whole. Each is self-contained. |
+| [tasks/DEFERRED-BRIEF.md](tasks/DEFERRED-BRIEF.md) | The brief to hand an agent working DEFERRED: the three governing rules, how to work an item, the table-header trap, and what not to touch. Read this before writing any other brief. |
+| [tasks/DEFERRED-PASS-2.md](tasks/DEFERRED-PASS-2.md) | Pass 2, planned 11 Sep. **P1–P5, P10 and P11 landed; P6–P8 are not started and P9 is in flight.** It carries a status note at the top rather than being rewritten as a record — the state lives in DEFERRED. |
 | RESEARCH-BRIEF.md, RESEARCH-BRIEF-2.md | The two adversarial passes. Kept for provenance — their findings are already folded into the documents above. |
 
 ## The challenge
