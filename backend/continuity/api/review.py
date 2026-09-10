@@ -41,6 +41,7 @@ from ..matrix import Cell, Matrix
 from ..graph import sourcing
 from ..parts import dossier, normalize
 from ..profile import OperatingProfile, board_from
+from . import boards as boards_api
 from . import events
 from .auth import current_user, store_of
 from . import matrix as matrix_api
@@ -313,6 +314,31 @@ def _as_matrix(
     return Matrix(slot=slot_id, cells=tuple(cells))
 
 
+BOARD_TASKS: set[asyncio.Task[None]] = set()
+"""Placements in flight, so the event loop cannot collect one before it lands."""
+
+
+async def _attach_board(
+    *,
+    store: Any,
+    org_id: str,
+    notice_id: str,
+    line_id: str,
+    retiring: str,
+    candidate: str,
+) -> None:
+    """Compute one board's consequence and attach it to the request it belongs to.
+
+    Deliberately silent. It runs after the line has ended and the person watching has moved
+    on, so there is nobody to tell and nothing to undo: the request is already correct and
+    the card already knows what to render without a picture.
+    """
+    made = await boards_api.consequence_for(store, line_id, org_id, retiring, candidate)
+    if made is None:
+        return
+    await store.attach_board_consequence(org_id, notice_id, line_id, made)
+
+
 def _slot_of(board, mpn: str) -> str | None:
     for slot_id, slot in board.slots.items():
         if slot.part is not None and slot.part.mpn.casefold() == mpn.casefold():
@@ -453,6 +479,28 @@ async def _run_line(
     # this whole flow exists to hand somebody — proposal, every rejection with the sentence
     # that killed it, evidence, the cost split, the desks that must sign — and it used to be
     # produced by a second pass over work the run had already done.
+    # **The board, fired rather than awaited.** A KiCad run is several seconds, the question
+    # is already on screen waiting for desks, and blocking the stream on a picture would put
+    # the wait back into the demo's centrepiece where replay removed it. It lands on the
+    # stored request a moment later; a world with no KiCad leaves `None` and the card keeps
+    # the button it shows today.
+    board_task = asyncio.create_task(
+        _attach_board(
+            store=store,
+            org_id=user.org_id,
+            notice_id=notice["id"],
+            line_id=line_id,
+            retiring=notice["mpn"],
+            candidate=proposal.mpn,
+        )
+    )
+    # **Held, not just scheduled.** A bare `create_task` keeps no reference, and the event
+    # loop only keeps a weak one — so a placement several seconds long can be collected
+    # mid-flight and the board silently never lands. The same guard `normalize` uses for its
+    # thermal fetches and `app` for its progress ticks.
+    BOARD_TASKS.add(board_task)
+    board_task.add_done_callback(BOARD_TASKS.discard)
+
     try:
         request = change.for_line(
             _as_matrix(line_id, line_name, slot_id, attempts, incumbent),

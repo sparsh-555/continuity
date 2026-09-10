@@ -128,6 +128,7 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
         candidate={request.proposal}
         lineId={request.line_id}
         retiring={request.notice_mpn}
+        stored={request.board ?? null}
       />
 
       {/* What this replaced, in the run's own numbers. Deliberately a footnote and

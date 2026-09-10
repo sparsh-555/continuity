@@ -1059,6 +1059,44 @@ def test_the_replay_says_who_has_signed_so_far():
     assert gateway_after["outstanding"], "and it still names who is outstanding"
 
 
+def test_a_change_request_is_written_before_its_board_and_keeps_it_after():
+    """P8, and the ordering is the whole of it.
+
+    The request row is written milliseconds after the proposal is chosen; a KiCad placement
+    takes seconds. So the board is attached to a row that already exists, and the attach is
+    an update rather than part of the insert — which is also what makes it survive a second
+    read, and what makes it a no-op rather than an error when there is no row to attach to.
+    """
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                await frames_of(http, notice_id)
+                before = (await http.get(f"/notices/{notice_id}/review")).json()
+                attached = await store.attach_board_consequence(
+                    me["org_id"], notice_id, before[0]["line_id"],
+                    {"refdes": "u1", "candidate": "NCP1117ST33T3G"},
+                )
+                after = (await http.get(f"/notices/{notice_id}/review")).json()
+                missing = await store.attach_board_consequence(
+                    me["org_id"], notice_id, "no-such-line", {"refdes": "u1"},
+                )
+                return before, attached, after, missing
+
+    before, attached, after, missing = run(go())
+
+    assert before, "precondition: the run wrote change requests"
+    assert all("board" not in request for request in before), (
+        "the run does not block on the board, so the row lands without one"
+    )
+    assert attached is True, "the row was there to attach to"
+    assert after[0]["board"] == {"refdes": "u1", "candidate": "NCP1117ST33T3G"}
+    assert after[0]["proposal"] == before[0]["proposal"], (
+        "and nothing the run wrote is lost by adding to the document"
+    )
+    assert missing is False, "a line with no request is a no-op, not an error"
+
+
 def test_a_line_that_has_never_been_reviewed_replays_nothing():
     async def go():
         async with a_store() as store:

@@ -394,6 +394,12 @@ export type ChangeRequest = {
   /** What each desk found, over the same verdicts the evidence is drawn from. A desk that
    *  looked at nothing is absent rather than empty. */
   departments: ChangeRequestDepartment[]
+  /** The board this substitution was placed on, once the run has computed it.
+   *
+   *  Fired in the background when the proposal is chosen, so a request read a moment later
+   *  carries the pictures and the card renders them without a button. Absent on a world with
+   *  no KiCad, and on a request read in the few seconds before the placement lands. */
+  board?: BoardConsequence | null
   /** The size of the sweep this answer came out of. Not a saving — nobody measured one —
    *  but the count of round trips that did not have to happen. */
   checked: {

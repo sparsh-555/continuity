@@ -437,6 +437,33 @@ async def board_render(
     return _remember(key, await asyncio.to_thread(_render, stored[1], mark))
 
 
+async def consequence_for(
+    store: Any,
+    line_id: str,
+    org_id: str,
+    retiring: str,
+    candidate: str,
+) -> dict[str, Any] | None:
+    """One board's consequence, or `None` where it cannot be had.
+
+    **Both callers share this**, so a picture stored by a run and one drawn on demand are the
+    same picture. The endpoint below reports why it could not be done; the review fires this
+    from a background task and cannot report anything to anybody, so it asks first whether
+    KiCad is there and swallows everything else. A world with no KiCad gets the button it
+    gets today, which is the honest degradation that surface already renders.
+    """
+    if not runner.available():
+        return None
+    stored = await store.board_bundle(line_id, org_id)
+    if stored is None:
+        return None
+    try:
+        return await asyncio.to_thread(_consequence, stored[1], retiring, candidate)
+    except Exception as error:  # noqa: BLE001
+        log.warning("board consequence for %s failed: %s", line_id, error)
+        return None
+
+
 @router.post("/{line_id}/board/consequence")
 async def consequence(
     line_id: str,
@@ -445,9 +472,14 @@ async def consequence(
     user: User = Depends(current_user),
 ) -> dict[str, Any]:
     """What this substitute does to this line's board, as KiCad reports it."""
+    store = store_of(request)
     await _owned(request, line_id, user.org_id)
-    stored = await store_of(request).board_bundle(line_id, user.org_id)
-    if stored is None:
+    # The 404 and the 503 are the two things this caller *can* be told; the shared coroutine
+    # answers `None` for both because a background caller has nobody to tell.
+    if await store.board_bundle(line_id, user.org_id) is None:
         raise HTTPException(404, "no board is stored for that line")
     _needs_kicad()
-    return await asyncio.to_thread(_consequence, stored[1], body.retiring, body.candidate)
+    made = await consequence_for(store, line_id, user.org_id, body.retiring, body.candidate)
+    if made is None:
+        raise HTTPException(409, "that board could not be substituted")
+    return made

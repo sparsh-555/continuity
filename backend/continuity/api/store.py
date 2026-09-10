@@ -21,6 +21,7 @@ thread exists, which is a fact the caller has no business learning.
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -1679,6 +1680,42 @@ class Store:
             for mpn, manufacturer in [*qualified, *fitted]:
                 recorded[mpn.upper()] = manufacturer
         return recorded
+
+    async def attach_board_consequence(
+        self, org_id: str, notice_id: str, line_id: str, payload: dict[str, Any]
+    ) -> bool:
+        """Put a board's consequence on the change request it belongs to. `False` if absent.
+
+        **The request row is written first and the board arrives seconds later**, so this is
+        an update rather than part of the insert: a KiCad run is several seconds and the
+        document is written milliseconds after the proposal is chosen. It is a no-op when
+        there is no row yet, which is why it returns whether it found one — a caller that
+        cared could retry, and the review does not, because a board that never lands leaves
+        the card showing the button it shows today.
+
+        `||` rather than a rewrite: the document is the run's record and this adds one key
+        to it. Nothing here can lose a field the run wrote.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute(
+                """
+                UPDATE change_requests
+                   SET document = document || %s::jsonb
+                 WHERE org_id = %s AND notice_id = %s AND line_id = %s
+                   AND id = (
+                       SELECT id FROM change_requests
+                        WHERE org_id = %s AND notice_id = %s AND line_id = %s
+                     ORDER BY created_at DESC
+                        LIMIT 1
+                   )
+                """,
+                (
+                    json.dumps({"board": payload}),
+                    org_id, notice_id, line_id,
+                    org_id, notice_id, line_id,
+                ),
+            )
+            return cursor.rowcount > 0
 
     async def apply_substitution(
         self,

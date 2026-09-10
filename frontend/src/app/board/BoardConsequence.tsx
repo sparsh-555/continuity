@@ -109,6 +109,7 @@ export function BoardConsequence({
   retiring,
   candidate,
   auto = false,
+  stored = null,
 }: {
   lineId: string
   retiring: string
@@ -118,11 +119,19 @@ export function BoardConsequence({
    *  choosing BOARD *is* the request, and a second button inside it would be the same
    *  question twice. */
   auto?: boolean
+  /** The consequence the run already computed, if it landed. See `attach_board_consequence`.
+   *
+   *  A change request carries this once the background placement finishes, so the card opens
+   *  with the pictures on it rather than behind a button nobody presses. A request without
+   *  one — a world with no KiCad, or a run whose placement has not landed yet — keeps the
+   *  button, which is the honest degradation this surface already renders. */
+  stored?: Consequence | null
 }) {
   // Straight out of the session's placements when this board has been placed before, so a
-  // remount paints the picture rather than starting a KiCad run behind a **PLACING…**.
-  const [outcome, setOutcome] = useState<Consequence | null>(() =>
-    recallPlacement(lineId, retiring, candidate),
+  // remount paints the picture rather than starting a KiCad run behind a **PLACING…**. What
+  // the document carries wins over the session, because it came from the run itself.
+  const [outcome, setOutcome] = useState<Consequence | null>(
+    () => stored ?? recallPlacement(lineId, retiring, candidate),
   )
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -178,14 +187,21 @@ export function BoardConsequence({
         {auto ? <span /> : (
           <h4 className="font-data-tabular text-[10px] text-on-surface-variant">THE BOARD</h4>
         )}
-        <button
-          className="h-7 px-md border border-outline-variant rounded font-data-tabular text-[10px] text-on-surface-variant hover:bg-surface-variant transition-colors disabled:opacity-40"
-          disabled={busy}
-          onClick={() => void check()}
-          type="button"
-        >
-          {busy ? 'PLACING…' : auto ? 'PLACE IT AGAIN' : `PLACE ${candidate} ON THIS BOARD`}
-        </button>
+        {/* **No button when the document already carries the board.** The run computed this
+            one and stored it, so a control offering to compute it again is an affordance with
+            nothing to do — and the whole point of storing it was that the card opens with the
+            picture on it. A request without one keeps the button, which is the honest
+            degradation for a world with no KiCad. */}
+        {stored ? null : (
+          <button
+            className="h-7 px-md border border-outline-variant rounded font-data-tabular text-[10px] text-on-surface-variant hover:bg-surface-variant transition-colors disabled:opacity-40"
+            disabled={busy}
+            onClick={() => void check()}
+            type="button"
+          >
+            {busy ? 'PLACING…' : auto ? 'PLACE IT AGAIN' : `PLACE ${candidate} ON THIS BOARD`}
+          </button>
+        )}
       </div>
 
       {message ? (
