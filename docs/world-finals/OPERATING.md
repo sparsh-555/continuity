@@ -89,8 +89,11 @@ VITE_API_URL=http://localhost:8000 bun run dev --strictPort --port 5173
 
 Four things about those commands are load-bearing.
 
-**`backend/.env` points `DATABASE_URL` at production Neon.** Naming the database on the command
-line is what keeps a local run local. Never start the API without it.
+**`backend/.env` names `postgresql:///continuity_demo`, and that is deliberate.** It used to
+point at production Neon, so a local run started without an override wrote real rows — the
+hazard was closed on 11 Sep by making the local database the default. Production is the one
+URL you name explicitly, never the one you fall into; `env.load` lets an injected platform
+variable win over the file, so the deployed instance is unaffected either way.
 
 **`--strictPort` matters.** If Vite quietly takes 5174 or 5175, the browser blocks every API
 call on CORS and the app looks broken without naming the cause. To use another port, add it to
