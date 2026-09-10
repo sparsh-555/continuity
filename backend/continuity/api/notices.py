@@ -23,7 +23,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .auth import current_user, store_of
 # Through the module, not `from ... import resolve`: a direct import binds a second
@@ -122,6 +122,8 @@ async def list_notices(
 
 
 class ReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     candidates: list[str] = Field(min_length=1, max_length=10)
     """The substitutes to try. The notice's own recommendation belongs in here — it is a
     candidate like any other, and the demo's whole point is that it does not survive
@@ -130,9 +132,6 @@ class ReviewRequest(BaseModel):
     slot: str | None = Field(default=None, max_length=100)
     """Which position on the board. Defaults to wherever each line carries the retired part,
     which is what a notice actually means."""
-
-    annual_volume: int | None = Field(default=None, ge=0)
-
 
 @router.post("/{notice_id}/review", status_code=201)
 async def review(
@@ -242,7 +241,11 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
         if slot not in board.slots:
             continue
         boards.append((line.id, line.name, board))
-        per_line[line.id] = {"revision": line.revision, "slot": slot}
+        per_line[line.id] = {
+            "revision": line.revision,
+            "slot": slot,
+            "annual_volume": profile.annual_volume,
+        }
 
     if not boards:
         raise HTTPException(409, "no affected line could be assembled into a board")
@@ -270,8 +273,10 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
         matrix,
         notice_mpn=notice["mpn"],
         notice_id=notice["id"],
-        lines={k: {"revision": v["revision"]} for k, v in per_line.items()},
-        annual_volume=body.annual_volume,
+        lines={
+            key: {"revision": value["revision"], "annual_volume": value["annual_volume"]}
+            for key, value in per_line.items()
+        },
         approved_mpns=sorted(approved.parts or ()),
         # The manufacturer's own recommendation is tried first, so a request that departs
         # from it has visibly departed from it rather than never considered it.

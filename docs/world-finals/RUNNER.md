@@ -308,7 +308,6 @@ the inbox so the next forwarded notice is read live. The by-hand version is in
 
 Three things you will see on a pass that are already written down.
 
-- **A change request says *"no annual volume stated"***. The *build* quantity is on the operating profile now and drives the stock minimum; the *annual* figure the recurring cost needs is a different number and is not.
 - **The Gateway's bill reads `TLV1117LV33DCYR · JSMSEMI`** after the substitution, which is the distributor's manufacturer rather than the datasheet's.
 - **A replayed review says *"Trying LD1117-3.3."*** where the live one said where the candidate came from. The origin is not stored.
 

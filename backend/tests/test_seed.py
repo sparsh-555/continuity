@@ -342,7 +342,6 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
                     "POST", f"/notices/{notice['id']}/review/run",
                     json={
                         "candidates": [NCP1117.mpn, LD1117.mpn, TLV1117.mpn],
-                        "annual_volume": 20_000,
                     },
                 ) as stream:
                     assert stream.status_code == 200, await stream.aread()

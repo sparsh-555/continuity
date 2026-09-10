@@ -31,7 +31,7 @@ from typing import Any, AsyncIterator, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from dataclasses import replace as replace_fields
 
@@ -75,13 +75,11 @@ flow rather than a gesture."""
 
 
 class ReviewRun(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     candidates: list[str] = Field(default_factory=list, max_length=20)
     """Extra parts to try, named by a person. The notice's own recommendation and the
     approved list are found without being asked for."""
-
-    annual_volume: int | None = Field(default=None, ge=0, le=100_000_000)
-    """Units a year, for the recurring half of the cost. Absent rather than assumed: an
-    invented volume makes a plausible number out of nothing."""
 
     line_id: str | None = None
     """One product line rather than every line the notice reaches.
@@ -313,7 +311,6 @@ async def _run_line(
     line: dict[str, Any],
     candidates: tuple[review.Candidate, ...],
     approved: ApprovedLists,
-    annual_volume: int | None,
     stream: events.EventStream,
     emit,
 ) -> None:
@@ -355,6 +352,11 @@ async def _run_line(
     # preceding decision applied its substitution.
     current_line = await store.line_for_user(line_id, user.org_id)
     revision = current_line.revision if current_line is not None else line.get("revision")
+    annual_volume = (
+        OperatingProfile.from_json(current_line.profile).annual_volume
+        if current_line is not None and current_line.profile
+        else None
+    )
     waivers = await store.accepted_waivers_for_line(line_id, user.org_id)
     # The board as it stands today, so the request can say what is fitted and what its
     # evidence looks like. Substituting a part for itself sets no baseline, which is what
@@ -591,7 +593,6 @@ async def run_review(
                 await _run_line(
                     store=store, user=user, notice=notice, line=line,
                     candidates=candidates, approved=approved,
-                    annual_volume=body.annual_volume,
                     stream=stream, emit=emit,
                 )
             except Exception as error:  # one line failing must not take the others

@@ -119,6 +119,16 @@ class OperatingProfile:
     asked a question.
     """
 
+    annual_volume: int | None = None
+    """How many units of this product the company plans to make each year.
+
+    Unlike `build_quantity`, this does not decide whether stock clears a review. It gives
+    the recurring half of a change request its one stated basis.
+    """
+
+    annual_volume_source: str | None = None
+    """Where the annual figure came from, in the company's own words."""
+
     KEYS: ClassVar[frozenset[str]] = frozenset(
         (
             "ambient_c",
@@ -127,6 +137,8 @@ class OperatingProfile:
             "rails",
             "build_quantity",
             "build_quantity_source",
+            "annual_volume",
+            "annual_volume_source",
         )
     )
 
@@ -178,6 +190,8 @@ class OperatingProfile:
             mounting=value.get("mounting"),
             build_quantity=value.get("build_quantity"),
             build_quantity_source=value.get("build_quantity_source"),
+            annual_volume=value.get("annual_volume"),
+            annual_volume_source=value.get("annual_volume_source"),
             rails={
                 rail_id: RailProfile.from_json(rail)
                 for rail_id, rail in dict(value.get("rails") or {}).items()
@@ -191,6 +205,8 @@ class OperatingProfile:
             "mounting": self.mounting,
             "build_quantity": self.build_quantity,
             "build_quantity_source": self.build_quantity_source,
+            "annual_volume": self.annual_volume,
+            "annual_volume_source": self.annual_volume_source,
             "rails": {rail_id: rail.to_json() for rail_id, rail in self.rails.items()},
         }
 

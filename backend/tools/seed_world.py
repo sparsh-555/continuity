@@ -127,13 +127,28 @@ were re-recorded.
 """
 
 
+ANNUAL_VOLUMES: dict[str, tuple[int, str]] = {
+    LINE_A.label: (12_000, "2026 production plan, annualised"),
+    LINE_B.label: (20_000, "2026 production plan, annualised"),
+    LINE_C.label: (4_800, "2026 production plan, annualised"),
+}
+"""The published planning volume for every line the retirement reaches.
+
+This belongs to each product's operating profile rather than the review request: a change
+document is a reading of the line's own facts, never a place to supply an unrecorded one.
+"""
+
+
 def profile_for(line, *, ambient: int, ambient_source: str) -> dict:
     quantity = BUILD_QUANTITIES.get(line.label)
+    annual = ANNUAL_VOLUMES.get(line.label)
     return {
         "ambient_c": ambient,
         "ambient_source": ambient_source,
         "build_quantity": quantity[0] if quantity else None,
         "build_quantity_source": quantity[1] if quantity else None,
+        "annual_volume": annual[0] if annual else None,
+        "annual_volume_source": annual[1] if annual else None,
         "mounting": "1000 mm² top and back copper, 1/16in FR-4, 1 oz",
         "rails": {
             "vin": {

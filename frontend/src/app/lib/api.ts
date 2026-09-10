@@ -588,11 +588,10 @@ export function receiveNotice(documentBase64: string, filename?: string) {
 export function reviewNotice(
   noticeId: string,
   candidates: string[],
-  annualVolume: number | null,
 ) {
   return request<Review>(`/notices/${encodeURIComponent(noticeId)}/review`, {
     method: 'POST',
-    body: { candidates, annual_volume: annualVolume },
+    body: { candidates },
   })
 }
 

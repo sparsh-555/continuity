@@ -625,14 +625,13 @@ def test_a_notice_yields_one_change_request_per_affected_line(model, monkeypatch
                     f"/notices/{posted['id']}/review",
                     json={
                         "candidates": [TLV1117.mpn, LD1117.mpn, NCP1117.mpn],
-                        "annual_volume": 20_000,
                     },
                 )
                 # Reviewed twice, which is what a person does when they think of another
                 # candidate. Every document is kept; the listing returns the current one.
                 await http.post(
                     f"/notices/{posted['id']}/review",
-                    json={"candidates": [NCP1117.mpn], "annual_volume": 20_000},
+                    json={"candidates": [NCP1117.mpn]},
                 )
                 listed = (await http.get(f"/notices/{posted['id']}/review")).json()
                 return reviewed, listed

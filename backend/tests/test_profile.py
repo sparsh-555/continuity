@@ -59,6 +59,10 @@ def test_annual_volume_lives_on_the_profile_not_a_review_payload():
     assert OperatingProfile.from_json(profile.to_json()) == profile
     assert "annual_volume" not in ReviewRun.model_fields
     assert "annual_volume" not in ReviewRequest.model_fields
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        ReviewRun.model_validate({"annual_volume": 20_000})
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        ReviewRequest.model_validate({"candidates": ["LD1117S33TR"], "annual_volume": 20_000})
 
 
 def test_seed_profiles_state_the_three_annual_volumes_with_a_source():

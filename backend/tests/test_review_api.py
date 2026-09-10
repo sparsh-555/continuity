@@ -754,7 +754,7 @@ def test_the_run_writes_the_change_request_it_produced():
     async def go():
         async with a_store() as store:
             async with a_company(store) as (http, me, notice_id):
-                await frames_of(http, notice_id, annual_volume=20_000)
+                await frames_of(http, notice_id)
                 return (await http.get(f"/notices/{notice_id}/review")).json()
 
     requests = run(go())
