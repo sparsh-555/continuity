@@ -1081,9 +1081,48 @@ class Store:
         because "where did this come from" is the first question anybody asks of a change
         that a machine started.
 
+        **Returns the existing id when this company already holds this notice**, so the
+        same PCN arriving twice is one change rather than two. See the comment below for
+        what counts as the same one and why it is read rather than constrained.
         """
         notice_id = new_id()
         async with self.pool.connection() as conn:
+            # The same change, however many copies of the document arrive. A PCN forwarded
+            # to the mailbox and uploaded through the page is one thing to act on, and the
+            # product line drew a banner per stored notice — so it showed two identical
+            # banners with two REVIEW THIS LINE buttons.
+            #
+            # The three fields are what make it a *different* notice: the part, the date it
+            # takes effect, and what it recommends instead. Those are exactly what
+            # distinguishes the preliminary `PCN-2026-118` from the full `PCN-2026-114`,
+            # which name the same part and must stay two notices. `IS NOT DISTINCT FROM`
+            # rather than `=`, because a notice that names no date has NULL there and NULL
+            # never equals NULL — which would make the preliminary one a new notice on
+            # every arrival.
+            #
+            # Read then write rather than a unique index: two of these fields are nullable,
+            # and a unique index over nullable columns needs `NULLS NOT DISTINCT`, which is
+            # Postgres 15 and above. Nothing here races — a notice arrives from a person or
+            # a poll, never from both at once.
+            cursor = await conn.execute(
+                """
+                SELECT id FROM notices
+                 WHERE org_id = %s
+                   AND mpn = %s
+                   AND effective_date IS NOT DISTINCT FROM %s
+                   AND replacement_mpn IS NOT DISTINCT FROM %s
+                 ORDER BY created_at
+                 LIMIT 1
+                """,
+                (org_id, notice.mpn, notice.effective_date, notice.replacement_mpn),
+            )
+            already = await cursor.fetchone()
+            if already is not None:
+                # The first arrival stays the record, `source` included: how this change
+                # first reached us is a fact about the change, and the second copy did not
+                # change it.
+                return already[0]
+
             await conn.execute(
                 """
                 INSERT INTO notices (

@@ -219,6 +219,102 @@ def test_a_posted_notice_names_the_products_that_carry_the_part(model):
 
 
 @pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_the_same_notice_arriving_twice_is_one_notice(model):
+    """Forwarded to the mailbox and uploaded through the page is one change, not two.
+
+    The product line drew a banner per stored notice, so the same PCN arriving both ways
+    put two identical banners and two REVIEW THIS LINE buttons on the board. Nothing
+    deduped, and it will happen to anybody who mails the notice after seeding a world that
+    already carries it.
+    """
+    model(reply())
+
+    async def go():
+        async with a_store():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=30.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "pcn@example.com", "password": "a-good-password"},
+                )
+                line = (await http.post("/lines", json={"name": "Gateway"})).json()
+                await http.put(
+                    f"/lines/{line['id']}/bom",
+                    json={"rows": [{"refdes": "u1", "mpn": "AMS1117-3.3"}]},
+                )
+                document = base64.b64encode(PCN.encode()).decode()
+                mailed = await http.post(
+                    "/notices", json={"document": document, "filename": "forwarded.eml"}
+                )
+                uploaded = await http.post(
+                    "/notices", json={"document": document, "filename": "PCN-2026-114.pdf"}
+                )
+                return mailed.json(), uploaded.json(), (await http.get("/notices")).json()
+
+    mailed, uploaded, listed = run(go())
+
+    assert len(listed) == 1, "one change, however many copies of the document arrive"
+    assert uploaded["id"] == mailed["id"], (
+        "and the second arrival opens the one already there rather than a new one"
+    )
+    assert {row["name"] for row in uploaded["affected"]} == {"Gateway"}, (
+        "answered in full, because the caller asked a real question"
+    )
+    assert listed[0]["source"] == "forwarded.eml", "how it first arrived is the record"
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_a_preliminary_and_a_full_notice_about_one_part_are_two_notices(model):
+    """`PCN-2026-118` and `PCN-2026-114` both retire AMS1117-3.3, and they say different
+    things: one names a last-time-buy date and a replacement, the other names neither.
+    Collapsing them would lose the second half of a real story."""
+    model(reply())
+
+    async def go():
+        async with a_store() as store:
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=30.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "pcn@example.com", "password": "a-good-password"},
+                )
+                me = (await http.get("/auth/me")).json()
+
+                class Preliminary:
+                    mpn = "AMS1117-3.3"
+                    mpn_line = "Affected part: AMS1117-3.3 (SOT-223)"
+                    manufacturer = "Advanced Monolithic Systems"
+                    effective_date = None
+                    effective_date_line = None
+                    replacement_mpn = None
+                    replacement_line = None
+                    reason = "Wafer fabrication line closure."
+
+                first = await store.save_notice(
+                    me["org_id"], me["id"], Preliminary(), source="PCN-2026-118.pdf"
+                )
+                again = await store.save_notice(
+                    me["org_id"], me["id"], Preliminary(), source="PCN-2026-118.pdf"
+                )
+                full = await http.post(
+                    "/notices",
+                    json={
+                        "document": base64.b64encode(PCN.encode()).decode(),
+                        "filename": "PCN-2026-114.pdf",
+                    },
+                )
+                return first, again, full.json(), (await http.get("/notices")).json()
+
+    first, again, full, listed = run(go())
+
+    assert again == first, "a notice with no date is still the same notice twice"
+    assert full["id"] != first, "and a date and a replacement make it a different one"
+    assert len(listed) == 2
+
+
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
 def test_a_notice_for_a_part_we_do_not_ship_says_so_rather_than_failing(model):
     """An empty answer is a real result: this does not reach anything we make."""
     model(reply())
