@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from continuity import review
-from continuity.engine.models import ApprovedLists
+from continuity.engine.models import ApprovedLists, Verdict
 from dataclasses import replace
 
 from tools.eol_differential import (
@@ -68,6 +68,57 @@ def test_a_part_that_is_only_unqualified_is_gated_rather_than_blocked():
     assert not made.clear
     assert made.gated, "nothing physical failed"
     assert [verdict.rule for verdict in made.gates] == ["part_qualification"]
+
+
+def test_a_part_nobody_can_buy_is_procurements_call_rather_than_a_wall():
+    """`availability` was classified as physics until 10 September.
+
+    A stock shortfall was therefore not a decision anybody could take: the candidate was
+    discarded and procurement was never asked, which is the whole of procurement's job in
+    the scenario. Nothing about the part is electrically wrong, and procurement can
+    bridge-buy, accept a lead time, or refuse.
+    """
+    scarce = replace(TLV1117, stock=5)
+    made = review.attempt(gateway(approved=QUALIFIED), "u1", scarce)
+
+    assert not made.clear
+    assert made.gated, "a stock shortfall is a decision, not arithmetic"
+    assert not made.physical
+    assert [verdict.rule for verdict in made.gates] == ["availability"]
+
+    proposal = review.choose([made])
+    assert proposal is not None, "a gated candidate is still a proposal"
+    assert proposal.roles == ("procurement",)
+    assert proposal.gate_rule == "availability"
+
+
+def test_a_package_that_does_not_fit_is_productions_call():
+    """The other half of the same change, and the desk the product did not have.
+
+    Scenario B gives production *assembly compatibility*, which is these two rules. Both
+    routed to engineering and both counted as physics, so the department the topic names
+    could neither be asked nor exist.
+    """
+    for rule in ("footprint", "footprint_compatibility"):
+        made = review.Attempt(
+            candidate=TLV1117,
+            verdicts=(
+                Verdict(rule=rule, status="failed", detail="does not fit the land pattern",
+                        subject="u1", involved=("u1",)),
+            ),
+        )
+        assert made.gated, f"{rule} is a board revision somebody signs for"
+        assert not made.physical
+        assert review.choose([made]).roles == ("production",)
+
+
+def test_arithmetic_is_still_a_wall_after_widening_the_gates():
+    """The guard on item 32. Widening the answerable set must not turn physics into a
+    signature: nobody approves a junction temperature down to a limit."""
+    made = review.attempt(gateway(approved=QUALIFIED), "u1", NCP1117)
+
+    assert made.physical and not made.gated
+    assert review.choose([made]) is None, "no desk can accept 159 °C against a 150 °C limit"
 
 
 def test_a_qualified_part_that_clears_everything_is_clear():

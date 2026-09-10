@@ -53,6 +53,39 @@ here, so a rule added later cannot quietly inherit the fallback and route a circ
 question to the wrong desk.
 """
 
+ANSWERABLE_RULES: frozenset[str] = frozenset({
+    "part_qualification",
+    "source_approval",
+    "availability",
+    "footprint",
+    "footprint_compatibility",
+})
+"""Failures a department can answer, as opposed to failures that are physics.
+
+The test is not *who owns the rule* — every rule above has an owner. It is **whether a
+signature can change the outcome**:
+
+- `part_qualification` — quality can qualify the part.
+- `source_approval` — procurement can approve the vendor.
+- `availability` — procurement can bridge-buy, accept a lead time, or say no.
+- `footprint`, `footprint_compatibility` — production can accept a board revision.
+
+Everything else is a wall. No signature lowers a junction temperature, widens a part's rated
+supply range or gives it another pin, so routing a thermal failure to a desk would be asking
+somebody to approve arithmetic.
+
+`capacitor_requirements` is deliberately a wall: it fires on an **explicit published**
+requirement being violated, which is the manufacturer's statement about its own part rather
+than a policy this company sets and can therefore waive.
+
+**This was two rules wide until 10 September**, so `availability` failing discarded the
+candidate instead of routing it, and procurement could never be asked about a stock problem
+that is procurement's entire job. Production was in the same position for `footprint`. It
+lives here rather than in `review.py` because "can a desk answer this?" and "which desk?" are
+one question, and two files is how the answers drift apart.
+"""
+
+
 DEFAULT_DECISION_ROLES = ("engineering",)
 """Where an unmapped rule goes.
 

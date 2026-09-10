@@ -32,10 +32,14 @@ from typing import Mapping, Sequence
 from .engine import rules
 from .engine.models import Board, PartSpec, Verdict
 from .matrix import substitute
-from .roles import decision_roles
+from .roles import ANSWERABLE_RULES, decision_roles
 
-GATE_RULES = ("part_qualification", "source_approval")
-"""Rules a department owns rather than physics. A failure here is a decision, not a wall."""
+GATE_RULES = ANSWERABLE_RULES
+"""Rules a department owns rather than physics. A failure here is a decision, not a wall.
+
+Defined in `roles.py`, beside the table that says which desk owns each one. Kept under this
+name because `Attempt.gates` and `Attempt.physical` read better against it.
+"""
 
 
 @dataclass(frozen=True)
@@ -185,6 +189,9 @@ def narrate(attempt_made: Attempt) -> str:
         return f"{attempt_made.mpn} clears every check on this board{margin}."
     first = attempt_made.blocking[0]
     if attempt_made.gated:
+        # True of all five answerable rules: none of them is an electrical failure. A
+        # footprint gate reads correctly too — the circuit is fine and the land pattern is
+        # not, which is two sentences that agree.
         return f"{attempt_made.mpn} is electrically fine here. {first.detail}"
     return f"{attempt_made.mpn} — {first.detail}"
 

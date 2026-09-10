@@ -229,3 +229,30 @@ def test_assembly_compatibility_belongs_to_production():
     """
     assert ROLES_BY_RULE["footprint"] == ("production",)
     assert ROLES_BY_RULE["footprint_compatibility"] == ("production",)
+
+
+def test_every_rule_a_desk_can_answer_has_a_desk_to_answer_it():
+    """`ANSWERABLE_RULES` and `ROLES_BY_RULE` are two halves of one statement.
+
+    A rule that a signature can clear, routed to nobody, is a decision that reaches the
+    default desk and lands on engineering — which is exactly how `footprint` spent six days
+    belonging to the wrong department.
+    """
+    for rule in sorted(roles_module.ANSWERABLE_RULES):
+        assert rule in ROLES_BY_RULE, f"{rule} can be answered by nobody in particular"
+
+
+def test_physics_is_not_answerable():
+    """The guard the widening needs. These are arithmetic and published limits, and a
+    signature against one of them would be somebody approving a calculation."""
+    walls = {
+        "thermal_dissipation",
+        "voltage_overlap",
+        "current_budget",
+        "pin_budget",
+        "temperature_rating",
+        "energy_budget",
+        "rail_coverage",
+        "capacitor_requirements",
+    }
+    assert not (walls & roles_module.ANSWERABLE_RULES)
