@@ -28,7 +28,8 @@ test('a delivered notice announces itself and refreshes rows and an open product
   await expect(page.getByText('Sensor node', { exact: true })).toBeVisible()
 
   const line = await context.newPage()
-  await line.goto('/lines/dad0945e5942')
+  await line.goto('/lines')
+  await line.getByText('Sensor node', { exact: true }).click()
   await expect(line.getByRole('button', { name: /End of life \(0\)/ })).toBeVisible()
 
   await deliverNotice(page)
@@ -37,4 +38,13 @@ test('a delivered notice announces itself and refreshes rows and an open product
   await expect(page.getByText('1 notice', { exact: true }).first()).toBeVisible()
   await expect(line.getByText('AMS1117-3.3 affects 3 product lines.')).toBeVisible({ timeout: 15_000 })
   await expect(line.getByRole('button', { name: /End of life \(1\)/ })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Changes' }).click()
+  await page.getByRole('button', { name: 'START THE REVIEW' }).click()
+  await expect(page.getByRole('button', { name: 'RUN IT AGAIN' })).toBeVisible({ timeout: 15_000 })
+  const sensorLane = page.getByRole('button', { name: /Sensor node/ })
+  await expect(sensorLane).toBeVisible()
+  await sensorLane.click()
+  await expect(page.getByText(/^Trying .+\.$/).first()).toBeVisible()
+  await expect(page.getByText(/SATISFIED · thermal dissipation/).first()).toBeVisible()
 })

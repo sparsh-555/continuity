@@ -3,13 +3,19 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ReasoningLine } from '../design/ReasoningLine'
 import { departmentLabel } from './Departments'
 import { ApiError, answerDecision, type ReviewFrame } from '../lib/api'
+import type { EventStatus } from '../lib/types'
 import { runReview } from '../lib/reviewStream'
 
-type Lane = {
+type LaneCheck = Pick<Extract<ReviewFrame, { type: 'check' }>,
+  'rule' | 'scope' | 'status' | 'detail' | 'margin' | 'departments' | 'accepted'>
+type LaneTraceItem = { kind: 'said'; text: string } | ({ kind: 'check' } & LaneCheck)
+
+export type Lane = {
   lineId: string
   name: string
-  /** Everything this board's run has said, newest last. */
-  said: string[]
+  /** Everything this board's run said, in stream order. The expansion is evidence, so
+   * candidate A and its verdict must not be separated by candidate B's narration. */
+  trace: LaneTraceItem[]
   question: { decisionId: string; text: string; roles: string[] } | null
   proposal: string | null
   conditional: boolean
@@ -22,11 +28,11 @@ type Lane = {
   error: string | null
 }
 
-function fresh(lineId: string, name: string): Lane {
+export function fresh(lineId: string, name: string): Lane {
   return {
     lineId,
     name,
-    said: [],
+    trace: [],
     question: null,
     proposal: null,
     conditional: false,
@@ -37,6 +43,58 @@ function fresh(lineId: string, name: string): Lane {
     applied: null,
     error: null,
   }
+}
+
+/** The line-scoped frames that are evidence rather than control flow. `ReviewLanes` used to
+ * drop both, so the company view stated three outcomes without showing how any was reached. */
+export function withReviewFrame(
+  lane: Lane,
+  frame: Extract<ReviewFrame, { type: 'candidate' | 'check' }>,
+): Lane {
+  if (frame.type === 'candidate') {
+    return { ...lane, trace: [...lane.trace, { kind: 'said', text: `Trying ${frame.part.mpn}.` }] }
+  }
+  return {
+    ...lane,
+    trace: [...lane.trace, {
+      kind: 'check',
+      rule: frame.rule,
+      scope: frame.scope,
+      status: frame.status,
+      detail: frame.detail,
+      margin: frame.margin,
+      departments: frame.departments,
+      accepted: frame.accepted,
+    }],
+  }
+}
+
+const CHECK_MARK: Record<EventStatus, { icon: string; tone: string }> = {
+  satisfied: { icon: 'check_circle', tone: 'text-[#4ade80]' },
+  failed: { icon: 'cancel', tone: 'text-error' },
+  evidence_missing: { icon: 'help', tone: 'text-tertiary-container' },
+  not_assessed: { icon: 'remove', tone: 'text-on-surface-variant' },
+  not_applicable: { icon: 'remove', tone: 'text-on-surface-variant' },
+}
+
+/** An icon reinforces a verdict; it never carries the verdict on its own. */
+export function checkLabel(check: Pick<LaneCheck, 'status' | 'accepted'>): string {
+  if (check.status === 'failed' && check.accepted) return 'ACCEPTED FAILURE'
+  return {
+    satisfied: 'SATISFIED',
+    failed: 'FAILED',
+    evidence_missing: 'EVIDENCE MISSING',
+    not_assessed: 'NOT ASSESSED',
+    not_applicable: 'NOT APPLICABLE',
+  }[check.status]
+}
+
+function traceText(item: LaneTraceItem): string {
+  if (item.kind === 'said') return item.text
+  const owners = item.departments.length > 0
+    ? ` · ${item.departments.map(departmentLabel).join(' / ')}`
+    : ''
+  return `${checkLabel(item)} · ${item.rule.replace(/_/g, ' ')}${item.scope ? ` · ${item.scope}` : ''}${owners}`
 }
 
 function Verdict({ lane }: { lane: Lane }) {
@@ -115,8 +173,16 @@ export function ReviewLanes({
   const say = useCallback((lineId: string, text: string) => {
     setLanes((current) =>
       current.map((lane) =>
-        lane.lineId === lineId ? { ...lane, said: [...lane.said, text] } : lane,
+        lane.lineId === lineId
+          ? { ...lane, trace: [...lane.trace, { kind: 'said', text }] }
+          : lane,
       ),
+    )
+  }, [])
+
+  const record = useCallback((lineId: string, frame: Extract<ReviewFrame, { type: 'candidate' | 'check' }>) => {
+    setLanes((current) =>
+      current.map((lane) => (lane.lineId === lineId ? withReviewFrame(lane, frame) : lane)),
     )
   }, [])
 
@@ -138,6 +204,10 @@ export function ReviewLanes({
           case 'reasoning':
             if (frame.line_id) say(frame.line_id, frame.text)
             else setPreamble((current) => [...current, frame.text])
+            break
+          case 'candidate':
+          case 'check':
+            record(frame.line_id, frame)
             break
           case 'question':
             update(frame.line_id, {
@@ -167,7 +237,7 @@ export function ReviewLanes({
       setError,
       () => setRunning(false),
     )
-  }, [candidates, noticeId, say, update])
+  }, [candidates, noticeId, record, say, update])
 
   const answer = useCallback(
     async (lane: Lane, approve: boolean) => {
@@ -255,7 +325,7 @@ export function ReviewLanes({
             const expanded = open.has(lane.lineId)
             // One line, and it is the newest thing this board has said. A lane that
             // scrolled its own trace would be a column again.
-            const latest = lane.error ?? lane.applied ?? lane.said[lane.said.length - 1] ?? ''
+            const latest = lane.error ?? lane.applied ?? (lane.trace.length > 0 ? traceText(lane.trace[lane.trace.length - 1]) : '')
             return (
               <article
                 className={index > 0 ? 'border-t border-outline-variant' : undefined}
@@ -287,14 +357,28 @@ export function ReviewLanes({
 
                 {expanded ? (
                   <div className="px-md pb-sm pl-[46px] space-y-1 bg-[#0B0C0E]">
-                    {lane.said.map((line, position) => (
-                      <ReasoningLine
-                        icon="chevron_right"
-                        iconClassName="text-on-surface-variant"
-                        key={position}
-                        text={line}
-                      />
-                    ))}
+                    {lane.trace.map((item, position) => {
+                      if (item.kind === 'said') {
+                        return (
+                          <ReasoningLine
+                            icon="chevron_right"
+                            iconClassName="text-on-surface-variant"
+                            key={position}
+                            text={item.text}
+                          />
+                        )
+                      }
+                      const mark = CHECK_MARK[item.status]
+                      return (
+                        <ReasoningLine
+                          detail={`${item.detail}${item.margin ? ` · ${item.margin} to spare` : ''}`}
+                          icon={mark.icon}
+                          iconClassName={mark.tone}
+                          key={`${item.rule}:${item.scope ?? ''}:${position}`}
+                          text={traceText(item)}
+                        />
+                      )
+                    })}
                     {!lane.running && !lane.proposal && lane.reason ? (
                       <p className="font-data-tabular text-[11px] text-error px-sm py-1 leading-relaxed">
                         {lane.reason}

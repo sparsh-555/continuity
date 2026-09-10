@@ -25,3 +25,5 @@ fixtures/*.live.json
 /docs/STATUS.md
 /docs/specs/
 .demo/
+.playwright-mcp/
+line-board-normal.png
