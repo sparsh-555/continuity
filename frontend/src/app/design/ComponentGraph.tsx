@@ -56,6 +56,19 @@ type ComponentGraphProps = {
   onSelectSlot?: (slotId: string) => void
 }
 
+const LEGEND_ROWS: Record<GraphSlot['status'], { label: string; fill: string }> = {
+  unchecked: { label: 'Fitted · unchecked', fill: '#3F444E' },
+  pending: { label: 'Pending', fill: '#3F444E' },
+  searching: { label: 'Checking', fill: '#00E5FF' },
+  pass: { label: 'Valid', fill: '#4ade80' },
+  accepted: { label: 'Accepted', fill: '#fbbf24' },
+  conflict: { label: 'Conflict', fill: '#ffb4ab' },
+}
+
+export function legendRows(statuses: readonly GraphSlot['status'][]) {
+  return [...new Set(statuses)].map((status) => LEGEND_ROWS[status])
+}
+
 function nodeMpn(slot: GraphSlot) {
   // `unchecked` is a part that is fitted and shipping, so its number is the most useful
   // thing on the node. Only the states where nothing has been chosen yet stay blank.
@@ -136,6 +149,7 @@ export function ComponentGraph({
     height: viewHeight,
     tiers,
   } = buildGraphLayout(slots, Boolean(supply))
+  const legend = legendRows(slots.map((slot) => slot.status))
 
   // The bus grows with the board rather than reaching its full height immediately: during
   // the one-at-a-time reveal a full-length bar next to a single node reads as a bar to
@@ -169,27 +183,12 @@ export function ComponentGraph({
           zoom and pan are a feature that does not exist yet, not a disconnected handler. */}
       <div className="flex-1 min-h-0 bg-grid relative overflow-hidden">
         <div className="absolute top-sm right-sm bg-[#16181D] border border-outline-variant rounded p-sm flex flex-col gap-1 z-10 shadow-lg">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-pill bg-[#4ade80]"></span>
-            <span className="font-data-tabular text-[9px] text-on-surface">Valid</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-pill bg-error"></span>
-            <span className="font-data-tabular text-[9px] text-on-surface">Conflict</span>
-          </div>
-          {/* Only when a part on this board is in that state. A legend row for a colour
-              nothing on screen is wearing asks the reader to hold a distinction the picture
-              never makes. */}
-          {slots.some((slot) => slot.status === 'accepted') ? (
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-pill bg-[#fbbf24]"></span>
-              <span className="font-data-tabular text-[9px] text-on-surface">Accepted</span>
+          {legend.map(({ label, fill }) => (
+            <div className="flex items-center gap-2" key={label}>
+              <span className="w-2 h-2 rounded-pill" style={{ backgroundColor: fill }}></span>
+              <span className="font-data-tabular text-[9px] text-on-surface">{label}</span>
             </div>
-          ) : null}
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-pill bg-outline-variant"></span>
-            <span className="font-data-tabular text-[9px] text-on-surface">Pending</span>
-          </div>
+          ))}
         </div>
 
         <svg
