@@ -50,6 +50,8 @@ def reading_goes_to_the_model(monkeypatch):
 
 def reply(**overrides):
     base = {
+        "reference": "PCN 2026-114",
+        "reference_line": "PCN 2026-114 · Advanced Monolithic Systems",
         "mpn": "AMS1117-3.3",
         "mpn_line": "Affected part: AMS1117-3.3 (SOT-223)",
         "manufacturer": "Advanced Monolithic Systems",
@@ -89,6 +91,16 @@ def test_a_notice_is_read_with_the_lines_it_was_read_from(model):
     assert notice.effective_date == "2027-03-31"
     assert notice.replacement_mpn == "NCP1117ST33T3G"
     assert notice.manufacturer == "Advanced Monolithic Systems"
+
+
+def test_a_notice_keeps_its_document_reference_with_the_line_it_was_read_from(model):
+    """Two notices can retire the same part; their own reference distinguishes them."""
+    model(reply())
+
+    notice = run(notices.read(PCN.encode()))
+
+    assert notice.reference == "PCN 2026-114"
+    assert notice.reference_line == "PCN 2026-114 · Advanced Monolithic Systems"
 
 
 def test_a_part_number_the_document_does_not_contain_is_refused(model):
