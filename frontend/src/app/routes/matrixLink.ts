@@ -14,16 +14,72 @@
 
 export type Exposure = { line_id: string; refdes: string[] }
 
+/** One candidate, named with whoever makes it where the caller knows.
+ *
+ * **A part number alone does not name a part.** The catalogue leg returns `LD1117-3.3` from
+ * five manufacturers and `TLV1117LV33DCYR` from two, with different stock and different
+ * supply ceilings, and the review weighed exactly one of them. Passing only the number makes
+ * the matrix re-source it by exact-number search, which for a part this company has never
+ * bought comes back empty — so the grid lost three columns and said *not found at the
+ * distributor* about parts the review had just checked.
+ */
+export type NamedCandidate = { mpn: string; manufacturer?: string | null }
+
+/** `mpn|manufacturer`, or just `mpn` where there is nothing to say.
+ *
+ * The separator matters: manufacturer names contain commas (`UMW(Youtai Semiconductor Co.,
+ * Ltd.)`), so a comma-separated pair would split in the middle of a company.
+ */
+export function encodeCandidate(candidate: NamedCandidate): string {
+  return candidate.manufacturer ? `${candidate.mpn}|${candidate.manufacturer}` : candidate.mpn
+}
+
+/** What separates one candidate from the next in the query string.
+ *
+ * **Not a comma, and that is the whole reason it is named here.** Company names contain
+ * commas — `UMW(Youtai Semiconductor Co., Ltd.)` is one of the demo's own candidates — so a
+ * comma-separated list splits in the middle of a manufacturer and the part comes back with
+ * a truncated maker, which then does not match any listing. A newline cannot appear in a
+ * company name and survives the round trip through `URLSearchParams`.
+ */
+export const LIST_SEPARATOR = '\n'
+
+export function decodeCandidate(token: string): NamedCandidate {
+  const at = token.indexOf('|')
+  return at === -1
+    ? { mpn: token }
+    : { mpn: token.slice(0, at), manufacturer: token.slice(at + 1) }
+}
+
 export function matrixQuery({
   affected,
   candidates,
 }: {
   affected: Exposure[]
-  candidates: string[]
-}): { search: string; lines: number; slot: string } | null {
-  const wanted = candidates.map((mpn) => mpn.trim()).filter(Boolean)
-  const unique = [...new Set(wanted)]
+  candidates: NamedCandidate[]
+}): {
+  search: string
+  lines: number
+  slot: string
+  /** What the names carry beyond the part number, for the request body. */
+  manufacturers: Record<string, string>
+} | null {
+  const named = candidates
+    .map((candidate) => ({
+      ...candidate,
+      mpn: candidate.mpn.trim(),
+      manufacturer: candidate.manufacturer?.trim() || null,
+    }))
+    .filter((candidate) => candidate.mpn)
+  // A part number can appear twice under one maker across three boards' documents; the
+  // last name wins, and two different makers for one number would be a contradiction the
+  // review could not have produced.
+  const unique = [...new Map(named.map((c) => [c.mpn, c])).values()]
   if (unique.length === 0) return null
+  const manufacturers: Record<string, string> = {}
+  for (const candidate of unique) {
+    if (candidate.manufacturer) manufacturers[candidate.mpn] = candidate.manufacturer
+  }
 
   // The designator most of these boards use. Boards do disagree about refdes far more often
   // than they agree, and the grid can only ask about one at a time.
@@ -42,21 +98,25 @@ export function matrixQuery({
   const search = new URLSearchParams({
     lines: lines.join(','),
     slot,
-    candidates: unique.join(','),
+    candidates: unique.map(encodeCandidate).join(LIST_SEPARATOR),
   }).toString()
-  return { search, lines: lines.length, slot }
+  return { search, lines: lines.length, slot, manufacturers }
 }
 
 /** What a prefilled `/matrix` was asked to show, or nulls when it was opened bare. */
 export function matrixPrefill(search: string) {
   const params = new URLSearchParams(search)
-  const split = (value: string | null) =>
-    (value ?? '').split(',').map((part) => part.trim()).filter(Boolean)
+  const split = (value: string | null, on: string = ',') =>
+    (value ?? '').split(on).map((part) => part.trim()).filter(Boolean)
   const lines = split(params.get('lines'))
-  const candidates = split(params.get('candidates'))
+  const candidates = split(params.get('candidates'), LIST_SEPARATOR).map(decodeCandidate)
   const slot = (params.get('slot') ?? '').trim()
   // All three or none. A half-filled form that runs itself would show a grid nobody asked
   // for, and one that does not run leaves the reader wondering what the link did.
   if (!lines.length || !candidates.length || !slot) return null
-  return { lines, slot, candidates }
+  const manufacturers: Record<string, string> = {}
+  for (const candidate of candidates) {
+    if (candidate.manufacturer) manufacturers[candidate.mpn] = candidate.manufacturer
+  }
+  return { lines, slot, candidates, manufacturers }
 }

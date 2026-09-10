@@ -366,6 +366,18 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
         assert "not_assessed" not in request, f"{name} contains a retired coverage status"
         assert request["cost"]["recurring_annual"] is not None, "a volume was stated"
 
+    # **Every alternative says who makes it**, because the number alone does not name a
+    # part and the working has to be askable-for again without re-sourcing it. `LD1117-3.3`
+    # is listed by five manufacturers; the review weighed exactly one of them, and a matrix
+    # opened from this document can only find that one if it is told which it was.
+    for name, request in requests.items():
+        for alternative in request["alternatives"]:
+            assert alternative.get("manufacturer"), (
+                f"{name}: {alternative['mpn']} carries no manufacturer, so the working behind "
+                f"it cannot be asked for again — the serialiser writes this field by hand and "
+                f"a missing key is how it goes"
+            )
+
     # The manufacturer recommends NCP1117. It is qualified, and it cooks the gateway.
     assert requests["Gateway"]["proposal"] != NCP1117.mpn
     rejected = {a["mpn"]: a["rejected_because"] for a in requests["Gateway"]["alternatives"]}

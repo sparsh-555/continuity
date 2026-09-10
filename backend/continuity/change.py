@@ -54,6 +54,15 @@ class Alternative:
     the one chosen — which is worth recording too, because a viable second choice is what
     the next notice starts from."""
 
+    manufacturer: str | None = None
+    """Who makes the part this run actually evaluated.
+
+    Carried so the working can be asked for again without re-sourcing it. An MPN alone does
+    not name a part — JLCPCB lists `LD1117-3.3` under five manufacturers and
+    `TLV1117LV33DCYR` under two, with different stock, different prices and different supply
+    ceilings — so a matrix opened from this document has to be told which listing was
+    weighed, or it reports the part as *not found* and the grid is missing a column."""
+
     @property
     def viable(self) -> bool:
         return self.rejected_because is None
@@ -146,7 +155,14 @@ class ChangeRequest:
             "proposal": self.proposal,
             "proposal_detail": self.proposal_detail,
             "alternatives": [
-                {"mpn": a.mpn, "rejected_because": a.rejected_because}
+                {
+                    "mpn": a.mpn,
+                    "rejected_because": a.rejected_because,
+                    # So a reader can ask for this working again without re-sourcing the
+                    # part by number, which for one this company has never bought finds
+                    # nothing at all.
+                    "manufacturer": a.manufacturer,
+                }
                 for a in self.alternatives
             ],
             "evidence": [
@@ -266,6 +282,7 @@ def for_line(
     alternatives = tuple(
         Alternative(
             mpn=cell.candidate.mpn,
+            manufacturer=cell.candidate.manufacturer,
             rejected_because=(
                 cell.failures[0].detail
                 if cell.failures

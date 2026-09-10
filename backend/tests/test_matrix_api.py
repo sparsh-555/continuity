@@ -369,6 +369,82 @@ def test_resolve_refuses_to_choose_between_two_manufacturers_of_one_mpn():
     assert "JSMSEMI" in str(raised.value)
 
 
+def test_the_matrix_takes_the_manufacturer_the_review_already_resolved():
+    """P7. The review weighed one listing; the grid must not re-source a different one.
+
+    `LD1117-3.3`, `SPX1117M3-L-3-3/TR` and `XBL1117-3.3` are names a catalogue search
+    returns, and `LD1117-3.3` alone is listed by five manufacturers. Re-resolving them by
+    exact number search finds nothing for a part the company has never bought, so the grid
+    came up three columns short and said *not found at the distributor* about parts the
+    review had just checked. The caller watched those parts being weighed, so it says which
+    listing it meant.
+    """
+    from continuity.api import matrix as matrix_api
+
+    asked = []
+
+    async def go():
+        async with a_store():
+            async with signed_in() as http:
+                ids = await seed(http)
+
+                async def resolve(mpn: str, manufacturer: str | None = None):
+                    asked.append((mpn, manufacturer))
+                    if mpn == TLV1117.mpn and manufacturer != "Texas Instruments":
+                        raise matrix_api.Ambiguous(mpn, ["Texas Instruments", "JSMSEMI"])
+                    return SPECS.get(mpn)
+
+                matrix_api.resolve = resolve
+                try:
+                    return (
+                        await post_matrix(
+                            http,
+                            ids,
+                            candidate_manufacturers={TLV1117.mpn: "Texas Instruments"},
+                        )
+                    ).json()
+                finally:
+                    del matrix_api.resolve
+
+    body = run(go())
+
+    assert (TLV1117.mpn, "Texas Instruments") in asked, "asked for the listing the caller named"
+    assert TLV1117.mpn not in body["ambiguous"]
+    assert TLV1117.mpn in body["candidates"]
+
+
+def test_a_typed_part_is_not_taken_at_its_word_about_who_makes_it():
+    """The typed form is unchanged: a name in the box is not a claim the endpoint accepts.
+
+    The manufacturer only travels from a caller that resolved the part itself, which today
+    means a link built from a finished review. Nothing a person types reaches this field.
+    """
+    from continuity.api import matrix as matrix_api
+
+    asked = []
+
+    async def go():
+        async with a_store():
+            async with signed_in() as http:
+                ids = await seed(http)
+
+                async def resolve(mpn: str, manufacturer: str | None = None):
+                    asked.append((mpn, manufacturer))
+                    return SPECS.get(mpn)
+
+                matrix_api.resolve = resolve
+                try:
+                    return (await post_matrix(http, ids)).json()
+                finally:
+                    del matrix_api.resolve
+
+    run(go())
+
+    assert all(maker is None for _, maker in asked), (
+        "no manufacturer was supplied, so none was passed on"
+    )
+
+
 def test_a_candidate_the_company_has_qualified_is_not_ambiguous():
     """The other half of the BOM rule, and the same lesson a third time.
 

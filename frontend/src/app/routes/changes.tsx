@@ -139,10 +139,13 @@ export default function ChangesRoute() {
         ? matrixQuery({
             affected: reaches,
             candidates: [
-              active?.mpn ?? '',
+              { mpn: active?.mpn ?? '' },
               ...requests.flatMap((request) => [
-                request.proposal ?? '',
-                ...request.alternatives.map((alternative) => alternative.mpn),
+                { mpn: request.proposal ?? '' },
+                ...request.alternatives.map((alternative) => ({
+                  mpn: alternative.mpn,
+                  manufacturer: alternative.manufacturer,
+                })),
               ]),
             ],
           })

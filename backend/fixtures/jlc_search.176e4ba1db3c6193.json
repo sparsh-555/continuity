@@ -1,0 +1,142 @@
+{
+ "tool": "jlc_search",
+ "arguments": {
+  "query": "XBL1117-3.3",
+  "sort_by": "stock",
+  "limit": 10
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C47021214",
+    "model": "XBL1117-3.3",
+    "manufacturer": "XBLW",
+    "package": "SOT-223",
+    "stock": 97815,
+    "price": 0.0454,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃@(Ta) 1 1.3V@(1A) 15V 1A 3.3V 4mA Fixed Over Current Protection、Short Circuit Protection、Thermal shutdown Positive SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "Operating Temperature": "-40℃~+125℃@(Ta)",
+     "standby current": "4mA",
+     "Noise": "-",
+     "Voltage - Supply": "15V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.3V@(1A)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C49242128",
+    "model": "XBL1117-3.3/STR",
+    "manufacturer": "XBLW",
+    "package": "SOT-89-3L",
+    "stock": 5500,
+    "price": 0.0397,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃ 1 1.25V@(500mA) 15V 1A 3.3V 4mA Fixed Over Current Protection、Short Circuit Protection、Thermal shutdown Positive SOT-89-3L Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "Operating Temperature": "-40℃~+125℃",
+     "standby current": "4mA",
+     "Noise": "-",
+     "Voltage - Supply": "15V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown",
+     "Voltage Dropout": "1.25V@(500mA)",
+     "Output Voltage": "3.3V",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C42376988",
+    "model": "XBL1117-3.3/MTR",
+    "manufacturer": "XBLW",
+    "package": "TO-252-2L",
+    "stock": 315,
+    "price": 0.0772,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-40℃~+125℃@(Ta) 1 1.3V@(1A) 15V 1A 3.3V 4mA Fixed Over Current Protection、Short Circuit Protection、Thermal shutdown Positive TO-252-2L Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "Operating Temperature": "-40℃~+125℃@(Ta)",
+     "standby current": "4mA",
+     "Noise": "-",
+     "Output Type": "Fixed",
+     "Voltage - Supply": "15V",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.3V@(1A)",
+     "Number of Outputs": "1"
+    }
+   }
+  ],
+  "total": 3,
+  "page_info": {
+   "limit": 10,
+   "offset": 0,
+   "returned": 3
+  },
+  "filters_applied": {
+   "query": "XBL1117-3",
+   "subcategory_id": null,
+   "subcategory_name": null,
+   "subcategory_resolved": null,
+   "category_id": null,
+   "category_name": null,
+   "category_resolved": null,
+   "spec_filters": [],
+   "library_type": null,
+   "prefer_no_fee": true,
+   "min_stock": 10,
+   "package": null,
+   "packages": null,
+   "manufacturer": null,
+   "match_all_terms": true
+  },
+  "library_type_counts": {
+   "basic": 0,
+   "preferred": 0,
+   "extended": 3
+  },
+  "no_fee_available": false,
+  "parsed": {
+   "original_query": "XBL1117-3.3",
+   "detected": {
+    "model_number": "XBL1117-3"
+   },
+   "subcategory": null,
+   "package": null,
+   "mounting_type": null,
+   "spec_filters": [],
+   "remaining_text": "XBL1117-3"
+  }
+ }
+}

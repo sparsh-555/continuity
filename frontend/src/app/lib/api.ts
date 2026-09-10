@@ -344,6 +344,9 @@ export type ChangeRequestAlternative = {
   mpn: string
   /** The sentence that ruled it out, or null when it survived and simply was not chosen. */
   rejected_because: string | null
+  /** Who makes the part this run weighed. An MPN alone does not name one, and the matrix
+   *  cannot re-source a part this company has never bought. */
+  manufacturer?: string | null
 }
 
 export type ChangeRequestCost = {
@@ -558,10 +561,24 @@ export function me() {
   return request<PublicUser>('/auth/me')
 }
 
-export function buildMatrix(lineIds: string[], slot: string, candidates: string[]) {
+export function buildMatrix(
+  lineIds: string[],
+  slot: string,
+  candidates: string[],
+  /** Whose part each named candidate is, where the caller already resolved it. See
+   *  `MatrixRequest.candidate_manufacturers`. */
+  candidateManufacturers: Record<string, string> = {},
+) {
   return request<MatrixResponse>('/matrix', {
     method: 'POST',
-    body: { line_ids: lineIds, slot, candidates },
+    body: {
+      line_ids: lineIds,
+      slot,
+      candidates,
+      ...(Object.keys(candidateManufacturers).length
+        ? { candidate_manufacturers: candidateManufacturers }
+        : {}),
+    },
   })
 }
 

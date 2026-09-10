@@ -47,6 +47,18 @@ class MatrixRequest(BaseModel):
     """MPNs to try in that position, the incumbent included where the caller wants the
     row that says what the board does today."""
 
+    candidate_manufacturers: dict[str, str] = Field(default_factory=dict)
+    """Whose part each named candidate is, where the caller already knows.
+
+    A review resolved these parts and is naming them here so its own working can be looked
+    at; re-sourcing them by number would be asking a question the caller has answered, and
+    for a part this company has never bought the answer is not recoverable — the catalogue
+    returns it, the exact-number search does not, and the column comes back *not found*.
+
+    Absent for the typed form, where a person naming an MPN gets the recorded-manufacturer
+    behaviour and nothing else: the endpoint is not being told anything it cannot check.
+    """
+
 
 class Ambiguous(Exception):
     """One MPN, more than one manufacturer, and no way to tell which was meant."""
@@ -199,8 +211,14 @@ async def _build(body: MatrixRequest, store: Any, user: User) -> dict[str, Any]:
     # *several companies list this* and the part was skipped rather than checked. The
     # record answers the question for anything this company has bought or qualified.
     recorded = await store.recorded_manufacturers(user.org_id)
+    # What the caller already resolved wins over what this company has on record, because
+    # the caller watched the part being weighed and the record is a lookup that can miss.
+    named = {
+        mpn.upper(): maker for mpn, maker in (body.candidate_manufacturers or {}).items() if maker
+    }
+    wanted_by = {**recorded, **named}
     resolved = await asyncio.gather(
-        *(resolve(mpn, recorded.get(mpn.upper())) for mpn in ordered),
+        *(resolve(mpn, wanted_by.get(mpn.upper())) for mpn in ordered),
         return_exceptions=True,
     )
 

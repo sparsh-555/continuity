@@ -188,7 +188,7 @@ export default function MatrixRoute() {
   useEffect(() => {
     if (prefill) {
       setSlot(prefill.slot)
-      setCandidates(prefill.candidates.join(', '))
+      setCandidates(prefill.candidates.map((candidate) => candidate.mpn).join(', '))
     }
   }, [prefill])
 
@@ -197,6 +197,15 @@ export default function MatrixRoute() {
       .split(/[,\n]/)
       .map((mpn) => mpn.trim())
       .filter(Boolean)
+    // **Only for the candidates the link named.** A person typing an MPN is not telling the
+    // endpoint whose part it is, and the endpoint must not take an unverifiable claim from
+    // the box — so the ones that came from a review carry their maker and the rest fall back
+    // to what this company has on record.
+    const manufacturers: Record<string, string> = {}
+    for (const mpn of wanted) {
+      const known = prefill?.manufacturers[mpn]
+      if (known) manufacturers[mpn] = known
+    }
 
     if (selected.length === 0 || wanted.length === 0) {
       setError('Choose at least one product line and one candidate part.')
@@ -207,7 +216,7 @@ export default function MatrixRoute() {
     setError(null)
     setOpen(null)
     try {
-      setMatrix(await buildMatrix(selected, slot.trim(), wanted))
+      setMatrix(await buildMatrix(selected, slot.trim(), wanted, manufacturers))
     } catch (caught) {
       // The server's own sentence, when it has one. A 409 here says something specific and
       // actionable — a line with no operating profile, or one that does not carry the part
@@ -221,7 +230,7 @@ export default function MatrixRoute() {
     } finally {
       setRunning(false)
     }
-  }, [candidates, selected, slot])
+  }, [candidates, prefill, selected, slot])
 
   // A link that names all three runs itself. Opening a destination onto a filled-in form
   // with a button still to press is the same form it replaced.
