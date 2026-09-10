@@ -1,30 +1,28 @@
 # Task · DEFERRED pass 2 — the coverage admissions, the replay, and the board in the document
 
-> **Status, 11 Sep.** P1, P2, P3, P4, P5, P10 and P11 landed. **P6, P7 and P8 have not been
-> started** — the notice-level replay, the matrix taking what the review resolved, and the
-> board consequence stored asynchronously. **P9 is in flight and uncommitted.** The order
-> below was written before any of it ran and is kept as it was planned; the plan's premises
-> that turned out to be wrong are corrected inline where they were wrong, and what each item
-> exposed is in [`DEFERRED.md`](../DEFERRED.md) rather than here.
+> **Status: pass 2 is complete, 11 Sep.** All eleven items landed — P1 to P11, with P6, P7
+> and P8 finished the same evening they were planned. **This file is now the record of how the
+> work was planned, not a work list.** What each item did and what it exposed is in
+> [`DEFERRED.md`](../DEFERRED.md), which is the live document.
 >
-> **The working tree is red while P9 is in flight: 36 backend failures, all one cause.**
-> `notices.read` now asks for `reference` and `reference_line`, and the `_Notice` and
-> `Preliminary` stub classes in `tests/test_review_api.py` and `tests/test_notices.py` predate
-> it — `AttributeError: '_Notice' object has no attribute 'reference'`. That is the last step
-> of P9, not a regression: P9's own frontend (`noticeIdentity`, its test, the list row, the
-> types) is complete and green, and `HEAD` does not read the field. **Whoever owns P9 should
-> finish it and not hand the stub a bare `None` without thinking** — if the dedupe signature
-> is meant to include the reference, a stub that supplies `None` would make the reproducer
-> pass for the wrong reason, which is the failure mode this repository has hit twice.
+> Three things the plan did not anticipate, kept here because they are the reason its own
+> premises are worth distrusting:
 >
-> One thing this plan did not anticipate, and it is a row in DEFERRED: **`signal_integrity` is
-> `evidence_missing` on all three change requests**, because P2 built the rule without the part
-> facts it stacks — its own done-condition said `no_evidence` would be empty, and it is not.
+> - **P2 built three rules and two of them could not answer.** `signal_integrity` declined on
+>   every real board because the datasheet figures it stacks were on the fixture parts and not
+>   on `DOSSIER_FIELDS`, so they could not survive the company's own record. Looking for the
+>   class found the same mistake in `output_capacitor_stability`'s `esr_*` fields. The rule was
+>   green in the tests and declining in the product.
+> - **P7's premise that the piped separator was the only one that mattered was half right.** A
+>   comma-joined candidate list splits inside `UMW(Youtai Semiconductor Co., Ltd.)`, so the
+>   list separator had to become a newline.
+> - **P6's first attempt put every narration line in the preamble**, because `frames_from` did
+>   not say which line a frame belonged to, and asked the question after the ending where the
+>   run asks it before. Both were visible on screen and neither was visible in a unit test.
 >
-> The credential incident below closed the same evening: the model key and the mailbox app
-> password were rotated. **No database credential was exposed** — `.env` held a local socket URL
-> with no password in it by then, so this plan's own "the Neon password" was wrong about its
-> incident. Naming the local database removed the hazard; the rotation was the remediation.
+> The credential incident closed the same evening: the model key and the mailbox app password
+> were rotated. **No database credential was exposed** — `.env` held a local socket URL with no
+> password in it by then, so the plan's own "the Neon password" was wrong about its incident.
 >
 > Changing the reader's prompt invalidates every `notice_read` recording, by design. P9's new
 > `reference` field did exactly that, and both committed recordings were re-made on 11 Sep.
