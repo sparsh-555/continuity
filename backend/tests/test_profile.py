@@ -4,7 +4,8 @@ import pytest
 
 from continuity.engine.models import Requirements
 from continuity.profile import OperatingProfile, RailProfile
-from tools.eol_differential import AMS1117, LINE_B, OUTPUT_CAPACITOR, make_board
+from tools.eol_differential import AMS1117, LINE_A, LINE_B, LINE_C, OUTPUT_CAPACITOR, make_board
+from tools.seed_world import profile_for
 
 
 def line_b_profile() -> OperatingProfile:
@@ -41,6 +42,36 @@ def test_profile_round_trips_and_rejects_unknown_keys():
         OperatingProfile.from_json({**profile.to_json(), "future": True})
     with pytest.raises(ValueError, match="unknown rail profile keys"):
         OperatingProfile.from_json({**profile.to_json(), "rails": {"vin": {"future": 1}}})
+
+
+def test_annual_volume_lives_on_the_profile_not_a_review_payload():
+    """The recurring figure belongs to the shipping product, not one review invocation."""
+    from continuity.api.notices import ReviewRequest
+    from continuity.api.review import ReviewRun
+
+    profile = OperatingProfile(
+        45,
+        "gateway operating profile",
+        annual_volume=20_000,
+        annual_volume_source="2026 production plan, annualised",
+    )
+
+    assert OperatingProfile.from_json(profile.to_json()) == profile
+    assert "annual_volume" not in ReviewRun.model_fields
+    assert "annual_volume" not in ReviewRequest.model_fields
+
+
+def test_seed_profiles_state_the_three_annual_volumes_with_a_source():
+    expected = {
+        LINE_A.label: 12_000,
+        LINE_B.label: 20_000,
+        LINE_C.label: 4_800,
+    }
+
+    for line in (LINE_A, LINE_B, LINE_C):
+        profile = profile_for(line, ambient=line.ambient_c, ambient_source=line.ambient_basis)
+        assert profile["annual_volume"] == expected[line.label]
+        assert profile["annual_volume_source"] == "2026 production plan, annualised"
 
 
 def test_profile_preserves_unstated_mounting():
