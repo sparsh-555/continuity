@@ -151,6 +151,8 @@ that stopped it and written to `notices.review_skipped` — so the NOT CHECKED p
 reload rather than living in component state. A catalogue hit the search itself filtered out is
 the search shaping its shortlist, not a skip, and stays out of this.
 
+**The working can be asked for again.** A change request names each alternative **with the manufacturer the run weighed**, and `SHOW THE WORKING` carries those pairs into `/matrix` as `candidate_manufacturers`, which the endpoint prefers over the company's own record. Without it the grid re-sources by exact number and loses every column for a part this company has never bought — `LD1117-3.3` alone is listed by five manufacturers and the review weighed exactly one.
+
 **Every one of them is asked for by number and manufacturer**, from `store.recorded_manufacturers`
 — this company's own bills first, then its approved list. An MPN alone does not name a part:
 JLCPCB lists `TLV1117LV33DCYR` under Texas Instruments and under JSMSEMI, whose listing states

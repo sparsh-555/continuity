@@ -277,7 +277,7 @@ merely approve one, so it is the only place this state exists.
 - [ ] Three boards, and every part the review tried, including the ones it rejected.
 - [ ] Clicking a cell opens the evidence, every cell carrying the four coverage labels.
 - [ ] The same part is green on one line and red on another, and a cell that only just holds prints its margin.
-- [ ] Three candidates read *not found at the distributor*. Known, and in DEFERRED: those are the names the package search returns, and the matrix looks a part up by exact number.
+- [ ] **Nothing reads *not found at the distributor*.** The link carries who makes each part, so all six columns are checked. A `NOT FOUND` line naming `LD1117-3.3`, `SPX1117M3-L-3-3/TR` or `XBL1117-3.3` is a bug — it means the manufacturer did not travel with the link.
 
 Typing it by hand still works, and is the way to ask a question the review did not: `/matrix`
 → the three affected lines → position `u1` → candidates:

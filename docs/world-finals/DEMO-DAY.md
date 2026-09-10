@@ -222,6 +222,18 @@ which matters for the demo's own premise, because a change that takes four signa
 something anybody watches from start to finish in one sitting. The desks who have not signed
 will open it later, and what they see is the run that produced the question they are answering.
 
+### Step 5c · The grid behind the answer
+
+If a judge asks *how do you know the losing candidates were really checked* — and it is one of the
+two questions the research says we cannot fully answer — `/changes` →
+**SHOW THE WORKING** is the answer.
+
+Every candidate the review tried becomes a column, including the ones it rejected, and every
+product line a row. The cells carry the five coverage labels and the desk each failure belongs
+to, which is the whole cross-team claim in one picture. Nothing is typed: the review already
+resolved these parts and says which listing it weighed, which matters because a part number
+alone does not name a company.
+
 ### Step 9a · What each desk owes
 
 Switch desk from the rail and open **Waiting on you**. This is the other half of removing the

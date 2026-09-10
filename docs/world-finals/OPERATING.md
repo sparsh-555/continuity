@@ -385,6 +385,7 @@ scoped to `src`. Playwright specs are not bun tests.
 | The run finishes fast with no real MPNs | `CONTINUITY_LLM_API_KEY` did not load |
 | A review dies on its second frame saying the part could not be sourced | A distributor call has no recording. `./demo.sh --live` records it |
 | Accounts vanish on restart | The API was started without `DATABASE_URL` |
+| The prefilled matrix says *not found at the distributor* about parts the review just checked | The manufacturer did not travel in the link. See `matrixLink.LIST_SEPARATOR` — a comma-joined list splits inside a company name |
 | Two notice rows show the same date when they arrived on different days | Fixed 11 Sep. The label rendered a UTC slice; it now renders the reader's own day |
 | Twelve collection errors from pytest | Anaconda's Python. Use `.venv/bin/python` |
 | A forwarded notice never appears | It is in spam. `tools/check_mail.py` says so and names the filter |
