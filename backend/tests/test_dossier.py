@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from continuity.engine.models import PartSpec
 from continuity.parts import dossier
 from continuity.parts.dossier import DOSSIER_FIELDS, facts_from_part
@@ -33,6 +35,8 @@ def test_facts_from_part_keeps_only_known_nonempty_part_properties():
     # had teeth too: they could not reach the engine on any live path, so
     # `capacitor_requirements` reported *evidence missing* on a product line whose datasheet
     # readings the company had recorded. That is the one passive check the product ships.
+    # `vout_accuracy_pct` and `load_regulation_pct` are the third instance of the same
+    # mistake, seven days later, and cost `signal_integrity` its answer on every real board.
     assert DOSSIER_FIELDS == frozenset(
         {
             "package", "theta_ja", "topology", "synchronous", "efficiency",
@@ -40,6 +44,8 @@ def test_facts_from_part_keeps_only_known_nonempty_part_properties():
             "vmin", "vmax", "vout_min", "vout_max", "i_max",
             "cout_min_uf", "cout_dielectrics",
             "capacitance_uf", "dielectric",
+            "vout_accuracy_pct", "load_regulation_pct",
+            "esr_stable_from_ohms", "esr_stable_to_ohms", "esr_ohms",
         }
     )
     assert facts_from_part(part) == [
@@ -221,6 +227,60 @@ def test_a_capacitance_read_back_is_a_number_the_engine_can_add_up():
     assert read["capacitance_uf"] == 22.0
     assert read["dielectric"] == "X5R"
     assert sum(read["capacitance_uf"] for _ in (1,)) == 22.0, "it has to be addable"
+
+
+def test_a_regulators_published_error_is_a_fact_about_the_part():
+    """The fields `signal_integrity` stacks, which were researched and then dropped.
+
+    P2 built the rule on 11 September to replace a standing admission, and the rule was
+    right — but the figures it needs never survived the company's own record, because
+    neither field was on this list. So the rule declined on every real board and the change
+    request a judge reads still said it could not check something. A figure read off a
+    datasheet is exactly what this list is for.
+    """
+    from tools.eol_differential import TLV1117
+
+    facts = {field: value for _, field, value, _ in dossier.facts_from_part(TLV1117, verified=True)}
+
+    assert facts["vout_accuracy_pct"] == "1.5", "quoted from TI's electrical characteristics"
+    assert float(facts["load_regulation_pct"]) > 0, "35 mV on a 3.3 V rail, derived and named"
+
+    back = dossier.part_from_facts(TLV1117.mpn, TLV1117.manufacturer, [
+        {"field": field, "value": value} for field, value in facts.items()
+    ])
+
+    assert back is not None
+    assert back.vout_accuracy_pct == 1.5
+    assert back.load_regulation_pct == pytest.approx(35 / 3300 * 100)
+
+
+def test_an_esr_window_the_engine_reads_survives_the_record():
+    """The third instance of the same mistake, found by looking for the class.
+
+    `output_capacitor_stability` compares a capacitor's published ESR against the window its
+    regulator publishes. Both readings are hand-read from datasheets and both were dropped
+    by the company's own record, so the comparison could not run on any board anybody had
+    described. Nothing catches it today because the demo's capacitor publishes no ESR — and
+    a check that is silent because its data never arrives looks exactly like a check that
+    passes.
+    """
+    from tools.eol_differential import NCP1117
+
+    facts = {field: value for _, field, value, _ in dossier.facts_from_part(NCP1117, verified=True)}
+
+    assert facts["esr_stable_from_ohms"] == "0.033"
+    assert facts["esr_stable_to_ohms"] == "2.2"
+
+    back = dossier.part_from_facts(NCP1117.mpn, NCP1117.manufacturer, [
+        {"field": field, "value": value} for field, value in facts.items()
+    ])
+
+    assert back is not None
+    assert back.esr_stable_from_ohms == pytest.approx(0.033)
+    assert back.esr_stable_to_ohms == pytest.approx(2.2)
+    assert back.provenance.get("esr_stable_from_ohms"), (
+        "the reading is marked as recorded rather than sourced from a listing"
+    )
 
 
 def test_every_numeric_dossier_field_decodes_to_a_number():

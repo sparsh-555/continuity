@@ -31,6 +31,11 @@ DOSSIER_FIELDS: frozenset[str] = frozenset(
         "cout_dielectrics",
         "capacitance_uf",
         "dielectric",
+        "vout_accuracy_pct",
+        "load_regulation_pct",
+        "esr_stable_from_ohms",
+        "esr_stable_to_ohms",
+        "esr_ohms",
     }
 )
 """Properties that remain true for this MPN on every board.
@@ -45,6 +50,20 @@ would look entirely reasonable.
 The electrical limits are here so that a figure read off a datasheet can be *kept*. Until
 it was, they could only ever come from a distributor's parametric table — see
 `ENGINEERING_FIELDS` for what that cost.
+
+`vout_accuracy_pct` and `load_regulation_pct` joined on 11 September for the same reason,
+and their absence had the same shape of consequence. P2 built `signal_integrity` to stack
+them, the rule was correct, and it declined on every real board because the figures could
+not survive this far — so the change request still admitted it could not check something.
+The rule was tested against fixture parts that carried the numbers, which is why the tests
+were green while the product was not.
+
+The three `esr_*` fields are the same mistake in the rule beside it, found by looking for the
+class rather than the instance: `output_capacitor_stability` compares a capacitor's published
+ESR against the window its regulator publishes, both readings are recorded here, and neither
+could survive this far — so the comparison could not run on any board the company had
+described. It does not bite today only because the demo's capacitor publishes no ESR at all,
+which is exactly the kind of silence that hides a dead check.
 """
 
 ENGINEERING_FIELDS: frozenset[str] = frozenset(
@@ -53,6 +72,8 @@ ENGINEERING_FIELDS: frozenset[str] = frozenset(
         "vmin", "vmax", "vout_min", "vout_max", "i_max",
         "package", "topology", "synchronous", "efficiency",
         "cout_min_uf", "cout_dielectrics",
+        "vout_accuracy_pct", "load_regulation_pct",
+        "esr_stable_from_ohms", "esr_stable_to_ohms", "esr_ohms",
     }
 )
 """Facts about the part, where the manufacturer's datasheet is the specification of record.
@@ -107,6 +128,8 @@ _FLOAT_FIELDS = frozenset(
         "theta_ja", "efficiency", "temp_min", "temp_max", "t_j_max",
         "vmin", "vmax", "vout_min", "vout_max", "i_max",
         "cout_min_uf", "capacitance_uf",
+        "vout_accuracy_pct", "load_regulation_pct",
+        "esr_stable_from_ohms", "esr_stable_to_ohms", "esr_ohms",
     }
 )
 """Which stored facts decode back into numbers.
@@ -163,6 +186,10 @@ def facts_from_part(
             source = part.theta_ja_source_line
         elif field in ("cout_min_uf", "cout_dielectrics"):
             source = part.cout_source_line
+        elif field in ("esr_stable_from_ohms", "esr_stable_to_ohms"):
+            # One sentence on the part covers the window's two ends, the way
+            # `cout_source_line` covers the requirement and its dielectrics.
+            source = part.esr_source_line
         else:
             source = part.provenance.get(field)
         source = original_source(source)

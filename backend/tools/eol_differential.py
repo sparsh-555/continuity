@@ -36,7 +36,18 @@ AMS1117 = PartSpec(
     # type, not a prohibition of others, so `cout_dielectrics` stays empty on purpose.
     cout_min_uf=22.0,
     cout_source_line="The value of 22 µF tantalum covers all cases of bypassing the adjustment terminal",
-    vout_accuracy_pct=1.0, load_regulation_pct=1.0,
+    # DS1117 electrical characteristics. The output-voltage row gives AMS1117-3.3 at
+    # V_IN = 4.8 V as 3.251–3.349 V at 25 °C and 3.201–3.399 V over the full range; the
+    # wider pair is what a worst-case deviation has to use, and it is ±3.0% of 3.3 V. The
+    # load-regulation row states 0.4% Max, which the front page repeats.
+    vout_accuracy_pct=3.0, load_regulation_pct=0.4,
+    provenance={
+        "vout_accuracy_pct": (
+            "Output Voltage AMS1117-3.3 at V_IN = 4.8 V, 3.201–3.399 V over the full range "
+            "— ±3.0% of 3.3 V, derived from the published window and not quoted"
+        ),
+        "load_regulation_pct": "Load Regulation, 0.4% Max (Notes 2, 3)",
+    },
     topology="ldo", stock=1_493_359, unit_price=0.2176, distributor="JLCPCB",
     datasheet="http://www.advanced-monolithic.com/pdf/ds1117.pdf",
     product_url="https://jlcpcb.com/partdetail/C6186",
@@ -59,6 +70,12 @@ TLV1117 = PartSpec(
         "consideration must be greater than 0.5 μF"
     ),
     vout_accuracy_pct=1.5, load_regulation_pct=35 / 3300 * 100,
+    provenance={
+        "vout_accuracy_pct": "Output accuracy ±1.5%, SBVS160C Table 6.5",
+        "load_regulation_pct": (
+            "Load regulation 35 mV maximum across 0–1 A — 1.06% on a 3.3 V rail, derived"
+        ),
+    },
     topology="ldo", stock=3_416, unit_price=0.3345, distributor="JLCPCB",
     datasheet="https://www.ti.com/lit/ds/symlink/tlv1117lv.pdf",
     product_url="https://jlcpcb.com/partdetail/C15578",
@@ -77,7 +94,18 @@ LD1117 = PartSpec(
     theta_ja_mounting="ST LD1117 Table 2, thermal data, SOT-223 column",
     cout_min_uf=10.0,
     cout_source_line="CO = 10 µF, in the electrical characteristics test conditions",
-    vout_accuracy_pct=1.0, load_regulation_pct=30 / 3300 * 100,
+    # The front page quotes ±1% trim; Table 6 gives 3.235–3.365 V over TJ = 0 to 125 °C,
+    # which is ±2.0% of 3.3 V. A worst-case deviation uses the guarantee, not the trim.
+    vout_accuracy_pct=2.0, load_regulation_pct=30 / 3300 * 100,
+    provenance={
+        "vout_accuracy_pct": (
+            "Table 6 output voltage 3.235–3.365 V over TJ = 0 to 125 °C — ±2.0% of 3.3 V, "
+            "derived from the published window; the front page's ±1% trim is a 25 °C figure"
+        ),
+        "load_regulation_pct": (
+            "Maximum load regulation 30 mV — 0.91% on a 3.3 V rail, derived"
+        ),
+    },
     topology="ldo", stock=41_254, unit_price=0.2429, distributor="JLCPCB",
     datasheet="https://www.st.com/resource/en/datasheet/ld1117.pdf",
     product_url="https://jlcpcb.com/partdetail/C86781",
@@ -98,6 +126,15 @@ NCP1117 = PartSpec(
     esr_stable_from_ohms=0.033, esr_stable_to_ohms=2.2,
     esr_source_line="NCP1117/D External Capacitors: Cout mandatory; 4.7 µF minimum; ESR 33 mΩ (typ) to 2.2 Ω",
     vout_accuracy_pct=2.0, load_regulation_pct=10 / 3300 * 100,
+    provenance={
+        "vout_accuracy_pct": (
+            "Output voltage 3.235–3.365 V over the operating ambient range — ±2.0% of "
+            "3.3 V, derived from the published window"
+        ),
+        "load_regulation_pct": (
+            "Maximum load regulation 10 mV — 0.30% on a 3.3 V rail, derived"
+        ),
+    },
     topology="ldo", stock=78_632, unit_price=0.2354, distributor="JLCPCB",
     datasheet="https://www.onsemi.com/pdf/datasheet/ncp1117-d.pdf",
     product_url="https://jlcpcb.com/partdetail/C26537",

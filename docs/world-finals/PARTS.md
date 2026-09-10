@@ -71,6 +71,13 @@ confirmed by the word's **x-coordinate**, not by the value merely appearing on t
 
 ### AMS1117-3.3 — Advanced Monolithic Systems, `ds1117.pdf`
 
+- **Output voltage, AMS1117-3.3 at V_IN = 4.8 V: 3.251–3.349 V at 25 °C and 3.201–3.399 V
+  over the full range**, from the Output Voltage row of the electrical characteristics. The
+  wider pair is **±3.0% of 3.3 V** and it is what a worst-case deviation has to use; the
+  percentage is derived from the published window and is recorded as a derivation.
+- **Load regulation 0.4% Max**, from the Load Regulation row and repeated on the front page.
+  The row's four figures are typ/max over two columns, and 0.4% is the guaranteed end.
+
 - **θJA, SOT-223: 90 °C/W**, footnoted *"46 °C/W to >90 °C/W depending on mounting technique and
   copper area"*.
 - Junction limit: *"Maximum junction temperature must not exceed 125 °C."*
@@ -96,6 +103,10 @@ confirmed by the word's **x-coordinate**, not by the value merely appearing on t
 
 ### TLV1117LV33DCYR — Texas Instruments, SBVS160C (Rev. Jan 2023)
 
+- **Output accuracy ±1.5%**, quoted from Table 6.5, and **load regulation 35 mV maximum
+  across 0–1 A** from the same table. On a 3.3 V rail 35 mV is **1.06%**, derived; the rail
+  voltage decides that figure, so it is recorded as a derivation rather than a quotation.
+
 - **RθJA 62.9 °C/W**, in §6.4 Thermal Information under the single column *DCY (SOT-223) 4
   PINS*. Unambiguous — one package column.
 - Recommended operating: **VIN 2 V to 5.5 V**, IOUT 0–1 A. Absolute maximum VIN **6 V**. So a
@@ -110,6 +121,12 @@ confirmed by the word's **x-coordinate**, not by the value merely appearing on t
   0–1 A (Table 6.5).
 
 ### LD1117S33TR — STMicroelectronics, LD1117xx, **DocID2572 Rev 38**
+
+- **Output voltage 3.235–3.365 V over TJ = 0 to 125 °C**, from Table 6, which is **±2.0% of
+  3.3 V** and is what the worst case uses. The front page's *±1% trim* is a 25 °C figure and
+  is deliberately not the one recorded: a guarantee over temperature is the one that holds
+  on a board running at 55 °C. **Maximum load regulation 30 mV**, or **0.91%** on a 3.3 V
+  rail, derived.
 
 - **RthJA, SOT-223: 110 °C/W.** Table 2 *Thermal data*, columns SOT-223 / SO-8 / DPAK /
   TO-220, values 110 / 55 / 100 / 50 °C/W. Confirmed by word position: 110 sits at x = 299
@@ -137,6 +154,10 @@ value to the column *and* record the document revision it came from.
 
 ### NCP1117ST33T3G — onsemi, NCP1117/D
 
+- **Output voltage 3.235–3.365 V over the operating ambient range**, which is **±2.0% of
+  3.3 V** and is used for the worst-case deviation. **Maximum load regulation 10 mV**, or
+  **0.30%** on a 3.3 V rail, derived.
+
 - **RθJA 160 °C/W**, row *"Thermal Resistance, Junction−to−Ambient, **Minimum Size Pad**"* under
   *Case 318H (SOT−223)*. The DPAK row beside it reads 67 °C/W, so the two are distinguishable.
 - Junction-to-case 15 °C/W.
@@ -149,6 +170,23 @@ value to the column *and* record the document revision it came from.
   tantalum, and aluminium electrolytic are permitted inside that window. The 3.3 V output row
   is 3.235–3.365 V over its operating ambient range; maximum load regulation is 10 mV. The
   seeded 4.5 V input minimum is 3.3 V plus 1.2 V dropout at 800 mA, explicitly a derivation.
+
+---
+
+### What these four sets of figures are for
+
+`signal_integrity` stacks a regulator's published output accuracy with its published load
+regulation, and checks that the resulting worst-case rail voltage stays inside every load's
+published supply window. Three of the four figures above are **derived from a published
+window** rather than quoted as a percentage, and each says so where it is recorded: a
+datasheet that states 3.201–3.399 V has stated ±3.0% of 3.3 V without ever printing the
+percentage, and printing it here without saying where it came from would be the kind of
+number this document exists to prevent.
+
+Line regulation is a third published figure and is deliberately **not** stacked. It describes
+what the output does when the *input* moves, and this check is about the output under load.
+The rule's own evidence sentence names the two it did stack, so the denominator is on screen
+rather than implied.
 
 ---
 
