@@ -234,6 +234,22 @@ to, which is the whole cross-team claim in one picture. Nothing is typed: the re
 resolved these parts and says which listing it weighed, which matters because a part number
 alone does not name a company.
 
+### Step 9b · The layout consequence, on the document
+
+The strongest artefact in the product used to sit behind a button nobody pressed. It is on the
+change request now: the real board, before and after, cropped to the regulator, with the
+footprint and both part numbers named underneath.
+
+**What it is worth saying.** Same package is a substitution; a different one is a board
+revision, and that inverts which part is cheap. This is the check that a parametric search
+cannot do and a component-intelligence tool cannot do either, because it runs on *this*
+board's file rather than on a part's datasheet.
+
+**Say where it comes from.** KiCad places the part, carries its nets pad by pad by function,
+and runs its own design rule check before and after. It is the same deterministic engine the
+rest of the checks use, and it is the reason the phrase *we do not let a model decide what is
+electrically sound* holds all the way to the artwork.
+
 ### Step 9a · What each desk owes
 
 Switch desk from the rail and open **Waiting on you**. This is the other half of removing the

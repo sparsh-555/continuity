@@ -377,6 +377,7 @@ scoped to `src`. Playwright specs are not bun tests.
 | BOARD takes three seconds again on the same page | Fixed 10 Sep. Placements are remembered for the session; a second **PLACING…** for a board already placed means an old build |
 | The board crops are empty, caption and border still there | Fixed 10 Sep. The SVG's blob URL was revoked by an effect cleanup a remount did not repeat. `net::ERR_FILE_NOT_FOUND` in the console names it |
 | A reviewed line shows a verdict but no trace | The API predates `/lines/:id/reviews`. Restart it |
+| A change request shows *PLACE … ON THIS BOARD* a minute after a run | The placement had not landed when the card loaded. Reload once; if it persists the instance has no KiCad, which is the honest case that button is for |
 | `/changes` shows no lanes on a notice that was reviewed | The API predates `/notices/:id/reviews`, or the run predates the `decisions` rows that back it. Restart it, then **RUN IT AGAIN** once |
 | Two identical notices in the drawer | Both forwarded and uploaded, or a reseed re-read the mailed message |
 | `no matching manifest for linux/arm64` | The `--platform linux/amd64` flag is missing |

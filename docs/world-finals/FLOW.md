@@ -333,6 +333,8 @@ Pinouts come from `kicad/catalogue.py`, a table of datasheet readings. A part no
 no board consequence and says so — LD1117 is absent because ST publishes its pin connections
 as a figure, and a figure is not extractable text.
 
+**The consequence is stored, and fired rather than awaited.** When the proposal is chosen the run starts the placement as a background task and carries on, so the stream is not held for several seconds of KiCad and the 0.25 s replay headline survives. The request row is written milliseconds later and the placement lands on it as an additive `document ||` update, which is why the attach is a no-op rather than an error when there is no row yet. The card then renders the pictures **with no button**: the document already contains them, and a control offering to compute what you are looking at is an affordance with nothing to do.
+
 **The screen keeps what it was given.** A placement is remembered for the session, keyed on
 the product line, the retired part and the candidate, so toggling away from BOARD and back
 paints the picture rather than starting KiCad again — which used to take the board away and
