@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router'
 
 import {
   ApiError,
@@ -10,6 +11,7 @@ import {
 } from '../lib/api'
 import type { EventStatus } from '../lib/types'
 import { departmentLabel } from '../review/Departments'
+import { matrixPrefill } from './matrixLink'
 import { Page } from '../shell/Page'
 
 /** The five coverage labels as a reader should see them, in the order they are read.
@@ -156,6 +158,10 @@ export default function MatrixRoute() {
   const [open, setOpen] = useState<MatrixCell | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
+  const { search } = useLocation()
+
+  // What a link from a finished review asked for. All three or none — see `matrixLink.ts`.
+  const prefill = useMemo(() => matrixPrefill(search), [search])
 
   useEffect(() => {
     let active = true
@@ -163,7 +169,11 @@ export default function MatrixRoute() {
       .then((next) => {
         if (active) {
           setLines(next)
-          setSelected(next.filter((line) => line.profile).map((line) => line.id))
+          setSelected(
+            prefill
+              ? next.filter((line) => prefill.lines.includes(line.id)).map((line) => line.id)
+              : next.filter((line) => line.profile).map((line) => line.id),
+          )
         }
       })
       .catch(() => {
@@ -174,7 +184,14 @@ export default function MatrixRoute() {
     return () => {
       active = false
     }
-  }, [])
+  }, [prefill])
+
+  useEffect(() => {
+    if (prefill) {
+      setSlot(prefill.slot)
+      setCandidates(prefill.candidates.join(', '))
+    }
+  }, [prefill])
 
   const run = useCallback(async () => {
     const wanted = candidates
@@ -206,6 +223,15 @@ export default function MatrixRoute() {
       setRunning(false)
     }
   }, [candidates, selected, slot])
+
+  // A link that names all three runs itself. Opening a destination onto a filled-in form
+  // with a button still to press is the same form it replaced.
+  const started = useRef(false)
+  useEffect(() => {
+    if (!prefill || started.current || !selected.length || !candidates) return
+    started.current = true
+    void run()
+  }, [candidates, prefill, run, selected])
 
   const rows = useMemo(() => {
     if (!matrix) {
