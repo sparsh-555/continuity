@@ -15,8 +15,10 @@ Read in this order.
 |---|---|
 | **[FLOW.md](FLOW.md)** | **Start here.** Part one is the machine: every stage of a review, who decides it, the file that does it, and where a model is and is not. Part two is the demo beat. Written to be checked against the code. |
 | **[SPEC.md](SPEC.md)** | The contract. Flow diagram, data model, rules, coverage semantics, the demo case with its arithmetic, how the handoff is shown. |
-| **[BUILD.md](BUILD.md)** | Twenty-four ordered work items across six phases, each with its files, its done-condition and its own acceptance test. **Items 1 to 24 are built**, the last of them verified live on 9 Sep. Phase 6, the presentation, is not written. **Start here for what to do next.** |
-| **[RUNNER.md](RUNNER.md)** | How to start everything from cold and walk through every capability in the app, in the order that tells the story. What to look for at each step, and what would be a bug. |
+| **[BUILD.md](BUILD.md)** | Thirty ordered work items across six phases, each with its files, its done-condition and its own acceptance test. **Every item is built except 28**, the notice announcing itself. Phase 6, the presentation, is not written. **Start here for what to do next.** |
+| **[RUNNER.md](RUNNER.md)** | The run-through, and nothing else. Ten steps in the order that tells the story, each with the boxes a correct screen ticks. Walk it before every rehearsal; anything that does not match is a bug. |
+| **[DEMO-DAY.md](DEMO-DAY.md)** | What to say while each of those screens is up, and the answers to what a judge asks. The spoken layer over RUNNER's ten steps. |
+| **[OPERATING.md](OPERATING.md)** | The machine around the run-through: what the start script checks, running the pieces by hand, every route and variable, what would be a bug at each step, what breaks and why, and what is known and not worth reporting. |
 | **[PARTS.md](PARTS.md)** | Every listing and datasheet value the demo rests on, with its quote and its provenance. Read before changing any number in SPEC.md's matrix. |
 | [SCENARIO-B.md](SCENARIO-B.md) | The assigned scenario, and the ECR/ECO framing that replaced our first answer |
 
@@ -25,6 +27,7 @@ Read in this order.
 | [COMPETITORS.md](COMPETITORS.md) | What each vendor documents, why Zuken is not the counterexample it looked like, and the questions this prepares for |
 | [WORKBUDDY.md](WORKBUDDY.md) | What WorkBuddy is, and why we are not building on it |
 | **[DEFERRED.md](DEFERRED.md)** | Everything found and not fixed, with a severity against each. Read before the demo, and before claiming anything is complete. |
+| **[RESEARCH-3rd-Passthrough.md](RESEARCH-3rd-Passthrough.md)** | The third walk through the built product, 10 Sep. What the code actually does behind each finding, the options, and the published work on the same problem. DEFERRED's newest rows point into it. |
 | [tasks/](tasks/) | Implementation briefs, one per BUILD item, written to be handed to a coding agent whole. Each is self-contained. |
 | RESEARCH-BRIEF.md, RESEARCH-BRIEF-2.md | The two adversarial passes. Kept for provenance — their findings are already folded into the documents above. |
 

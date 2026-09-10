@@ -322,7 +322,7 @@ async def describe_run(
     **This is not a synthesised design.** A product that already ships did not arrive by
     asking a model what to build: somebody entered its bill of materials and its operating
     profile, and the engine checked the board that describes. That is what this writes, and
-    it is what `RUNNER.md` step 2 says the way in is. Seeding a *synthesis* would be
+    it is what `DEMO-DAY.md` step 2 says the way in is. Seeding a *synthesis* would be
     inventing work that never happened; seeding this is recording work the seed is doing.
 
     Everything in it is real. The parts are the company's own recorded readings, the rails

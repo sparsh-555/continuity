@@ -10,8 +10,9 @@ worth finding out which.
 **Part two · The demo** is the beat, in the order it is told, with what is on screen and what
 would be a bug.
 
-[RUNNER.md](RUNNER.md) is how to start everything. [BUILD.md](BUILD.md) is the work and its
-order. This is what the thing does.
+[RUNNER.md](RUNNER.md) is the run-through, [DEMO-DAY.md](DEMO-DAY.md) is what you say over it,
+and [OPERATING.md](OPERATING.md) is how to start everything and what breaks. [BUILD.md](BUILD.md)
+is the work and its order. This is what the thing does.
 
 Anything below marked **[not built]** does not exist yet and is named as a gap rather than
 described as behaviour.
@@ -288,8 +289,8 @@ so a company that had never run a design here had no memory at all.
 
 # Part two · The demo
 
-Five products, one company, one notice. [RUNNER.md](RUNNER.md) has the commands; this is the
-story. Timings are from live runs on the seeded world.
+Five products, one company, one notice. [RUNNER.md](RUNNER.md) has the run-through and
+[OPERATING.md](OPERATING.md) has the commands; this is the story. Timings are from live runs on the seeded world.
 
 ## Before you start
 
@@ -350,8 +351,12 @@ and not on the approved list, that desk is **quality**, not engineering — the 
 it does not decide. Signing in as the second account to answer it is a stronger beat than
 approving it yourself.
 
-**Watch for:** in the seeded world an approved part clears every board, so every column
-currently ends at engineering. See DEFERRED — it is a flow decision, not a defect.
+**Watch for:** every column currently ends at engineering, and as of the 10 Sep audit that is
+**a defect rather than a flow decision**. `review.choose` hardcodes engineering for any
+candidate that clears, so a department is consulted only when the answer is a compromise, and
+there is no production role in the product at all. It is 🔴 in DEFERRED with the mechanism, and
+[RESEARCH-3rd-Passthrough.md](RESEARCH-3rd-Passthrough.md#r8-the-cross-team-response-is-the-problem-statement-and-one-desk-answers-everything)
+has the three fixes.
 
 ## 6 · What it costs the board
 

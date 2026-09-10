@@ -1174,6 +1174,18 @@ it without a reload. Tasteful: one line, dismissible, not a modal.
 **Note** this is the moment the demo turns on. He sends the mail on stage and the app has to
 react while he is talking, or the beat dies waiting for somebody to press refresh.
 
+**Note, from the third pass on 10 Sep**, the sequence this has to serve, because it decides
+what updates and not just what pops up. The mail goes out at the start of the explanation of
+how an engineer adds a product line. Twenty to thirty seconds pass while he keeps talking, on
+`/lines` rather than parked on `/changes`. The notification then arrives wherever he is, the
+affected rows on `/lines` change, a product line already open turns its regulator red on the
+power tree and in the bill, and it offers the review. Only then does he go to `/changes`.
+
+`routes/changes.tsx:19,54` already polls on ten seconds and is the only poll in the product.
+Extending that into one provider above the router, which raises the toast and lets every route
+refetch off the same tick, is cheaper than a second transport. See
+[RESEARCH-3rd-Passthrough.md](RESEARCH-3rd-Passthrough.md#r1-the-notice-has-to-announce-itself).
+
 **Test** a notice stored while `/lines` is open changes the affected rows and raises the
 notification without a navigation.
 
