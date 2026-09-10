@@ -97,7 +97,7 @@ export function BoardPane({
           />
         ) : (
           <p className="p-md font-data-tabular text-[11px] text-on-surface-variant">
-            {busy ? 'Drawing the board…' : ''}
+            {busy ? 'Loading the board…' : ''}
           </p>
         )}
       </div>

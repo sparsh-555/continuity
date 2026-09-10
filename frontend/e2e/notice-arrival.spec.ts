@@ -6,6 +6,12 @@ const email = process.env.CONTINUITY_E2E_EMAIL
 const password = process.env.CONTINUITY_E2E_PASSWORD
 
 test.skip(!email || !password, 'Set CONTINUITY_E2E_EMAIL and CONTINUITY_E2E_PASSWORD to run against a disposable demo world.')
+test.setTimeout(75_000)
+
+// **This test needs a world nobody has touched.** It asserts `End of life (0)` before
+// delivering the notice, so a second run against the same world fails on its own
+// precondition rather than on anything it is testing. `./demo.sh` without `--keep` rebuilds
+// the world, which is what makes the run repeatable.
 
 async function signIn(page: Page) {
   await page.goto('/login')
@@ -47,4 +53,29 @@ test('a delivered notice announces itself and refreshes rows and an open product
   await sensorLane.click()
   await expect(page.getByText(/^Trying .+\.$/).first()).toBeVisible()
   await expect(page.getByText(/SATISFIED · thermal dissipation/).first()).toBeVisible()
+
+  await line.reload()
+  await expect(line.getByRole('button', { name: 'BOARD' })).toBeVisible()
+  await line.getByRole('button', { name: 'BOARD' }).click()
+  await expect(line.getByRole('button', { name: 'PLACE IT AGAIN' })).toBeVisible({ timeout: 45_000 })
+  await expect(line.getByText(/^FOOTPRINT: .+ → .+ \(DROP-IN\) · FITTED PART: AMS1117-3\.3 → .+$/)).toBeVisible()
+  const after = line.locator('figure').filter({ hasText: /^AFTER · / })
+  const afterOverlay = after.locator('rect[fill="#a78bfa"]')
+  await expect(afterOverlay).toBeVisible()
+  await expect(afterOverlay).toHaveAttribute('x', /^(?!0(?:\.0+)?$).+/)
+
+  // Away from the board and back. The pane unmounts on the toggle, and both pictures used
+  // to come back **blank**: the blob URL was created in a memo and revoked in an effect
+  // cleanup, so a remount left the `<image>` pointing at a blob the browser no longer had.
+  // Nothing on screen said anything was wrong. The overlay above is drawn by us and was
+  // still there, which is why this fetches the picture itself.
+  await line.getByRole('button', { name: 'COMPONENTS' }).click()
+  await line.getByRole('button', { name: 'BOARD' }).click()
+  await expect(line.getByRole('button', { name: 'PLACE IT AGAIN' })).toBeVisible()
+  const drawn = line.locator('figure image').first()
+  await expect(drawn).toHaveAttribute('href', /^blob:/)
+  const readable = await drawn.evaluate(async (node) =>
+    fetch(node.getAttribute('href') ?? '').then((response) => response.ok).catch(() => false),
+  )
+  expect(readable, 'the board picture is still there after a toggle').toBe(true)
 })

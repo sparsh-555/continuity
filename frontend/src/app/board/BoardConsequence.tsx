@@ -1,6 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ApiError, boardConsequence, type BoardConsequence as Consequence } from '../lib/api'
+import { recallPlacement, rememberPlacement } from './placements'
+
+type CropPhase = 'before' | 'after'
+
+export function cropTreatment(phase: CropPhase) {
+  return phase === 'after'
+    ? { overlay: '#a78bfa', stroke: '#c4b5fd' }
+    : { overlay: 'none', stroke: '#e5e7eb' }
+}
+
+export function cropBox(crop: string) {
+  const [x, y, width, height] = crop.split(/\s+/).map(Number)
+  return { x, y, width, height }
+}
+
+export function boardChangeCaption({
+  footprint,
+  retiring,
+  candidate,
+}: Pick<Consequence, 'footprint' | 'retiring' | 'candidate'>) {
+  const dropIn = footprint.from === footprint.to ? ' (DROP-IN)' : ''
+  return `FOOTPRINT: ${footprint.from} → ${footprint.to}${dropIn} · FITTED PART: ${retiring} → ${candidate}`
+}
 
 /** The same rectangle of the board, before and after.
  *
@@ -9,38 +32,61 @@ import { ApiError, boardConsequence, type BoardConsequence as Consequence } from
  *  is done in page coordinates rather than fitted to the board: fitted, the two pictures
  *  would need aligning by eye, and a reader comparing two pictures by eye is a reader who
  *  cannot tell whether anything moved. */
-function Crop({ svg, crop, page, label }: {
+function Crop({ svg, crop, page, label, phase }: {
   svg: string
   crop: string
   page: { width: number; height: number }
   label: string
+  phase: CropPhase
 }) {
-  const url = useMemo(() => URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })), [svg])
-  useEffect(() => () => URL.revokeObjectURL(url), [url])
+  // Created and revoked in **one** effect, so the two always pair up.
+  //
+  // It used to be a `useMemo` creating the URL and an effect revoking it, and those have
+  // different lifecycles: React runs an effect, cleans it up and runs it again on mount in
+  // development, while a memo runs once — so the cleanup revoked the only URL there was and
+  // the `<image>` pointed at a blob the browser no longer had. **Both board pictures came up
+  // blank**, with `net::ERR_FILE_NOT_FOUND` in the console and nothing on screen saying
+  // anything was wrong. `./demo.sh` serves the UI through Vite with `StrictMode` on, so this
+  // was the demo, not a development-only curiosity.
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const created = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
+    setUrl(created)
+    return () => URL.revokeObjectURL(created)
+  }, [svg])
 
   // The crop is built around the part, so its centre is the part. Derived rather than
   // sent again: two fields that have to agree are two fields that can disagree.
-  const centre = useMemo(() => {
-    const [x, y, width, height] = crop.split(/\s+/).map(Number)
-    return { x: x + width / 2, y: y + height / 2 }
-  }, [crop])
+  const box = useMemo(() => cropBox(crop), [crop])
+  const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  const treatment = cropTreatment(phase)
 
   return (
     <figure className="flex-1 min-w-[200px] space-y-1">
-      <figcaption className="font-data-tabular text-[10px] text-on-surface-variant">
+      <figcaption className={`font-data-tabular text-[10px] ${phase === 'after' ? 'text-[#c4b5fd]' : 'text-on-surface-variant'}`}>
         {label}
       </figcaption>
       <svg
-        className="w-full aspect-square bg-black border border-outline-variant rounded"
+        className={`w-full aspect-square bg-black border rounded ${phase === 'after' ? 'border-[#c4b5fd]' : 'border-outline-variant'}`}
         viewBox={crop}
       >
-        <image href={url} x="0" y="0" width={page.width} height={page.height} />
+        {url ? <image href={url} x="0" y="0" width={page.width} height={page.height} /> : null}
+        {treatment.overlay !== 'none' ? (
+          <rect
+            fill={treatment.overlay}
+            height={box.height}
+            opacity={0.14}
+            width={box.width}
+            x={box.x}
+            y={box.y}
+          />
+        ) : null}
         {/* Where to look. The crop is centred on the part, and on a board with a copper
             pour under it a regulator is otherwise one red shape among many. */}
         <rect
           fill="none"
           height={7}
-          stroke="#e5e7eb"
+          stroke={treatment.stroke}
           strokeDasharray="0.6 0.6"
           strokeWidth={0.15}
           width={7}
@@ -73,17 +119,29 @@ export function BoardConsequence({
    *  question twice. */
   auto?: boolean
 }) {
-  const [outcome, setOutcome] = useState<Consequence | null>(null)
+  // Straight out of the session's placements when this board has been placed before, so a
+  // remount paints the picture rather than starting a KiCad run behind a **PLACING…**.
+  const [outcome, setOutcome] = useState<Consequence | null>(() =>
+    recallPlacement(lineId, retiring, candidate),
+  )
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const check = useCallback(async () => {
     if (!candidate) return
+    const known = recallPlacement(lineId, retiring, candidate)
+    if (known) {
+      setOutcome(known)
+      setMessage(null)
+      return
+    }
     setBusy(true)
     setMessage(null)
     setOutcome(null)
     try {
-      setOutcome(await boardConsequence(lineId, retiring, candidate))
+      const placed = await boardConsequence(lineId, retiring, candidate)
+      rememberPlacement(lineId, retiring, candidate, placed)
+      setOutcome(placed)
     } catch (caught) {
       // Each of these is a different true sentence, and collapsing them into "that
       // failed" would hide the only one the reader can act on.
@@ -102,7 +160,9 @@ export function BoardConsequence({
   }, [candidate, lineId, retiring])
 
   // Guarded on the part rather than on a "have run" flag: `check` changes identity when the
-  // candidate does, which is exactly when the board should be placed again.
+  // candidate does, which is exactly when the board should be placed again. A board already
+  // placed in this session comes back from `placements` without another KiCad run, so a
+  // refetch behind the BOARD view no longer takes the picture away and puts PLACING… there.
   useEffect(() => {
     if (auto) void check()
   }, [auto, check])
@@ -150,17 +210,23 @@ export function BoardConsequence({
             </span>
           </p>
 
+          <p className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed">
+            {boardChangeCaption(outcome)}
+          </p>
+
           <div className="flex gap-md">
             <Crop
               crop={outcome.crop}
               label={`BEFORE · ${outcome.retiring}`}
               page={outcome.page}
+              phase="before"
               svg={outcome.before_svg}
             />
             <Crop
               crop={outcome.crop}
               label={`AFTER · ${outcome.candidate}`}
               page={outcome.page}
+              phase="after"
               svg={outcome.after_svg}
             />
           </div>
