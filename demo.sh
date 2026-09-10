@@ -271,8 +271,10 @@ fi
 echo
 printf '  %shttp://localhost:%s%s\n' "$GRN" "$UI_PORT" "$OFF"
 echo
-echo "  engineer@northwind.example   continuity-demo-2026   engineering"
-echo "  quality@northwind.example    continuity-demo-2026   quality, procurement"
+echo "  engineer@northwind.example      continuity-demo-2026   engineering"
+echo "  procurement@northwind.example   continuity-demo-2026   procurement"
+echo "  production@northwind.example    continuity-demo-2026   production"
+echo "  quality@northwind.example       continuity-demo-2026   quality"
 echo
 if [ "$WITH_MAIL" = 1 ]; then
   echo "  Forward docs/world-finals/notices/PCN-2026-114.pdf to the demo mailbox for step 4."

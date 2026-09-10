@@ -1,0 +1,29 @@
+{
+ "mpn": "ESP32-C3-MINI-1-N4",
+ "prompt": "7fde8e5c4f2c",
+ "fields": {
+  "vmin": 3.0,
+  "vmax": 3.6,
+  "i_typ": 0.084,
+  "i_peak": 0.35,
+  "role": "master",
+  "temp_min": -40.0,
+  "temp_max": 85.0,
+  "interfaces": [
+   "SPI",
+   "UART",
+   "I2C",
+   "I2S",
+   "USB"
+  ]
+ },
+ "provenance": {
+  "vmin": "Voltage - Supply",
+  "vmax": "Voltage - Supply",
+  "i_peak": "Send  Current",
+  "i_typ": "Receive  Current",
+  "interfaces": "Interface Type",
+  "temp_min": "Operating Temperature",
+  "temp_max": "Operating Temperature"
+ }
+}

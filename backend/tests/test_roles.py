@@ -24,6 +24,8 @@ from continuity.api import app as app_module
 from continuity.engine import rules
 from continuity.engine.models import Verdict
 from continuity import roles as roles_module
+from continuity.api import store
+from continuity.roles import DEFAULT_DECISION_ROLES, ROLES_BY_RULE
 from continuity.graph import nodes
 
 
@@ -204,3 +206,26 @@ def test_a_waived_failure_no_longer_blocks_but_is_still_reported():
 
     assert rules.blocking(verdicts) == []
     assert len(rules.failures(verdicts)) == 1
+
+
+def test_every_desk_the_routing_table_names_is_a_role_the_product_has():
+    """The reverse of the completeness test above, and it catches the other mistake.
+
+    `ROLES_BY_RULE` named `production` for a rule while `store.ROLES` did not have it, so a
+    failure could route to a department nobody could hold and nobody could answer. One
+    direction asserts every rule has a desk; this one asserts every desk exists.
+    """
+    named = {role for roles in ROLES_BY_RULE.values() for role in roles}
+    named |= set(DEFAULT_DECISION_ROLES)
+    unknown = sorted(named - set(store.ROLES))
+    assert not unknown, f"routed to departments the product cannot grant: {unknown}"
+
+
+def test_assembly_compatibility_belongs_to_production():
+    """Scenario B assigns *production confirms assembly compatibility* to these two rules.
+
+    They answered to engineering until 10 September, which left the scenario's third
+    department owning nothing at all.
+    """
+    assert ROLES_BY_RULE["footprint"] == ("production",)
+    assert ROLES_BY_RULE["footprint_compatibility"] == ("production",)

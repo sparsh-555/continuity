@@ -1,0 +1,12 @@
+{
+ "mpn": "CL31A226KAHNNNE",
+ "prompt": "7fde8e5c4f2c",
+ "fields": {
+  "vmax": 25.0,
+  "role": "passive",
+  "interfaces": []
+ },
+ "provenance": {
+  "vmax": "Voltage Rating"
+ }
+}

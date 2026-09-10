@@ -21,14 +21,18 @@ ROLES_BY_RULE: dict[str, tuple[str, ...]] = {
     # Who we buy from is procurement's alone. The part is already qualified in this case —
     # what is in question is the source, which engineering has no standing to approve.
     "source_approval": ("procurement",),
-    # Everything else the engine decides is a question about the circuit.
+    # Everything else the engine decides is a question about the circuit, and design owns it.
     "voltage_overlap": ("engineering",),
     "current_budget": ("engineering",),
     "thermal_dissipation": ("engineering",),
     "pin_budget": ("engineering",),
     "interface_role_match": ("engineering",),
-    "footprint": ("engineering",),
-    "footprint_compatibility": ("engineering",),
+    # Whether the substitute can be assembled onto the board this company already builds.
+    # Scenario B's "production confirms assembly compatibility" maps onto exactly these two,
+    # and both answered to engineering until 10 September, which left the scenario's third
+    # department owning nothing.
+    "footprint": ("production",),
+    "footprint_compatibility": ("production",),
     "capacitor_requirements": ("engineering",),
     "temperature_rating": ("engineering",),
     "energy_budget": ("engineering",),

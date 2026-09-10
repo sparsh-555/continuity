@@ -68,8 +68,14 @@ class EmailTaken(Exception):
     """Registration hit the unique constraint on `users.email`."""
 
 
-ROLES = ("engineering", "procurement", "quality")
+ROLES = ("engineering", "procurement", "production", "quality")
 """Every role a person can hold. Checked wherever roles are set.
+
+**Four desks, ordered as Scenario B orders them.** The topic names design, procurement and
+production; quality is the fourth because the approved manufacturer list has to have an owner
+and `part_qualification` is addressed to it. `production` was absent until 10 September, so
+`roles.py` could route a rule to a department nobody could hold — `tests/test_roles.py` now
+asserts both directions of that.
 
 A role nobody validates is a permission that silently never applies: a typo in
 `{"enginering"}` grants nothing and reports nothing, and the first sign of it is a person

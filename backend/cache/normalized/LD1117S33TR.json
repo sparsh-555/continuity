@@ -1,0 +1,24 @@
+{
+ "mpn": "LD1117S33TR",
+ "prompt": "7fde8e5c4f2c",
+ "fields": {
+  "vmax": 15.0,
+  "vout_min": 3.3,
+  "vout_max": 3.3,
+  "i_typ": 0.005,
+  "i_max": 0.8,
+  "role": "passive",
+  "topology": "ldo",
+  "temp_min": 0.0,
+  "temp_max": 125.0
+ },
+ "provenance": {
+  "vmax": "Voltage - Supply",
+  "vout_min": "Output Voltage",
+  "vout_max": "Output Voltage",
+  "i_typ": "standby current",
+  "i_max": "Output Current",
+  "temp_min": "Operating Temperature",
+  "temp_max": "Operating Temperature"
+ }
+}

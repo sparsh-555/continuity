@@ -59,8 +59,21 @@ from tools.eol_differential import (
 )
 
 COMPANY = "Northwind Instruments"
-ENGINEER = ("engineer@northwind.example", "continuity-demo-2026")
-APPROVER = ("quality@northwind.example", "continuity-demo-2026")
+PASSWORD = "continuity-demo-2026"
+ENGINEER = ("engineer@northwind.example", PASSWORD)
+
+DESKS: tuple[tuple[str, str], ...] = (
+    ("procurement@northwind.example", "procurement"),
+    ("production@northwind.example", "production"),
+    ("quality@northwind.example", "quality"),
+)
+"""The other three desks, one role each.
+
+**One desk per person, deliberately.** A person holding two desks can sign for both, which
+makes separation of duties untestable and turns *"this is not your decision"* into a claim
+about navigation rather than about authority. Scenario B's cross-team response needs four
+people who can each refuse.
+"""
 
 REVISION = "Rev C"
 
@@ -232,8 +245,11 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
             "UPDATE organisations SET name = %s WHERE id = %s", (COMPANY, org_id)
         )
 
-    approver = await store.create_user(APPROVER[0], hasher.hash(APPROVER[1]))
-    await store.add_user_to_organisation(approver.id, org_id, ["quality", "procurement"])
+    people = {"engineering": engineer}
+    for email, role in DESKS:
+        desk = await store.create_user(email, hasher.hash(PASSWORD))
+        await store.add_user_to_organisation(desk.id, org_id, [role])
+        people[role] = desk
 
     # The datasheet readings from PARTS.md, marked as such. This is the writer the
     # verified-over-listing rule was built for and did not have.
@@ -243,11 +259,15 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
     await store.keep_lists(org_id, aml=True, avl=True)
     for part in QUALIFIED:
         await store.qualify_part(
-            org_id, part.mpn, manufacturer=part.manufacturer, by=approver.id,
+            org_id, part.mpn, manufacturer=part.manufacturer,
+            # `part_qualification` is engineering's call and quality's record, so the record
+            # is quality's. The AVL below is procurement's alone, for the same reason.
+            by=people["quality"].id,
             note="Qualified on the 2025 audit.",
         )
     await store.approve_vendor(
-        org_id, APPROVED_VENDOR, by=approver.id, note="Framework agreement, 2025."
+        org_id, APPROVED_VENDOR, by=people["procurement"].id,
+        note="Framework agreement, 2025.",
     )
 
     made = []
@@ -291,7 +311,7 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
     return {
         "org_id": org_id,
         "engineer": engineer,
-        "approver": approver,
+        "people": people,
         "lines": made,
         "board_line_id": board_line_id,
     }
@@ -453,7 +473,8 @@ async def main() -> None:
 
     print(f"{COMPANY} — organisation {world['org_id']}")
     print(f"  {ENGINEER[0]} (engineering)")
-    print(f"  {APPROVER[0]} (quality, procurement)")
+    for email, role in DESKS:
+        print(f"  {email} ({role})")
     print(f"  AML: {len(QUALIFIED)} parts — everything already shipping")
     print(f"       {LD1117.mpn} absent: nothing ships with it yet")
     print(f"  AVL: {APPROVED_VENDOR}")

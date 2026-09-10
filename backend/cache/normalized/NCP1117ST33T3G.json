@@ -1,0 +1,21 @@
+{
+ "mpn": "NCP1117ST33T3G",
+ "prompt": "7fde8e5c4f2c",
+ "fields": {
+  "vmax": 20.0,
+  "vout_min": 3.3,
+  "vout_max": 3.3,
+  "i_typ": 0.006,
+  "i_max": 1.0,
+  "role": "passive",
+  "topology": "ldo",
+  "interfaces": []
+ },
+ "provenance": {
+  "vmax": "Voltage - Supply",
+  "vout_min": "Output Voltage",
+  "vout_max": "Output Voltage",
+  "i_max": "Output Current",
+  "i_typ": "standby current"
+ }
+}

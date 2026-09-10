@@ -1,0 +1,22 @@
+{
+ "mpn": "TP4056",
+ "prompt": "7fde8e5c4f2c",
+ "fields": {
+  "vmin": 4.0,
+  "vmax": 6.5,
+  "i_typ": 3.5e-05,
+  "i_max": 1.0,
+  "role": "passive",
+  "temp_min": -40.0,
+  "temp_max": 85.0,
+  "interfaces": []
+ },
+ "provenance": {
+  "vmin": "Voltage - Supply",
+  "vmax": "Voltage - Supply",
+  "i_typ": "Supply Current (Iq)",
+  "i_max": "Charge Current - Max",
+  "temp_min": "Operating Temperature",
+  "temp_max": "Operating Temperature"
+ }
+}

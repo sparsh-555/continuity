@@ -28,12 +28,15 @@ ctrl-c stops both. **The world is rebuilt on every start**, so a run always begi
 notice received and no decision pending. `--keep` goes back to a pass that is still in
 progress. Anything that fails a check is explained in [OPERATING.md](OPERATING.md).
 
-| Account | Password | Roles |
+| Account | Password | Desk |
 |---|---|---|
 | `engineer@northwind.example` | `continuity-demo-2026` | engineering |
-| `quality@northwind.example` | `continuity-demo-2026` | quality, procurement |
+| `procurement@northwind.example` | `continuity-demo-2026` | procurement |
+| `production@northwind.example` | `continuity-demo-2026` | production |
+| `quality@northwind.example` | `continuity-demo-2026` | quality |
 
-**Northwind Instruments**, two people, five products, both standing lists. Three of the five
+**Northwind Instruments**, four people, five products, both standing lists. One desk each, so
+no one person can sign for two departments. Three of the five
 carry the part the notice retires, at three different ambients on three different rails, which
 is what makes one recommendation right for one product and wrong for another.
 

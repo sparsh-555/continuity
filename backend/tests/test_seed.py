@@ -23,6 +23,7 @@ import httpx
 import pytest
 
 from continuity.api.app import app
+from continuity.api import store as store_module
 from continuity.api.store import Store
 from continuity.notices import Notice
 from tools import seed_world
@@ -66,17 +67,32 @@ def test_the_seed_builds_the_world_the_scenario_needs():
             lists = await store.approved_lists(world["org_id"])
             lines = await store.lines_for_user(world["org_id"])
             exposed = await store.lines_exposed_to(world["org_id"], AMS1117.mpn)
-            approver = await store.user_by_email(seed_world.APPROVER[0])
-            return world, lists, lines, exposed, approver
+            desks = {
+                email: await store.user_by_email(email)
+                for email, _ in seed_world.DESKS
+            }
+            return world, lists, lines, exposed, desks
 
-    world, lists, lines, exposed, approver = run(go())
+    world, lists, lines, exposed, desks = run(go())
 
     assert len(lines) == 5, "five product lines"
     assert len(exposed) == 3, "three of them carry the retired part, and two do not"
 
     assert world["engineer"].roles == ("engineering",)
-    assert set(approver.roles) == {"quality", "procurement"}
-    assert approver.org_id == world["org_id"], "both people in one company"
+
+    # One desk each. A person holding two of them can sign for both, which is the whole of
+    # what separation of duties is for, and Scenario B names three departments plus the
+    # quality record — so four people who can each refuse.
+    for email, role in seed_world.DESKS:
+        assert desks[email] is not None, f"{email} was not created"
+        assert desks[email].roles == (role,), f"{email} holds exactly {role}"
+        assert desks[email].org_id == world["org_id"], "everybody in one company"
+
+    held = {world["engineer"].roles[0]} | {role for _, role in seed_world.DESKS}
+    assert held == set(store_module.ROLES), (
+        "every desk the product has is held by somebody in the demo world, or a decision "
+        "routes to a department nobody can answer for"
+    )
 
     assert lists.vendors == frozenset({seed_world.APPROVED_VENDOR.upper()})
     assert LD1117.mpn.upper() not in lists.parts, (

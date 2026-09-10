@@ -1,0 +1,24 @@
+{
+ "mpn": "AMS1117-5.0",
+ "prompt": "7fde8e5c4f2c",
+ "fields": {
+  "vmax": 15.0,
+  "vout_min": 5.0,
+  "vout_max": 5.0,
+  "i_typ": 0.005,
+  "i_max": 1.0,
+  "role": "passive",
+  "topology": "ldo",
+  "temp_min": -40.0,
+  "temp_max": 125.0
+ },
+ "provenance": {
+  "vmax": "Voltage - Supply",
+  "vout_min": "Output Voltage",
+  "vout_max": "Output Voltage",
+  "i_typ": "standby current",
+  "i_max": "Output Current",
+  "temp_min": "Operating Temperature",
+  "temp_max": "Operating Temperature"
+ }
+}

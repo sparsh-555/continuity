@@ -36,7 +36,7 @@ cost a world for the sake of a message about a port.
 launch from the repository root or from `backend/`. Local Postgres authenticates by user
 rather than by password, which is why every database URL here is `postgresql:///name` with no
 credentials in it. The KiCad image is public and needs no Docker login. The only credentials
-you type anywhere are the two demo accounts.
+you type anywhere are the four demo accounts.
 
 If the key ever has to be replaced, put the new one in `backend/.env` as
 `CONTINUITY_LLM_API_KEY=…` and set `CONTINUITY_LLM_BASE_URL=https://api.deepseek.com` beside
