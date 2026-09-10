@@ -116,6 +116,15 @@ class ChangeRequest:
     cost: Cost
     approvals_required: tuple[str, ...]
 
+    checked: "Checked | None" = None
+    """What was checked before anybody was asked anything.
+
+    The topic states a clock — *approved substitutes within 48 hours* — and no surface in
+    this product carried a figure of any kind. This is not a saving: nobody measured one,
+    and inventing one would fail the first rule this project holds. It is the count of round
+    trips that did not have to happen, and every number in it came out of the run.
+    """
+
     departments: tuple["DepartmentResult", ...] = ()
     """What each desk found, over the same verdicts the evidence above is drawn from.
 
@@ -158,6 +167,7 @@ class ChangeRequest:
             "cost": self.cost.to_json(),
             "approvals_required": list(self.approvals_required),
             "departments": [d.to_json() for d in self.departments],
+            "checked": self.checked.to_json() if self.checked else None,
         }
 
 
@@ -242,11 +252,20 @@ def for_line(
 
     ruled_out = dict(excluded or {})
     order = {mpn: index for index, mpn in enumerate(prefer)}
-    viable = sorted(
-        (cell for cell in candidates if cell.ok and cell.candidate.mpn not in ruled_out),
-        key=lambda cell: (order.get(cell.candidate.mpn, len(order)), cell.candidate.mpn),
-    )
-    chosen = viable[0] if viable else None
+
+    def ranked(usable):
+        return sorted(
+            (cell for cell in usable if cell.candidate.mpn not in ruled_out),
+            key=lambda cell: (order.get(cell.candidate.mpn, len(order)), cell.candidate.mpn),
+        )
+
+    # Clear first, then a candidate whose only failures are somebody's decision. The same
+    # two passes `review.choose` makes, in the same order and for the same reason: a part
+    # that clears outright costs nobody a judgement, and a part waiting on procurement is
+    # still a proposal rather than a rejection.
+    clear = ranked(cell for cell in candidates if cell.ok)
+    gated = ranked(cell for cell in candidates if cell.answerable)
+    chosen = (clear or gated or [None])[0]
 
     alternatives = tuple(
         Alternative(
@@ -298,7 +317,39 @@ def for_line(
         ),
         approvals_required=_approvals_for(chosen, verdicts),
         departments=_departments_for(verdicts, matrix.slot),
+        checked=Checked(
+            candidates=len(cells),
+            checks=sum(len(cell.verdicts) for cell in cells),
+            departments=len(_departments_for(verdicts, matrix.slot)),
+            lines=len(matrix.lines),
+        ),
     )
+
+
+@dataclass(frozen=True)
+class Checked:
+    """The size of the sweep this answer came out of."""
+
+    candidates: int
+    """Parts placed on this board and re-checked, including the one fitted today."""
+
+    checks: int
+    """Verdicts produced across those attempts. The engine re-checks the whole board after
+    every substitution, so this is not the rule count."""
+
+    departments: int
+    """Desks whose rules ran. All of them, at once, before the first person was asked."""
+
+    lines: int
+    """Product lines the same run covered."""
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "candidates": self.candidates,
+            "checks": self.checks,
+            "departments": self.departments,
+            "lines": self.lines,
+        }
 
 
 @dataclass(frozen=True)

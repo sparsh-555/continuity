@@ -528,3 +528,38 @@ def test_a_seeded_run_restores_its_board_without_a_checkpoint():
     # Without a `plan` frame there is no board, and saying so is what lets the caller
     # report an unrestorable run rather than an empty one.
     assert _board_from_frames([f for f in frames if f["type"] != "plan"]) is None
+
+
+def test_one_notice_stops_at_three_different_desks():
+    """The cross-team response, as the run-through has to show it.
+
+    One notice, three products, and the desks differ. The Gateway states a build quantity —
+    5,000 a quarter, from the production plan — so TLV1117's stock is short of it and the
+    answer waits on procurement. The other two clear outright and are signed by every
+    department that examined them.
+
+    Nothing here is tuned to a stock figure. A product line either has a build quantity or
+    it does not, and JLCPCB's stock is whatever it is on the day; a number chosen to sit
+    just above the recorded one would break the moment the fixtures were re-recorded.
+    """
+
+    async def go():
+        async with empty() as store:
+            world = await seed_world.seed(store)
+            lines = {
+                name: line_id for line_id, name, _ in world["lines"]
+            }
+            profiles = {}
+            for name, line_id in lines.items():
+                line = await store.line_for_user(line_id, world["org_id"])
+                profiles[name] = getattr(line, "profile", None) or {}
+            return profiles
+
+    profiles = run(go())
+
+    assert profiles["Gateway"]["build_quantity"] == 5_000
+    assert profiles["Gateway"]["build_quantity_source"], "a figure with no stated source is a default in disguise"
+    for name in ("Sensor node", "Cabinet controller"):
+        assert profiles[name].get("build_quantity") is None, (
+            f"{name} states no volume, so the stock minimum stays the default"
+        )

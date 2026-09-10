@@ -109,10 +109,31 @@ EVERY_PART = (AMS1117, TLV1117, LD1117, NCP1117, OUTPUT_CAPACITOR,
               LINE_A.load_part, LINE_B.load_part, LINE_C.load_part)
 
 
+BUILD_QUANTITIES: dict[str, tuple[int, str]] = {
+    LINE_B.label: (5_000, "quarterly build, 2026 production plan"),
+}
+"""How many of a product the company needs to be able to buy parts for.
+
+**Only the Gateway states one, and that is the point.** `availability` fails below the
+stated quantity, so on a line building 5,000 a quarter a part with 1,133 in stock is not a
+part you can buy — and since 10 September that is procurement's decision rather than a wall,
+so the Gateway's answer stops at procurement while the other two clear outright. One notice,
+three products, three different desks.
+
+Nothing here is tuned to a stock figure. A product line either has a build quantity or it
+does not; JLCPCB's stock is whatever it is on the day, and the recorded calls say 1,133 for
+TLV1117LV33DCYR. A number chosen to sit just above that would break the moment the fixtures
+were re-recorded.
+"""
+
+
 def profile_for(line, *, ambient: int, ambient_source: str) -> dict:
+    quantity = BUILD_QUANTITIES.get(line.label)
     return {
         "ambient_c": ambient,
         "ambient_source": ambient_source,
+        "build_quantity": quantity[0] if quantity else None,
+        "build_quantity_source": quantity[1] if quantity else None,
         "mounting": "1000 mm² top and back copper, 1/16in FR-4, 1 oz",
         "rails": {
             "vin": {

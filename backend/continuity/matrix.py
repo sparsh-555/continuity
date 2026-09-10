@@ -37,7 +37,7 @@ from typing import Mapping, Sequence
 
 from .engine import rules
 from .engine.models import Board, CheckStatus, PartSpec, Verdict
-from .roles import decision_roles
+from .roles import ANSWERABLE_RULES, decision_roles
 
 
 @dataclass(frozen=True)
@@ -65,6 +65,24 @@ class Cell:
     @property
     def ok(self) -> bool:
         return not self.failures
+
+    @property
+    def gates(self) -> tuple[Verdict, ...]:
+        """Failures a department can answer, as opposed to failures that are physics."""
+        return tuple(v for v in self.failures if v.rule in ANSWERABLE_RULES)
+
+    @property
+    def answerable(self) -> bool:
+        """Nothing physical stands, so what remains is somebody's decision.
+
+        The same test `review.Attempt.gated` applies, and deliberately the same words: a
+        candidate that is a proposal in the streaming review and a rejection in the change
+        request would be two different products. Before 10 September they were — the review
+        proposed a gated candidate and the document said *rejected because*, which showed up
+        the moment `availability` became answerable and the Gateway's request lost its
+        proposal entirely.
+        """
+        return bool(self.gates) and len(self.gates) == len(self.failures)
 
     @property
     def counts(self) -> dict[CheckStatus, int]:

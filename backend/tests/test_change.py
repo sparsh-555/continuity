@@ -220,7 +220,7 @@ def test_a_request_serialises_whole():
     assert set(body) == {
         "line_id", "line_name", "revision", "baseline_mpn", "notice_mpn", "notice_id",
         "proposal", "proposal_detail", "alternatives", "evidence", "not_assessed",
-        "no_evidence", "cost", "approvals_required", "departments",
+        "no_evidence", "cost", "approvals_required", "departments", "checked",
     }
     assert body["not_assessed"], "the coverage boundaries survive serialisation"
     assert body["cost"]["one_time_basis"]
@@ -377,3 +377,26 @@ def test_a_headline_falls_back_when_the_desk_said_nothing_about_that_slot():
     [desk] = change._departments_for(verdicts, "u1")
 
     assert desk.headline == "CL31A226KAHNNNE: 1,020,639 in stock at JLCPCB."
+
+
+def test_the_request_counts_what_was_checked_before_anybody_was_asked():
+    """The clock the topic states, answered with the run's own numbers rather than a
+    fabricated saving.
+
+    Nobody measured how long a cross-team response takes here, and the round-trip argument
+    is reasoning rather than sourced data — SCENARIO-B says so itself. What is true and is
+    worth counting is the sweep: this many parts against this many departments' rules on
+    this many products, before the first person was asked anything.
+    """
+    [request] = [r for r in requests() if r.line_id == "B"]
+
+    assert request.checked is not None
+    # Every part placed on this board: the alternatives, plus the one chosen, which the
+    # alternatives deliberately exclude, plus the one fitted today, which is the baseline
+    # the comparison rests on and is re-checked like any other.
+    assert request.checked.candidates == len(request.alternatives) + 2
+    assert request.checked.checks > request.checked.candidates, (
+        "the whole board is re-checked after every substitution, so this is not a rule count"
+    )
+    assert request.checked.departments == len(request.departments)
+    assert request.checked.lines >= 1

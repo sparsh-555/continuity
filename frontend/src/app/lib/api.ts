@@ -390,6 +390,14 @@ export type ChangeRequest = {
   /** What each desk found, over the same verdicts the evidence is drawn from. A desk that
    *  looked at nothing is absent rather than empty. */
   departments: ChangeRequestDepartment[]
+  /** The size of the sweep this answer came out of. Not a saving — nobody measured one —
+   *  but the count of round trips that did not have to happen. */
+  checked: {
+    candidates: number
+    checks: number
+    departments: number
+    lines: number
+  } | null
 }
 
 export type Review = {

@@ -101,8 +101,33 @@ class OperatingProfile:
     mounting: str | None = None
     rails: Mapping[str, RailProfile] = field(default_factory=dict)
 
+    build_quantity: int | None = None
+    """How many of this product the company needs to be able to build.
+
+    A property of the product, not of a review. `availability` fails below
+    `Requirements.min_stock`, which defaults to 100, so on a product shipping in volume a
+    part with four figures of stock is not a part you can buy — and that is procurement's
+    judgement to make rather than a wall. Unstated leaves the default, which is right for a
+    product line nobody has told us the volume of.
+    """
+
+    build_quantity_source: str | None = None
+    """Where the figure came from, in the company's own words.
+
+    The same rule the ambient is held to: a number with no stated source is a silent
+    default wearing a database row as a disguise, and this one decides whether a desk is
+    asked a question.
+    """
+
     KEYS: ClassVar[frozenset[str]] = frozenset(
-        ("ambient_c", "ambient_source", "mounting", "rails")
+        (
+            "ambient_c",
+            "ambient_source",
+            "mounting",
+            "rails",
+            "build_quantity",
+            "build_quantity_source",
+        )
     )
 
     def to_requirements(self, base: Requirements) -> Requirements:
@@ -113,6 +138,8 @@ class OperatingProfile:
         }
         if self.mounting is not None:
             changes["mounting"] = self.mounting
+        if self.build_quantity is not None:
+            changes["min_stock"] = self.build_quantity
         return replace(base, **changes)
 
     def applied_to(self, board: Board) -> Board:
@@ -149,6 +176,8 @@ class OperatingProfile:
             ambient_c=value["ambient_c"],
             ambient_source=value["ambient_source"],
             mounting=value.get("mounting"),
+            build_quantity=value.get("build_quantity"),
+            build_quantity_source=value.get("build_quantity_source"),
             rails={
                 rail_id: RailProfile.from_json(rail)
                 for rail_id, rail in dict(value.get("rails") or {}).items()
@@ -160,6 +189,8 @@ class OperatingProfile:
             "ambient_c": self.ambient_c,
             "ambient_source": self.ambient_source,
             "mounting": self.mounting,
+            "build_quantity": self.build_quantity,
+            "build_quantity_source": self.build_quantity_source,
             "rails": {rail_id: rail.to_json() for rail_id, rail in self.rails.items()},
         }
 

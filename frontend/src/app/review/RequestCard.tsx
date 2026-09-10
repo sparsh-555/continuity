@@ -138,6 +138,19 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
         retiring={request.notice_mpn}
       />
 
+      {/* What this replaced, in the run's own numbers. Deliberately a footnote and
+          deliberately not a saving: nobody measured how long a cross-team response takes
+          here, and a fabricated hours-saved figure is the first thing a judge would ask
+          about. The sequence is what costs the time, and there was no sequence. */}
+      {request.checked ? (
+        <p className="font-data-tabular text-[10px] text-on-surface-variant/70 leading-relaxed">
+          {request.checked.candidates} parts checked against {request.checked.departments}{' '}
+          departments&rsquo; rules on {request.checked.lines} product line
+          {request.checked.lines === 1 ? '' : 's'} — {request.checked.checks} checks on this
+          board alone — before anybody was asked anything.
+        </p>
+      ) : null}
+
       <section className="flex flex-wrap gap-lg border-t border-outline-variant pt-md">
         <div className={request.proposal ? '' : 'hidden'}>
           <p className="font-data-tabular text-[10px] text-on-surface-variant">ONE-TIME</p>

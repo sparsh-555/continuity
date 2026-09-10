@@ -244,11 +244,16 @@ def test_an_approved_part_that_clears_the_board_beats_qualifying_a_new_one():
         if frame["type"] == "line_done" and frame["line_name"] == "Gateway"
     )
 
-    assert gateway["proposal"] == TLV1117.mpn, "approved and clear wins"
-    assert gateway["conditional"] is False
+    assert gateway["proposal"] == TLV1117.mpn, "approved beats qualifying a new one"
     assert set(gateway["roles"]) >= {"engineering", "procurement", "production"}, (
-        "nothing failed, and every department that examined the change still signs it"
+        "every department that examined the change signs it"
     )
+    # **Changed 10 Sep.** The Gateway states a build quantity, so TLV1117's stock is now
+    # short of it and the answer is conditional on procurement rather than clear. The point
+    # of this test is unaffected and is the preference itself: a part already on the
+    # approved list still beats qualifying an unapproved one from scratch.
+    assert gateway["conditional"] is True
+    assert "procurement" in gateway["roles"]
 
 
 def test_the_decision_leaves_engineering_when_no_approved_part_clears():
@@ -520,7 +525,10 @@ def test_an_engineer_cannot_apply_a_change_procurement_has_not_signed():
                 http, me, notice_id,
             ):
                 pending = await a_pending_decision(store, http, notice_id, me["org_id"])
-                gateway = pending["Gateway"]
+                # The Sensor node rather than the Gateway: the Gateway states a build
+                # quantity, so its first gate is availability, and this test is about the
+                # source rather than about the stock.
+                gateway = pending["Sensor node"]
                 assert gateway["gate_rule"] == "source_approval", "precondition"
                 assert "procurement" in gateway["roles"]
                 answered = await http.post(
