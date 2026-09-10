@@ -91,7 +91,7 @@ over that proof.
 part, the bill says the part is fitted, and red is the manufacturer's statement rather than a
 verdict of ours.
 
-### Step 5 · Three lanes, one stream
+### Step 5 · Three lanes, four departments, one stream
 
 On not typing into **TRY A PARTICULAR PART TOO**: the candidates are *found*, and saying so is
 the point. The notice's own recommendation first, then the approved manufacturer list in the
@@ -103,18 +103,38 @@ that disagreement is the whole argument: the manufacturer's own recommended repl
 right for two of these products and would cook the third, and the third survives on a different
 part for a reason that is about that board and no other.
 
+**Then point at the departments.** Every candidate was checked against design's rules,
+procurement's, production's and quality's **at the same time, before anybody was asked
+anything**. Expand a lane and they are four labelled blocks over one shared result. That is
+the cross-team response: not three people being asked faster, but the round trips removed.
+
+And they do not all end in the same place. The Gateway's answer stops at **procurement** —
+1,133 in stock against a build of 5,000 a quarter — while the other two clear outright. One
+notice, three products, and the desk that has to think about it is different.
+
 Expand one lane and the other two stay as they are. Every rejection carries the sentence that
 killed it.
 
-### Step 6 · Approve, and watch the product change
+### Step 6 · Four desks sign, and only then does the product change
 
-Four things happened in that one press, and they are the difference between a recommendation
-and a change:
+**This is the answer to the topic's own question**, so say it while the signatures are going
+in. The industry calls this an ECR going to a change control board, and a board's composition
+mirrors the change's blast radius: design, procurement, production, quality. A substitution
+on a released design is approved before it is implemented, never after.
 
-- the part was written into the bill of materials,
-- the revision moved from Rev C to Rev D,
-- the approval was recorded with who signed it and why,
-- and the successful precedent was written, so the next notice does not re-litigate it.
+What Continuity changes is not who signs. It is that **procurement's approval is one click on
+evidence already gathered, instead of three days of investigation they run themselves.**
+
+Say the bill is unchanged after the first three. That is the point: no desk can apply a change
+on its own, and the tool routes rather than decides.
+
+Then, on the last signature, four things happen at once, and they are the difference between
+a recommendation and a change:
+
+- the part is written into the bill of materials,
+- the revision moves from Rev C to Rev D,
+- every signature is recorded with the desk it was given for and why,
+- and the successful precedent is written, so the next notice does not re-litigate it.
 
 ### Step 7 · The product line, changed
 
@@ -152,6 +172,12 @@ lives in the left pane, because that is what somebody on this product wants. The
 request** is what somebody signs, with cost, approvals, the board consequence and the two
 coverage admissions, and it is one line at the end rather than the answer to every click.
 `/changes` lists the same document for every affected line, which is the company view of it.
+
+### Step 9a · What each desk owes
+
+Switch desk from the rail and open **Waiting on you**. This is the other half of removing the
+round trips: procurement does not have to be told which product line to open, or read a design
+trace to sign for procurement. Their own queue carries their own reason to care.
 
 ### Step 10 · Memory, which is the company's record
 
@@ -212,6 +238,18 @@ number on screen, and it is the one that makes the case.
 
 **Can it check a part it could not source?** No, and it says so rather than guessing. The five
 coverage labels are on every cell of the matrix and both admissions are in the change request.
+
+**How do the three departments actually interact?** Every rule each of them owns is checked on
+every candidate simultaneously, before the first person is asked. Then each department signs
+for itself: the bill does not move until all of them have, no desk can sign for another, and
+each has a queue of what it owes. Show the Gateway, which stops at procurement while the other
+two clear, and the four blocks on any change request.
+
+**Did you not just move the meetings into an app?** No. The round trips are the cost, and they
+are gone: nobody proposes a part and waits two days to learn procurement cannot buy it, because
+procurement's rule ran on every candidate before anybody proposed anything. What is left for
+the humans is four signatures on evidence already gathered, and the change request says exactly
+how much was checked to produce it.
 
 **What is not built?** Answer plainly from DEFERRED, which is written down rather than
 discovered.

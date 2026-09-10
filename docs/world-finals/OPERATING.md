@@ -186,6 +186,7 @@ somebody is deciding whether to sign. See BUILD.md's second governing rule.
 | `/design/:lineId` | the run in which this line was described; a brief screen only if it has none |
 | `/design` | single-user local mode, no account |
 | `/changes` | notices received, the company-wide review in lanes, the change requests |
+| `/approvals` | what the signed-in desk owes, across every product line |
 | `/matrix` | every candidate against every product line |
 | `/memory` | the company's record: parts, boards, notices, and what was decided |
 
@@ -196,6 +197,17 @@ curl -s -b cookies.txt 'http://localhost:8000/exposure?mpn=AMS1117-3.3'
 curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/board/bom'
 curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/reviews'      # a finished review, replayed
 curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/board/render' # the board, cached after the first
+curl -s -b cookies.txt 'http://localhost:8000/decisions'               # what this desk owes
+curl -s -b cookies.txt 'http://localhost:8000/auth/sessions'           # desks this browser holds
+```
+
+**Signing a substitution** takes one call per department, in any order, and the change
+applies on the last one:
+
+```bash
+curl -s -b cookies.txt -X POST 'http://localhost:8000/decisions/<id>' \
+  -H 'Content-Type: application/json' -d '{"approve": true}'
+# {"state": "pending", "signed": ["engineering"], "outstanding": ["procurement", ...]}
 ```
 
 ---
@@ -295,6 +307,10 @@ cd ../frontend && bun run build     # tsc first, then the bundle
 | Symptom | Cause |
 |---|---|
 | A notice is already there before step 4 | The world was carried over from an earlier run. Start `./demo.sh` without `--keep` |
+| A signature does not change the bill | Expected. Every department that examined the change signs it, and it applies on the last one. The reply says who it is waiting for |
+| `already signed this` on a second press | Expected. A desk signs once; the message names who is outstanding |
+| The desk switcher offers nothing to switch to | Only sessions this browser has signed into appear. Sign in as that desk once and both stay live |
+| The mailbox poll fails on a foreign key after a reseed | The poller resolved the organisation at startup and the reseed replaced it. Restart the API |
 | Every call fails, console shows CORS | Vite is not on 5173 or 5174. Restart with `--strictPort` |
 | `401` on `/auth/me` before signing in | Normal. Two of these on the landing page are expected |
 | The BOARD view says no KiCad is configured | `CONTINUITY_KICAD=docker` was not set on the API, or Docker is not running |

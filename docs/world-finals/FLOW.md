@@ -189,7 +189,7 @@ about:
 | State | Means | Who signs |
 |---|---|---|
 | **clear** | nothing failed | engineering — a released design is approved before it changes, never after |
-| **gated** | the only failures are rules a department owns | quality for qualification, procurement for source approval |
+| **gated** | the only failures are rules a department owns | five rules, in `roles.ANSWERABLE_RULES`: qualification to engineering and quality, source approval and availability to procurement, both footprint rules to production |
 | **blocked** | something physical failed | nobody. No signature turns 159 °C into 150 °C |
 
 A clear candidate is preferred over a gated one, because an approved part costs a twelfth of
@@ -203,7 +203,7 @@ browser, from somebody who never watched it.
 ## 7 · The decision
 
 `POST /decisions/{id}`, and the authorisation is at the HTTP boundary: a decision addressed to
-a desk the answerer does not sit at is refused with a 403 naming the desk, before anything is
+a desk the answerer does not sit at is refused with a 403 naming what they hold, before anything is
 written.
 
 Approving does five things in one request, and they are the difference between a
@@ -351,12 +351,14 @@ and not on the approved list, that desk is **quality**, not engineering — the 
 it does not decide. Signing in as the second account to answer it is a stronger beat than
 approving it yourself.
 
-**Watch for:** every column currently ends at engineering, and as of the 10 Sep audit that is
-**a defect rather than a flow decision**. `review.choose` hardcodes engineering for any
-candidate that clears, so a department is consulted only when the answer is a compromise, and
-there is no production role in the product at all. It is 🔴 in DEFERRED with the mechanism, and
-[RESEARCH-3rd-Passthrough.md](RESEARCH-3rd-Passthrough.md#r8-the-cross-team-response-is-the-problem-statement-and-one-desk-answers-everything)
-has the three fixes.
+**Built 10 Sep, Phase 8.** Every column used to end at engineering, because `review.choose`
+hardcoded it for any candidate that cleared and the product had no production role at all.
+Now every department that examined a change signs it, in any order, and the bill does not
+move until the last signature. The Gateway stops at **procurement** on a stock shortfall
+while the other two clear, so one notice produces answers that halt in different places.
+
+**Watch for:** the quality gate still does not fire in the seeded world, because no line's
+best answer is off the approved manufacturer list. That row is still open in DEFERRED.
 
 ## 6 · What it costs the board
 

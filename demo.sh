@@ -275,6 +275,7 @@ echo "  engineer@northwind.example      continuity-demo-2026   engineering"
 echo "  procurement@northwind.example   continuity-demo-2026   procurement"
 echo "  production@northwind.example    continuity-demo-2026   production"
 echo "  quality@northwind.example       continuity-demo-2026   quality"
+note "one desk each. Sign into each once; the rail switches between them after that"
 echo
 if [ "$WITH_MAIL" = 1 ]; then
   echo "  Forward docs/world-finals/notices/PCN-2026-114.pdf to the demo mailbox for step 4."

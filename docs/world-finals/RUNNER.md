@@ -36,7 +36,12 @@ progress. Anything that fails a check is explained in [OPERATING.md](OPERATING.m
 | `quality@northwind.example` | `continuity-demo-2026` | quality |
 
 **Northwind Instruments**, four people, five products, both standing lists. One desk each, so
-no one person can sign for two departments. Three of the five
+no one person can sign for two departments.
+
+**Signing in as a second desk does not sign you out of the first.** The rail carries a
+four-letter button above the settings cog showing which desk you are; press it to move
+between every session this browser holds. Step 6 needs all four, so sign into each once and
+switching is a click after that. Three of the five
 carry the part the notice retires, at three different ambients on three different rails, which
 is what makes one recommendation right for one product and wrong for another.
 
@@ -117,27 +122,35 @@ Everything after this point is identical.
 
 - [ ] Discovery is said once, above the lanes, rather than three times.
 - [ ] Three lanes advance together, one row per product, each showing the newest thing that board has said and its state. Replayed they finish in about a quarter of a second.
-- [ ] The three answers are these three:
+- [ ] The three answers are these three, and they stop in two different places:
 
-| Product line | Answer | Margin |
+| Product line | Answer | Where it stops |
 |---|---|---|
-| Cabinet controller | **NCP1117ST33T3G** | 11 °C to spare |
-| Gateway | **TLV1117LV33DCYR** | NCP1117 reaches **159 °C against a 150 °C limit** |
-| Sensor node | **NCP1117ST33T3G** | 84 °C to spare |
+| Cabinet controller | **NCP1117ST33T3G** | four signatures, 11 °C to spare |
+| **Gateway** | **TLV1117LV33DCYR** | **procurement**, on 1,133 in stock against a 5,000 build |
+| Sensor node | **NCP1117ST33T3G** | four signatures, 84 °C to spare |
 
 - [ ] The verdicts stack vertically in one column and disagree.
-- [ ] Expanding one lane opens its full trace in place and leaves the other two as they were.
+- [ ] Expanding one lane opens its full trace in place and leaves the other two as they were, with the verdicts grouped under **DESIGN**, **PROCUREMENT**, **PRODUCTION** and **QUALITY**.
 - [ ] Every rejection carries the sentence that killed it, including `LD1117-3.3` arriving from the catalogue as *electrically fine here, and not on the approved manufacturer list*.
-- [ ] The desk that owns each question is named **above** the buttons, and the question sits outside the fold.
+- [ ] Each question names **every** desk that must sign, above the buttons, and reads *and* rather than *or*. The question sits outside the fold.
+- [ ] The Gateway's lane says procurement is being asked to accept a stock shortfall. The other two failed nothing.
 
 ---
 
-## Step 6 · Approve, and watch the product change
+## Step 6 · Four desks sign, and only then does the product change
 
-**Do.** In the **Sensor node** lane, press **APPROVE AND APPLY**.
+**Do.** In the **Sensor node** lane, press **SIGN FOR MY DESK** as the engineer. Then switch
+desk from the rail — the four-letter button above the settings cog — and sign as each of the
+other three. The first time you switch, sign in as that account; after that both sessions
+stay live and switching is one click.
 
-- [ ] *Applied · U1 is NCP1117ST33T3G · Rev D*.
-- [ ] Under the lanes, the change requests appear, one per affected product line.
+- [ ] After the first signature: *Signed by DESIGN. Waiting on PROCUREMENT and PRODUCTION and QUALITY.*
+- [ ] **The bill still reads AMS1117-3.3** after one, two and three signatures. Check it on `/lines` → Sensor node if you want to be sure.
+- [ ] The fourth signature applies it: *Applied · U1 is NCP1117ST33T3G · Rev D*.
+- [ ] The same desk pressing again is refused, and the refusal names who it is waiting for.
+- [ ] Under the lanes, the change requests appear, one per affected product line, each naming every department that must sign and what each of them found.
+- [ ] Each change request ends with what was checked before anybody was asked: parts, departments, product lines.
 
 ---
 
@@ -161,7 +174,8 @@ in the header, then **REVIEW THIS LINE** inside the drawer.
 - [ ] The notice opens in the drawer on the right, where a design run puts its conflict, taking the bill's place.
 - [ ] It carries the part, the manufacturer, the last order date, the recommendation, the reason the manufacturer gave, and **REVIEW THIS LINE**.
 - [ ] **U1 turns cyan the instant you press it** and holds for the whole run. Red was the notice's statement, cyan is work in progress, green is a verdict.
-- [ ] The trace fills the review pane. Narration is neutral and only a rule's verdict is coloured: a green tick for satisfied, a red cross for a failure, a dash for the three rules that decline to answer on any board.
+- [ ] The trace fills the review pane. Narration is chronological and neutral; the verdicts group under **DESIGN**, **PROCUREMENT**, **PRODUCTION** and **QUALITY**, each with its own count.
+- [ ] Only a rule's verdict is coloured: a green tick for satisfied, a red cross for a failure.
 - [ ] **Action Required** at the end, with *engineering decides* above the buttons: **NCP1117ST33T3G on the Cabinet controller. Clears every check on this board, with 11 °C to spare.**
 
 **Then press BOARD** in the graph pane's header.
@@ -178,8 +192,22 @@ in the header, then **REVIEW THIS LINE** inside the drawer.
 **Do.** Still on a reviewed product line, look at the bottom of the review pane: **Change
 request · NCP1117ST33T3G**. Press it.
 
-- [ ] The document opens in the right-hand drawer: the proposal, every rejection with its sentence, evidence, the two coverage admissions, cost, and the desks required.
+- [ ] The document opens in the right-hand drawer: the proposal, every rejection with its sentence, **every department that examined the change with its own result**, evidence, the two coverage admissions, cost, the desks required, and what was checked before anybody was asked.
 - [ ] Clicking a **notice** opens the notice, not the change request.
+
+---
+
+## Step 9a · What each desk owes
+
+**Do.** The rail's **Waiting on you** entry, the one carrying a count. Switch desks and open
+it again.
+
+- [ ] It names the desk you hold, at the top.
+- [ ] Every pending decision that desk may answer, across every product line, with what is being replaced and on which product.
+- [ ] The Gateway's row says procurement is being asked to accept the stock shortfall, and names the rule.
+- [ ] A decision this desk has already signed shows what it signed rather than buttons that would be refused.
+- [ ] A desk with nothing waiting says so plainly.
+- [ ] The count on the rail matches the number of rows you can act on.
 
 ---
 
@@ -240,12 +268,13 @@ the inbox so the next forwarded notice is read live. The by-hand version is in
 
 ## Known, so do not report these
 
-Four things you will see on a pass that are already written down.
+Three things you will see on a pass that are already written down.
 
-- **Every lane ends at engineering.** Known, and **not** in the same class as the other three: this is an open 🔴, because the assigned scenario is about three departments and the demo shows one. Do not spend a pass re-finding it.
-- **A change request says *"no annual volume stated"***, because the volume has no input any more.
+- **A change request says *"no annual volume stated"***. The *build* quantity is on the operating profile now and drives the stock minimum; the *annual* figure the recurring cost needs is a different number and is not.
 - **The Gateway's bill reads `TLV1117LV33DCYR · JSMSEMI`** after the substitution, which is the distributor's manufacturer rather than the datasheet's.
 - **A replayed review says *"Trying LD1117-3.3."*** where the live one said where the candidate came from. The origin is not stored.
+
+**And one that is still open and still red:** a mailed notice raises no notification, so `/changes` is the only screen that reacts to one on its own. BUILD item 28.
 
 The rest of the list, with severities, is in [DEFERRED.md](DEFERRED.md).
 

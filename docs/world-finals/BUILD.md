@@ -1270,13 +1270,44 @@ proposal it chose, and a line that has never been reviewed replays nothing.
 
 # Phase 8 · The cross-team response, 10 Sep
 
-**Opened after the third flow pass, and it outranks everything else in this file.**
+**Opened after the third flow pass, and built the same day.** Items 31 to 39 are done; what
+each one turned out to involve is under its own heading, including the two things this phase
+found that its plan had wrong.
 
 The assigned topic is one question: *how does your tool coordinate the cross-team response —
 design validates alternatives, procurement checks availability, and production confirms
 assembly compatibility?* The build answers it with one desk.
 
 **Nothing in this phase is a talking point.** A gap here is built, not explained.
+
+## What it looks like now
+
+One notice, three products, and the answers differ in where they stop:
+
+| Product line | Answer | Stops at |
+|---|---|---|
+| Sensor node | NCP1117ST33T3G, 84 °C to spare | four signatures, nothing failed |
+| **Gateway** | TLV1117LV33DCYR | **procurement**, on 1,133 in stock against a 5,000 build |
+| Cabinet controller | NCP1117ST33T3G, 11 °C to spare | four signatures, nothing failed |
+
+Every trace, lane and change request groups its verdicts under the desk that owns them.
+Every substitution is signed by each department that examined it, in any order, and the bill
+does not move until the last signature. Each desk has a queue of what it owes, with a count
+on the rail, and the presenter moves between four real sessions from the rail rather than
+signing out.
+
+## Two things the plan had wrong
+
+**Item 38 could not work as written.** `GATE_RULES` was two rules wide, so `availability`
+failing discarded the candidate rather than routing it — raising a stock minimum would have
+deleted the Gateway's answer, not sent it to procurement. Item 32 exists because of that and
+comes first.
+
+**The two selection paths disagreed.** `review.choose` proposes a candidate whose only
+failures are answerable; `change.for_line` required `cell.ok`, so the same candidate was a
+proposal in the stream and a rejection in the document. Invisible until `availability`
+became answerable, at which point the Gateway's change request lost its proposal entirely.
+Both now make the same two passes against one definition, in `roles.ANSWERABLE_RULES`.
 
 ## What was already decided and never built
 
@@ -1318,7 +1349,7 @@ See [RESEARCH-3rd-Passthrough.md](RESEARCH-3rd-Passthrough.md#r8-the-cross-team-
 for the argument and [R11](RESEARCH-3rd-Passthrough.md#r11-showing-four-desks-and-demoing-them-with-one-presenter)
 for the approval semantics and the stage question.
 
-## 31 · The four desks exist
+## 31 · The four desks exist — **done 10 Sep**
 
 **Files** `api/store.py`, `roles.py`, `tools/seed_world.py`, `tests/test_roles.py`
 
@@ -1335,7 +1366,7 @@ manufacturer list. Lead with the three the topic names and let quality be the fo
 asserts every rule is mapped; this is the other direction, and it is the one that would have
 caught a department the routing table believes in and the product does not.
 
-## 32 · A department's own rule is a decision, not a wall
+## 32 · A department's own rule is a decision, not a wall — **done 10 Sep**
 
 **Files** `review.py` (`GATE_RULES`), `tests/test_review.py`
 
@@ -1353,7 +1384,7 @@ accepts a board revision*, which is a different sentence from *this part does no
 **Test** a candidate failing only `availability` is `gated` rather than `physical`, and its
 proposal is addressed to procurement.
 
-## 33 · Every check carries its department, and every screen renders it that way
+## 33 · Every check carries its department, and every screen renders it that way — **done 10 Sep**
 
 **Files** `roles.py`, `api/review.py`, `change.py`, `review/ReviewTrace.tsx`,
 `review/ReviewLanes.tsx`, `review/RequestCard.tsx`, `routes/matrix.tsx`
@@ -1378,7 +1409,7 @@ oversimplification to fix — `part_qualification` is engineering and quality by
 **Test** a review of the Gateway emits a department against every check frame, no rule is
 unattributed in the change request document, and a rule with two owners renders under both.
 
-## 34 · A substitution on a shipping product needs every affected department to sign
+## 34 · A substitution on a shipping product needs every affected department to sign — **done 10 Sep**
 
 **Files** `review.py` (`choose`), `change.py` (`_approvals_for`), `api/review.py`
 
@@ -1393,7 +1424,7 @@ cross-team beat fire without inventing a failure, and it is why this is not gami
 **Test** the Gateway's change request names every department whose rules ran, and applying is
 refused until they have all answered.
 
-## 35 · A decision holds more than one signature
+## 35 · A decision holds more than one signature — **done 10 Sep**
 
 **Files** `api/store.py`, `api/review.py` (`answer_decision`)
 
@@ -1412,7 +1443,7 @@ the second, and one desk answering twice is refused. Rewrite
 `test_a_decision_can_only_be_answered_once`, which currently asserts the behaviour being
 replaced.
 
-## 36 · Everyone can see what is waiting for them
+## 36 · Everyone can see what is waiting for them — **done 10 Sep**
 
 **Files** `api/decisions.py` (new), `shell/SideRail.tsx`, a decisions surface
 
@@ -1429,7 +1460,7 @@ carries **2 waiting on you**.
 **Test** a decision addressed to production appears for the production account and not for the
 engineer, and the engineer answering it is refused with the desk named.
 
-## 37 · The presenter can be any desk without logging out
+## 37 · The presenter can be any desk without logging out — **done 10 Sep**
 
 **Files** `shell/`, `api/auth.py`
 
@@ -1447,7 +1478,7 @@ is real rather than cosmetic. See [R11](RESEARCH-3rd-Passthrough.md#r11-showing-
 **Test** switching desks changes what `/auth/me` returns, and an answer submitted from the
 wrong desk is still a 403.
 
-## 38 · Three product lines, three desks
+## 38 · Three product lines, three desks — **done 10 Sep**
 
 **Files** `tools/seed_world.py`, `profile.py`
 
@@ -1463,7 +1494,7 @@ Neither invents a failure. Both need a number he is happy to defend on stage.
 **Test** the three lanes end at three different desks, and each names the rule that put it
 there.
 
-## 39 · The coordination that was removed, counted
+## 39 · The coordination that was removed, counted — **done 10 Sep**
 
 **Files** `change.py`, `review/RequestCard.tsx`
 
