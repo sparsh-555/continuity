@@ -15,9 +15,11 @@ takes about twenty-five minutes.
 ## The story, in one breath
 
 A company describes what it ships. A change notice arrives by email. Continuity finds every
-product carrying the retired part, re-checks all of them at once against every department's
-rules, reaches a different answer for each, stops at the desk that owns the failing rule, and
-on approval changes the part in the bill of materials, on the power tree and on the board.
+product carrying the retired part, re-checks all of them at once against **all four
+departments' rules**, reaches a different answer for each, and puts a signed change request in
+front of every desk that examined it. Each desk signs for itself, the bill does not move until
+the last one does, and on the last signature the part changes in the bill of materials, on the
+power tree and on the board.
 
 ## The claim, and how to put it
 
@@ -30,10 +32,27 @@ flow reaches three of them, all of them document readers, each one verified befo
 believed. The engine and the model are equal partners here, and neither is a bolt-on to the
 other.
 
-**Two surfaces, and knowing which is which is the whole navigation.** `/changes` is the company
-view: what arrived, what it reaches, and every affected line running together. `/lines/:id` is
-one product: its power tree, its bill, its board and its own review. The same endpoint runs
-both, narrowed by `line_id`, so they cannot come to disagree about what a review is.
+## The second claim, which is the topic's own question
+
+The engine checks **design, procurement, production and quality** on every candidate, at the
+same time, before anybody is asked anything. The industry name for what follows is an ECR going
+to a change control board, and a board's composition mirrors the change's blast radius, which
+is exactly those four.
+
+So the sentence to say is not that Continuity coordinates people faster. It is that **the round
+trips are gone**: nobody proposes a part and waits two days to hear procurement cannot buy it,
+because procurement's rule already ran. What is left for the humans is four signatures on
+evidence already gathered — *procurement's approval becomes one click on evidence already
+gathered, instead of three days of investigation they run themselves.*
+
+**Three surfaces, and knowing which is which is the whole navigation.** `/changes` is the
+company view: what arrived, what it reaches, and every affected line running together.
+`/lines/:id` is one product: its power tree, its bill, its board and its own review. The same
+endpoint runs both, narrowed by `line_id`, so they cannot come to disagree about what a review
+is. `/approvals` is one desk: what it owes, across every product line, in its own terms.
+
+**Which desk you are is in the rail**, above the settings cog, and it switches between four
+real sessions. Not an impersonation: a desk that has to sign has to be signed in.
 
 ---
 
@@ -252,7 +271,14 @@ the humans is four signatures on evidence already gathered, and the change reque
 how much was checked to produce it.
 
 **What is not built?** Answer plainly from DEFERRED, which is written down rather than
-discovered.
+discovered. The one that is still red: a mailed notice raises no notification, so `/changes`
+is the only screen that reacts to one on its own.
+
+**Why does quality never refuse anything?** Because in this world nothing needs qualifying:
+every candidate that wins is already on the approved manufacturer list. The gate is real and
+enforced — `LD1117-3.3` is refused by name on all three boards for exactly that reason, and it
+is in the trace — it just never becomes the winning answer. Show the rejection rather than
+claiming the beat.
 
 **Nothing in this document is a substitute for building something.** If a question here can
 only be answered by explaining why a thing is missing, that is a defect with a talking point

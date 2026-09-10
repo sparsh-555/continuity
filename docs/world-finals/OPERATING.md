@@ -166,7 +166,13 @@ naming, because each one has been seen at least once.
 | 8 | The regulator staying red for the whole run; a green tick beside a sentence about a part that failed; the review opening a different page; a board picture that is a stamp in the middle of a black rectangle |
 | 8 | A board consequence for a part with no pinout on file. Ask for `LD1117S33TR` and it must refuse by name, because ST publishes its pin connections as a figure and a figure is not extractable text |
 | 9 | Clicking a notice opening the change request instead of the notice |
+| 6 | The bill changing on the first signature. Every department that examined the change signs it, and it applies on the last one |
+| 6 | A department block naming a part other than the one being substituted. Every rule runs on every slot, and a desk's line is about the change |
+| 6 | The same desk signing twice, or one desk's signature recorded against another desk |
+| 9a | A decision this desk has already signed still showing live buttons, or a desk with nothing waiting showing an error rather than saying so |
+| 9a | The count on the rail disagreeing with the number of rows that can be acted on |
 | 10 | Another company's parts on `/memory`, or one approval listed twice |
+| any | The desk switcher offering a session this browser has not signed into, or a switch that does not change what the app says you hold |
 | extras | The PCN-2026-118 issue date of 2026-09-01 appearing as a last order date, or a part called `none` being proposed. Both passed every check this system had before item 17 |
 
 **The first row is not a style note.** A product whose pitch is that it checks parts must never
@@ -258,15 +264,15 @@ The demo consequence of the speed, which is a choice rather than a defect, is in
 cd backend
 
 # offline, no infrastructure
-../.venv/bin/python -m pytest                                    # 920 passed, 213 skipped, ~9s
+../.venv/bin/python -m pytest                                    # 932 passed, 223 skipped, ~9s
 
 # with a database
 CONTINUITY_TEST_DB=postgresql:///continuity_test \
-  ../.venv/bin/python -m pytest                                  # 1115 passed, 20 skipped, ~30s
+  ../.venv/bin/python -m pytest                                  # 1135 passed, 20 skipped, ~40s
 
 # with a database and KiCad
 CONTINUITY_KICAD=docker CONTINUITY_TEST_DB=postgresql:///continuity_test \
-  ../.venv/bin/python -m pytest                                  # 1125 passed, 8 skipped, ~130s
+  ../.venv/bin/python -m pytest                                  # 1147 passed, 8 skipped, ~135s
 
 # the eight that still skip: five need the network, two need a real model, and one is
 # the answer given when KiCad is absent
@@ -335,18 +341,17 @@ cd ../frontend && bun run build     # tsc first, then the bundle
 [DEFERRED.md](DEFERRED.md) carries everything found and not fixed, with a severity against
 each. These are the ones a run-through walks into, so they are not worth reporting twice.
 
-- ~~**Every lane ends at engineering.**~~ **Moved out of this list on 10 Sep. It is a 🔴 open
-  defect, not a known limitation.** The cause is not the seeded world: `review.choose` hardcodes
-  engineering for any candidate that clears, and there is no production role in the product,
-  which is one of the three departments the assigned scenario names. Report anything about it
-  against the two 🔴 rows in [DEFERRED.md](DEFERRED.md).
-- **An engineer can qualify a part alone.** `roles.py` addresses `part_qualification` to
-  engineering *and* quality with the words "it needs both", and the code reads that list as
-  "any one of these may answer". Faithful would be two signatures, which the `decisions` row
-  cannot express: it has one state and one `decided_by`. 🟡
-- **The annual volume has no input any more**, so every change request is missing the recurring
-  half of its cost and says *"no annual volume stated"*. It belongs on the product line beside
-  the ambient rather than being typed per review. 🟡
+**Three entries left this list on 10 September because Phase 8 built them:** every lane ending
+at engineering, an engineer qualifying a part alone, and no desk being told a decision was
+waiting for it. Do not re-report those.
+
+- **The quality gate does not fire in the seeded world.** The Gateway now stops at
+  *procurement* on a stock shortfall, so one notice does produce answers that halt in different
+  places — but no line's best answer is off the approved manufacturer list, so the
+  qualification gate itself is still unexercised. 🟡
+- **The recurring half of the cost is still missing**, so every change request says *"no annual
+  volume stated"*. The **build** quantity is on the operating profile now and drives the stock
+  minimum; the **annual** figure the recurring cost needs is a different number and is not. 🟡
 - **Applying a decision writes the distributor's manufacturer**, so the Gateway's bill reads
   `TLV1117LV33DCYR · JSMSEMI` where the part is Texas Instruments'. 🟡
 - **A deployed instance has no KiCad**, so the board section is unavailable anywhere but a
@@ -364,6 +369,10 @@ each. These are the ones a run-through walks into, so they are not worth reporti
 - **The AML and AVL have no screen.** The lists are read correctly by the gates and written only
   by the seed and the store. Memory shows what was decided against them, which is the part a
   person asks about.
+- **A mailed notice raises no notification.** `/changes` is the only screen that reacts to one
+  on its own, and `/lines` needs a reload. This is the last 🔴 and it is BUILD item 28.
+- **The outbound approval request does not exist.** A desk finds what it owes by opening
+  `/approvals`; nothing goes out to tell it. The in-app queue is the demo-safe half. 🟡
 
 ---
 
