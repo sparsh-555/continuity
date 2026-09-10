@@ -1,0 +1,140 @@
+{
+ "tool": "jlc_search",
+ "arguments": {
+  "query": "LD1117S33TR",
+  "sort_by": "stock",
+  "limit": 10
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C86781",
+    "model": "LD1117S33TR",
+    "manufacturer": "STMicroelectronics",
+    "package": "SOT-223",
+    "stock": 41228,
+    "price": 0.2429,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "0℃~+125℃@(Tj) 1 1.1V@(800mA) 100uV 15V 3.3V 5mA 75dB@(120Hz) 800mA Fixed Over Current Protection、Over Temperature Protection Positive SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "75dB@(120Hz)",
+     "Operating Temperature": "0℃~+125℃@(Tj)",
+     "standby current": "5mA",
+     "Noise": "100uV",
+     "Voltage - Supply": "15V",
+     "Output Type": "Fixed",
+     "Output Current": "800mA",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.1V@(800mA)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C20538890",
+    "model": "LD1117S33TR(MS)",
+    "manufacturer": "MSKSEMI",
+    "package": "SOT-223",
+    "stock": 1491,
+    "price": 0.1099,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-20℃~+125℃@(Ta) 1 1.4V@(1A) 12V 1A 2mA 3.3V Fixed Over Temperature Protection Positive SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "Operating Temperature": "-20℃~+125℃@(Ta)",
+     "standby current": "2mA",
+     "Noise": "-",
+     "Output Type": "Fixed",
+     "Voltage - Supply": "12V",
+     "Output Current": "1A",
+     "Features": "Thermal shutdown",
+     "Output Configuration": "Positive",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.4V@(1A)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C42411824",
+    "model": "LD1117S33TR-HXY",
+    "manufacturer": "HXY MOSFET",
+    "package": "SOT-223",
+    "stock": 254,
+    "price": 0.0874,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "description": "-20℃~+125℃ 1 1.3V@(800mA) 15V 2mA 3.3V 800mA Fixed Positive Thermal Shutdown SOT-223 Voltage Regulators - Linear, Low Drop Out (LDO) Regulators ROHS",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "standby current": "2mA",
+     "Operating Temperature": "-20℃~+125℃",
+     "Noise": "-",
+     "Output Type": "Fixed",
+     "Voltage - Supply": "15V",
+     "Output Current": "800mA",
+     "Features": "Thermal shutdown",
+     "Output Configuration": "Positive",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.3V@(800mA)",
+     "Number of Outputs": "1"
+    }
+   }
+  ],
+  "total": 3,
+  "page_info": {
+   "limit": 10,
+   "offset": 0,
+   "returned": 3
+  },
+  "filters_applied": {
+   "query": "LD1117S33TR",
+   "subcategory_id": null,
+   "subcategory_name": null,
+   "subcategory_resolved": null,
+   "category_id": null,
+   "category_name": null,
+   "category_resolved": null,
+   "spec_filters": [],
+   "library_type": null,
+   "prefer_no_fee": true,
+   "min_stock": 10,
+   "package": null,
+   "packages": null,
+   "manufacturer": null,
+   "match_all_terms": true
+  },
+  "library_type_counts": {
+   "basic": 0,
+   "preferred": 0,
+   "extended": 3
+  },
+  "no_fee_available": false,
+  "parsed": {
+   "original_query": "LD1117S33TR",
+   "detected": {},
+   "subcategory": null,
+   "package": null,
+   "mounting_type": null,
+   "spec_filters": [],
+   "remaining_text": "LD1117S33TR"
+  }
+ }
+}

@@ -10,7 +10,7 @@
     "part_number": "356-ESP32-C3-MINI1N4",
     "mfr_part_number": "ESP32-C3-MINI-1-N4",
     "manufacturer": "Espressif Systems",
-    "description": "Multiprotocol Modules SMD module, ESP32-C3FN4, PCB antenna, -40C - +85C",
+    "description": "Multiprotocol Modules SMD module, ESP32-C3FN4, PCB antenna, -40 C   +85 C",
     "category": "Multiprotocol Modules",
     "stock": 0,
     "price": null,
@@ -30,34 +30,34 @@
     "part_number": "356-ESP32C3MINI1N4-A",
     "mfr_part_number": "ESP32-C3-MINI-1-N4-A",
     "manufacturer": "Espressif Systems",
-    "description": "Multiprotocol Modules Espressifs AWS IoT ExpressLink Module, pre-provisioned with required certificates and the ExpressLink firmware, for out-of-the-box connectivity to AWS IoT Core.",
+    "description": "Multiprotocol Modules Espressif s AWS IoT ExpressLink Module, pre-provisioned with required certificates and the ExpressLink firmware, for out-of-the-box connectivity to AWS IoT Core.",
     "category": "Multiprotocol Modules",
-    "stock": 0,
-    "price": 3.69,
+    "stock": 1298,
+    "price": 3.91,
     "price_breaks": [
      {
       "qty": 1,
-      "price": 3.69,
+      "price": 3.91,
       "currency": "USD"
      },
      {
       "qty": 10,
-      "price": 3.19,
+      "price": 3.38,
       "currency": "USD"
      },
      {
       "qty": 25,
-      "price": 2.97,
+      "price": 3.05,
       "currency": "USD"
      },
      {
       "qty": 100,
-      "price": 2.77,
+      "price": 2.85,
       "currency": "USD"
      },
      {
       "qty": 250,
-      "price": 2.63,
+      "price": 2.71,
       "currency": "USD"
      },
      {
@@ -82,9 +82,9 @@
     "part_number": "356-ESP32C3MINI1N4X",
     "mfr_part_number": "ESP32-C3-MINI-1-N4X",
     "manufacturer": "Espressif Systems",
-    "description": "Multiprotocol Modules SMD module, ESP32-C3FH4X, Chip Revision v1.1 or above, PCB antenna, -40 C +85 C",
+    "description": "Multiprotocol Modules SMD module, ESP32-C3FH4X,  Chip Revision v1.1 or above, PCB antenna, -40 C   +85 C",
     "category": "Multiprotocol Modules",
-    "stock": 464,
+    "stock": 0,
     "price": 3.26,
     "price_breaks": [
      {

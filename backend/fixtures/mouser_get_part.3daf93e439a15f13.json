@@ -1,68 +1,73 @@
 {
  "tool": "mouser_get_part",
  "arguments": {
-  "part_number": "AMS1117-3.3"
+  "part_number": "SPX1117M3-L-3-3/TR"
  },
  "response": {
   "results": [
    {
     "source": "mouser",
-    "part_number": "926-LM1117MPX3.3NOPB",
-    "mfr_part_number": "LM1117MPX-3.3/NOPB",
-    "manufacturer": "Texas Instruments",
-    "description": "LDO Voltage Regulators 800MA LDO LINEAR REG A 926-LM1117MP-3.3N A 926-LM1117MP-3.3NOPB",
+    "part_number": "701-SPX1117M3-L-33TR",
+    "mfr_part_number": "SPX1117M3-L-3-3/TR",
+    "manufacturer": "MaxLinear",
+    "description": "LDO Voltage Regulators 800mA LDO regulator, fixed 3.3V output, 2.6V to 15V input, 1.1V dropout, current/thermal limit, SOT-223-3, tape/reel, -40C to +125 C",
     "category": "LDO Voltage Regulators",
-    "stock": 65991,
-    "price": 1.21,
+    "stock": 42441,
+    "price": 0.3,
     "price_breaks": [
      {
       "qty": 1,
-      "price": 1.21,
+      "price": 0.3,
       "currency": "USD"
      },
      {
       "qty": 10,
-      "price": 0.875,
+      "price": 0.204,
       "currency": "USD"
      },
      {
       "qty": 25,
-      "price": 0.792,
+      "price": 0.182,
       "currency": "USD"
      },
      {
       "qty": 100,
-      "price": 0.7,
+      "price": 0.156,
       "currency": "USD"
      },
      {
       "qty": 250,
-      "price": 0.656,
+      "price": 0.144,
       "currency": "USD"
      },
      {
       "qty": 500,
-      "price": 0.63,
+      "price": 0.136,
       "currency": "USD"
      },
      {
       "qty": 1000,
-      "price": 0.609,
+      "price": 0.13,
       "currency": "USD"
      },
      {
-      "qty": 2000,
-      "price": 0.609,
+      "qty": 2500,
+      "price": 0.123,
+      "currency": "USD"
+     },
+     {
+      "qty": 5000,
+      "price": 0.119,
       "currency": "USD"
      }
     ],
     "datasheet_url": "",
-    "product_url": "https://www.mouser.ca/en/ProductDetail/Texas-Instruments/LM1117MPX-3.3-NOPB?qs=X1J7HmVL2ZHRbBIxXi4utg%3D%3D",
+    "product_url": "https://www.mouser.ca/en/ProductDetail/MaxLinear/SPX1117M3-L-3-3-TR?qs=S%2FCBhQS5rCofor8XCFP4ag%3D%3D",
     "rohs": "RoHS Compliant",
     "lifecycle": "Active",
     "parameters": {
      "Packaging": "MouseReel",
-     "Standard Pack Qty": "2000"
+     "Standard Pack Qty": "2500"
     },
     "min_qty": 1,
     "currency": "USD"

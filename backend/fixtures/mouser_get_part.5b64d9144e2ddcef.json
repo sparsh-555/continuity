@@ -1,0 +1,29 @@
+{
+ "tool": "mouser_get_part",
+ "arguments": {
+  "part_number": "LD1117-3.3"
+ },
+ "response": {
+  "results": [
+   {
+    "source": "mouser",
+    "part_number": "N/A",
+    "mfr_part_number": "LD1117-3.3",
+    "manufacturer": "Diodes Incorporated",
+    "description": "LDO Voltage Regulators",
+    "category": "LDO Voltage Regulators",
+    "stock": 0,
+    "price": null,
+    "price_breaks": [],
+    "datasheet_url": "",
+    "product_url": "https://www.mouser.ca/en/ProductDetail/Diodes-Incorporated/LD1117-3.3?qs=8%252Br4Hz5Xir81mtQvMsy6GQ%3D%3D",
+    "rohs": "",
+    "lifecycle": "Active",
+    "parameters": {},
+    "min_qty": 0,
+    "currency": "USD"
+   }
+  ],
+  "total": 1
+ }
+}

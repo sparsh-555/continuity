@@ -1,0 +1,42 @@
+{
+ "tool": "jlc_stock_check",
+ "arguments": {
+  "query": "SHT40-AD1B-R2",
+  "limit": 5
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C2909890",
+    "model": "SHT40-AD1B-R2",
+    "manufacturer": "Sensirion",
+    "package": "DFN-4-EP(1.5x1.5)",
+    "stock": 22987,
+    "price": 1.9022,
+    "price_10": 1.6309,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Sensors",
+    "subcategory": "Temperature and Humidity Sensor",
+    "subcategory_id": 3191,
+    "mounting_type": "smd",
+    "specs": {
+     "Temperature Tolerance": "±0.2℃",
+     "Voltage - Supply": "1.08V~3.6V",
+     "Humidity": "0%RH~100%RH",
+     "Temperature Range": "-40℃~+125℃",
+     "Features": "Factory calibration、Built-in heater",
+     "Current - Supply": "400nA",
+     "Interface": "I2C",
+     "Resolution": "16bit",
+     "Humidity Tolerance": "±1.8%RH"
+    }
+   }
+  ],
+  "page": 1,
+  "per_page": 5,
+  "total": 1,
+  "total_pages": 1,
+  "has_more": false
+ }
+}

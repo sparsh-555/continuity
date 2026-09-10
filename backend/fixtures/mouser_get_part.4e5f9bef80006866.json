@@ -1,0 +1,10 @@
+{
+ "tool": "mouser_get_part",
+ "arguments": {
+  "part_number": "XBL1117-3.3"
+ },
+ "response": {
+  "results": [],
+  "total": 0
+ }
+}

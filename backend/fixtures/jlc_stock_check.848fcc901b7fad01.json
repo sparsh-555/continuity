@@ -1,0 +1,74 @@
+{
+ "tool": "jlc_stock_check",
+ "arguments": {
+  "query": "NCP1117ST33T3G",
+  "limit": 5
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C18212697",
+    "model": "TP1117-3.3Y3",
+    "manufacturer": "TECH PUBLIC",
+    "package": "SOT-223",
+    "stock": 6805,
+    "price": 0.0591,
+    "price_10": 0.0474,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "Operating Temperature": "-50℃~+140℃",
+     "standby current": "8mA",
+     "Noise": "-",
+     "Output Type": "Fixed",
+     "Voltage - Supply": "12V",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.3V@(1A)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C26537",
+    "model": "NCP1117ST33T3G",
+    "manufacturer": "onsemi",
+    "package": "SOT-223",
+    "stock": 77969,
+    "price": 0.2322,
+    "price_10": 0.1865,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "62dB@(120Hz)",
+     "Operating Temperature": "0℃~+125℃@(Ta)",
+     "standby current": "6mA",
+     "Noise": "0.003%Vout",
+     "Voltage - Supply": "20V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.2V@(800mA)",
+     "Number of Outputs": "1"
+    }
+   }
+  ],
+  "page": 1,
+  "per_page": 5,
+  "total": 2,
+  "total_pages": 1,
+  "has_more": false
+ }
+}

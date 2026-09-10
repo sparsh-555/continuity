@@ -1,0 +1,72 @@
+{
+ "tool": "jlc_search",
+ "arguments": {
+  "query": "CL31A226KAHNNNE",
+  "sort_by": "stock",
+  "limit": 10
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C12891",
+    "model": "CL31A226KAHNNNE",
+    "manufacturer": "Samsung Electro-Mechanics",
+    "package": "1206",
+    "stock": 1020845,
+    "price": 0.1693,
+    "price_10": null,
+    "library_type": "basic",
+    "preferred": true,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "description": "22uF 25V X5R ±10% 1206 Multilayer Ceramic Capacitors MLCC - SMD/SMT ROHS",
+    "specs": {
+     "Voltage Rating": "25V",
+     "Tolerance": "±10%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   }
+  ],
+  "total": 1,
+  "page_info": {
+   "limit": 10,
+   "offset": 0,
+   "returned": 1
+  },
+  "filters_applied": {
+   "query": "CL31A226KAHNNNE",
+   "subcategory_id": null,
+   "subcategory_name": null,
+   "subcategory_resolved": null,
+   "category_id": null,
+   "category_name": null,
+   "category_resolved": null,
+   "spec_filters": [],
+   "library_type": null,
+   "prefer_no_fee": true,
+   "min_stock": 10,
+   "package": null,
+   "packages": null,
+   "manufacturer": null,
+   "match_all_terms": true
+  },
+  "library_type_counts": {
+   "basic": 1,
+   "preferred": 0,
+   "extended": 0
+  },
+  "no_fee_available": true,
+  "parsed": {
+   "original_query": "CL31A226KAHNNNE",
+   "detected": {},
+   "subcategory": null,
+   "package": null,
+   "mounting_type": null,
+   "spec_filters": [],
+   "remaining_text": "CL31A226KAHNNNE"
+  }
+ }
+}

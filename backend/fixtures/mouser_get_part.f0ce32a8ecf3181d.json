@@ -1,0 +1,63 @@
+{
+ "tool": "mouser_get_part",
+ "arguments": {
+  "part_number": "CL31A226KAHNNNE"
+ },
+ "response": {
+  "results": [
+   {
+    "source": "mouser",
+    "part_number": "187-CL31A226KAHNNNE",
+    "mfr_part_number": "CL31A226KAHNNNE",
+    "manufacturer": "Samsung Electro-Mechanics",
+    "description": "Multilayer Ceramic Capacitors MLCC - SMD/SMT 22uF+/-10% 25V X5R 3 1206",
+    "category": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "stock": 1537,
+    "price": 0.43,
+    "price_breaks": [
+     {
+      "qty": 1,
+      "price": 0.43,
+      "currency": "USD"
+     },
+     {
+      "qty": 10,
+      "price": 0.189,
+      "currency": "USD"
+     },
+     {
+      "qty": 100,
+      "price": 0.168,
+      "currency": "USD"
+     },
+     {
+      "qty": 500,
+      "price": 0.134,
+      "currency": "USD"
+     },
+     {
+      "qty": 2000,
+      "price": 0.114,
+      "currency": "USD"
+     },
+     {
+      "qty": 4000,
+      "price": 0.11,
+      "currency": "USD"
+     }
+    ],
+    "datasheet_url": "",
+    "product_url": "https://www.mouser.ca/en/ProductDetail/Samsung-Electro-Mechanics/CL31A226KAHNNNE?qs=X6jEic%2FHinCdwsjGJII51w%3D%3D",
+    "rohs": "RoHS Compliant",
+    "lifecycle": "Active",
+    "parameters": {
+     "Packaging": "MouseReel",
+     "Standard Pack Qty": "2000"
+    },
+    "min_qty": 1,
+    "currency": "USD"
+   }
+  ],
+  "total": 1
+ }
+}

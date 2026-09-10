@@ -1,68 +1,73 @@
 {
  "tool": "mouser_get_part",
  "arguments": {
-  "part_number": "AMS1117-3.3"
+  "part_number": "NCP1117ST33T3G"
  },
  "response": {
   "results": [
    {
     "source": "mouser",
-    "part_number": "926-LM1117MPX3.3NOPB",
-    "mfr_part_number": "LM1117MPX-3.3/NOPB",
-    "manufacturer": "Texas Instruments",
-    "description": "LDO Voltage Regulators 800MA LDO LINEAR REG A 926-LM1117MP-3.3N A 926-LM1117MP-3.3NOPB",
+    "part_number": "863-NCP1117ST33T3G",
+    "mfr_part_number": "NCP1117ST33T3G",
+    "manufacturer": "onsemi",
+    "description": "LDO Voltage Regulators 3.3V 1A Positive",
     "category": "LDO Voltage Regulators",
-    "stock": 65991,
-    "price": 1.21,
+    "stock": 41172,
+    "price": 0.62,
     "price_breaks": [
      {
       "qty": 1,
-      "price": 1.21,
+      "price": 0.62,
       "currency": "USD"
      },
      {
       "qty": 10,
-      "price": 0.875,
+      "price": 0.439,
       "currency": "USD"
      },
      {
       "qty": 25,
-      "price": 0.792,
+      "price": 0.388,
       "currency": "USD"
      },
      {
       "qty": 100,
-      "price": 0.7,
+      "price": 0.33,
       "currency": "USD"
      },
      {
       "qty": 250,
-      "price": 0.656,
+      "price": 0.313,
       "currency": "USD"
      },
      {
       "qty": 500,
-      "price": 0.63,
+      "price": 0.295,
       "currency": "USD"
      },
      {
       "qty": 1000,
-      "price": 0.609,
+      "price": 0.286,
       "currency": "USD"
      },
      {
       "qty": 2000,
-      "price": 0.609,
+      "price": 0.281,
+      "currency": "USD"
+     },
+     {
+      "qty": 4000,
+      "price": 0.281,
       "currency": "USD"
      }
     ],
     "datasheet_url": "",
-    "product_url": "https://www.mouser.ca/en/ProductDetail/Texas-Instruments/LM1117MPX-3.3-NOPB?qs=X1J7HmVL2ZHRbBIxXi4utg%3D%3D",
+    "product_url": "https://www.mouser.ca/en/ProductDetail/onsemi/NCP1117ST33T3G?qs=Gev%252BmEvV0iZb%2FE8ahUDx3w%3D%3D",
     "rohs": "RoHS Compliant",
     "lifecycle": "Active",
     "parameters": {
      "Packaging": "MouseReel",
-     "Standard Pack Qty": "2000"
+     "Standard Pack Qty": "4000"
     },
     "min_qty": 1,
     "currency": "USD"

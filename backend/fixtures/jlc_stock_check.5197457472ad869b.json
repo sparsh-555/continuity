@@ -1,0 +1,59 @@
+{
+ "tool": "jlc_stock_check",
+ "arguments": {
+  "query": "CL31A226KAHNNNE",
+  "limit": 5
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C7419438",
+    "model": "FCC1206X226K250HT",
+    "manufacturer": "FOJAN",
+    "package": "1206",
+    "stock": 133243,
+    "price": 0.1798,
+    "price_10": 0.1392,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "specs": {
+     "Operating Temperature": "-55℃~+85℃",
+     "Voltage Rating": "25V",
+     "Tolerance": "±10%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   },
+   {
+    "lcsc": "C12891",
+    "model": "CL31A226KAHNNNE",
+    "manufacturer": "Samsung Electro-Mechanics",
+    "package": "1206",
+    "stock": 1020639,
+    "price": 0.1693,
+    "price_10": 0.1286,
+    "library_type": "basic",
+    "preferred": false,
+    "category": "Capacitors",
+    "subcategory": "Multilayer Ceramic Capacitors MLCC - SMD/SMT",
+    "subcategory_id": 2929,
+    "mounting_type": "smd",
+    "specs": {
+     "Voltage Rating": "25V",
+     "Tolerance": "±10%",
+     "Capacitance": "22uF",
+     "Temperature Coefficient": "X5R"
+    }
+   }
+  ],
+  "page": 1,
+  "per_page": 5,
+  "total": 2,
+  "total_pages": 1,
+  "has_more": false
+ }
+}

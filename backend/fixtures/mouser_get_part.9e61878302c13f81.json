@@ -1,0 +1,10 @@
+{
+ "tool": "mouser_get_part",
+ "arguments": {
+  "part_number": "LD1117-5.0"
+ },
+ "response": {
+  "results": [],
+  "total": 0
+ }
+}

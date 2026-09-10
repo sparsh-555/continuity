@@ -1,0 +1,43 @@
+{
+ "tool": "jlc_stock_check",
+ "arguments": {
+  "query": "ESP32-C3-MINI-1-N4",
+  "limit": 5
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C2838502",
+    "model": "ESP32-C3-MINI-1-N4",
+    "manufacturer": "Espressif Systems",
+    "package": "SMD,16.6x13.2mm",
+    "stock": 17261,
+    "price": 3.8399,
+    "price_10": 3.4771,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "IoT/Communication Modules",
+    "subcategory": "RF Modules",
+    "subcategory_id": 3207,
+    "mounting_type": "smd",
+    "specs": {
+     "Operating Temperature": "-40℃~+85℃",
+     "Antenna Type": "On-board PCB Antenna",
+     "Sensitivity": "-98dBm",
+     "Output Power(Max)": "20.5dBm",
+     "Voltage - Supply": "3V~3.6V",
+     "Model": "Transceiver",
+     "Features": "Integrated temperature sensor、Integrated antenna、Built-in watchdog",
+     "Interface Type": "SPI、UART、I2C、I2S、USB",
+     "Send  Current": "350mA",
+     "Receive  Current": "84mA"
+    }
+   }
+  ],
+  "page": 1,
+  "per_page": 5,
+  "total": 1,
+  "total_pages": 1,
+  "has_more": false
+ }
+}

@@ -1,0 +1,103 @@
+{
+ "tool": "jlc_stock_check",
+ "arguments": {
+  "query": "XBL1117-3.3",
+  "limit": 5
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C47021214",
+    "model": "XBL1117-3.3",
+    "manufacturer": "XBLW",
+    "package": "SOT-223",
+    "stock": 97835,
+    "price": 0.0454,
+    "price_10": 0.0362,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "Operating Temperature": "-40℃~+125℃@(Ta)",
+     "standby current": "4mA",
+     "Noise": "-",
+     "Voltage - Supply": "15V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.3V@(1A)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C42376988",
+    "model": "XBL1117-3.3/MTR",
+    "manufacturer": "XBLW",
+    "package": "TO-252-2L",
+    "stock": 315,
+    "price": 0.0773,
+    "price_10": 0.0611,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "Operating Temperature": "-40℃~+125℃@(Ta)",
+     "standby current": "4mA",
+     "Noise": "-",
+     "Output Type": "Fixed",
+     "Voltage - Supply": "15V",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown",
+     "Output Voltage": "3.3V",
+     "Voltage Dropout": "1.3V@(1A)",
+     "Number of Outputs": "1"
+    }
+   },
+   {
+    "lcsc": "C49242128",
+    "model": "XBL1117-3.3/STR",
+    "manufacturer": "XBLW",
+    "package": "SOT-89-3L",
+    "stock": 5500,
+    "price": 0.0398,
+    "price_10": 0.0316,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "Power Management (PMIC)",
+    "subcategory": "Voltage Regulators - Linear, Low Drop Out (LDO) Regulators",
+    "subcategory_id": 2956,
+    "mounting_type": "smd",
+    "specs": {
+     "Power Supply Rejection Ratio (PSRR)": "-",
+     "Operating Temperature": "-40℃~+125℃",
+     "standby current": "4mA",
+     "Noise": "-",
+     "Voltage - Supply": "15V",
+     "Output Type": "Fixed",
+     "Output Current": "1A",
+     "Output Configuration": "Positive",
+     "Features": "Over Current Protection、Short Circuit Protection、Thermal shutdown",
+     "Voltage Dropout": "1.25V@(500mA)",
+     "Output Voltage": "3.3V",
+     "Number of Outputs": "1"
+    }
+   }
+  ],
+  "page": 1,
+  "per_page": 5,
+  "total": 3,
+  "total_pages": 1,
+  "has_more": false
+ }
+}

@@ -1,0 +1,10 @@
+{
+ "tool": "mouser_get_part",
+ "arguments": {
+  "part_number": "LD1117AG-33-AA3-A-R"
+ },
+ "response": {
+  "results": [],
+  "total": 0
+ }
+}

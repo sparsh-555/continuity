@@ -1,0 +1,80 @@
+{
+ "tool": "jlc_search",
+ "arguments": {
+  "query": "ESP32-C3-MINI-1-N4",
+  "sort_by": "stock",
+  "limit": 10
+ },
+ "response": {
+  "results": [
+   {
+    "lcsc": "C2838502",
+    "model": "ESP32-C3-MINI-1-N4",
+    "manufacturer": "Espressif Systems",
+    "package": "SMD,16.6x13.2mm",
+    "stock": 17266,
+    "price": 3.8399,
+    "price_10": null,
+    "library_type": "extended",
+    "preferred": false,
+    "category": "IoT/Communication Modules",
+    "subcategory": "RF Modules",
+    "subcategory_id": 3207,
+    "mounting_type": "smd",
+    "description": "-40℃~+85℃ -98dBm 20.5dBm 350mA 3V~3.6V 84mA Integrated temperature sensor、Integrated antenna、Built-in watchdog On-board PCB Antenna SPI、UART、I2C、I2S、USB Transceiver SMD,16.6x13.2mm RF Modules ROHS",
+    "specs": {
+     "Operating Temperature": "-40℃~+85℃",
+     "Antenna Type": "On-board PCB Antenna",
+     "Sensitivity": "-98dBm",
+     "Output Power(Max)": "20.5dBm",
+     "Voltage - Supply": "3V~3.6V",
+     "Model": "Transceiver",
+     "Features": "Integrated temperature sensor、Integrated antenna、Built-in watchdog",
+     "Interface Type": "SPI、UART、I2C、I2S、USB",
+     "Send  Current": "350mA",
+     "Receive  Current": "84mA"
+    }
+   }
+  ],
+  "total": 1,
+  "page_info": {
+   "limit": 10,
+   "offset": 0,
+   "returned": 1
+  },
+  "filters_applied": {
+   "query": "ESP32-C3-MINI-1-N4",
+   "subcategory_id": null,
+   "subcategory_name": null,
+   "subcategory_resolved": null,
+   "category_id": null,
+   "category_name": null,
+   "category_resolved": null,
+   "spec_filters": [],
+   "library_type": null,
+   "prefer_no_fee": true,
+   "min_stock": 10,
+   "package": null,
+   "packages": null,
+   "manufacturer": null,
+   "match_all_terms": true
+  },
+  "library_type_counts": {
+   "basic": 0,
+   "preferred": 0,
+   "extended": 1
+  },
+  "no_fee_available": false,
+  "parsed": {
+   "original_query": "ESP32-C3-MINI-1-N4",
+   "detected": {
+    "model_number": "ESP32-C3-MINI-1-N4"
+   },
+   "subcategory": null,
+   "package": null,
+   "mounting_type": null,
+   "spec_filters": [],
+   "remaining_text": "ESP32-C3-MINI-1-N4"
+  }
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "tool": "cse_search",
+ "arguments": {
+  "query": "SPX1117M3-L-3-3/TR"
+ },
+ "response": {
+  "results": [
+   {
+    "source": "cse",
+    "mfr_part_number": "SPX1117M3-L-3-3/TR",
+    "manufacturer": "EXAR",
+    "description": "LDO Regulator 3.3V 800mA 2.6-15V TO263-3",
+    "datasheet_url": "https://componentsearchengine.com/Datasheets/2/SPX1117M3-L-3-3_TR.pdf",
+    "has_model": true,
+    "has_3d": true,
+    "model_quality": 3,
+    "cse_part_id": 548248,
+    "pin_count": 4,
+    "image_url": "https://componentsearchengine.com/Images/3/SPX1117M3-L-3-3_TR.jpg"
+   },
+   {
+    "source": "cse",
+    "mfr_part_number": "SPX1117M3-L-3-3/TR",
+    "manufacturer": "MaxLinear, Inc.",
+    "description": "LDO Voltage Regulators 800mALOW DROPOUT",
+    "datasheet_url": "https://componentsearchengine.com/Datasheets/1/SPX1117M3-L-3-3_TR.pdf",
+    "has_model": true,
+    "has_3d": true,
+    "model_quality": 3,
+    "cse_part_id": 1706933,
+    "pin_count": 4,
+    "image_url": "https://componentsearchengine.com/2D/0T/1706933.2.1.png"
+   }
+  ],
+  "total": 2
+ }
+}

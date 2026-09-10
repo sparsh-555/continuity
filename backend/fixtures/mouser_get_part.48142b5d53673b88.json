@@ -1,18 +1,18 @@
 {
  "tool": "mouser_get_part",
  "arguments": {
-  "part_number": "AMS1117-3.3"
+  "part_number": "AMS1117-5.0"
  },
  "response": {
   "results": [
    {
     "source": "mouser",
-    "part_number": "926-LM1117MPX3.3NOPB",
-    "mfr_part_number": "LM1117MPX-3.3/NOPB",
+    "part_number": "926-LM1117MPX5.0NOPB",
+    "mfr_part_number": "LM1117MPX-5.0/NOPB",
     "manufacturer": "Texas Instruments",
-    "description": "LDO Voltage Regulators 800MA LDO LINEAR REG A 926-LM1117MP-3.3N A 926-LM1117MP-3.3NOPB",
+    "description": "LDO Voltage Regulators 800MA LDO LINEAR REG A 926-LM1117MP-5.0N A 926-LM1117MP-5.0NOPB",
     "category": "LDO Voltage Regulators",
-    "stock": 65991,
+    "stock": 7975,
     "price": 1.21,
     "price_breaks": [
      {
@@ -52,12 +52,17 @@
      },
      {
       "qty": 2000,
-      "price": 0.609,
+      "price": 0.584,
+      "currency": "USD"
+     },
+     {
+      "qty": 4000,
+      "price": 0.57,
       "currency": "USD"
      }
     ],
     "datasheet_url": "",
-    "product_url": "https://www.mouser.ca/en/ProductDetail/Texas-Instruments/LM1117MPX-3.3-NOPB?qs=X1J7HmVL2ZHRbBIxXi4utg%3D%3D",
+    "product_url": "https://www.mouser.ca/en/ProductDetail/Texas-Instruments/LM1117MPX-5.0-NOPB?qs=X1J7HmVL2ZE1O12Qsl7F9g%3D%3D",
     "rohs": "RoHS Compliant",
     "lifecycle": "Active",
     "parameters": {

@@ -1,0 +1,24 @@
+{
+ "tool": "cse_search",
+ "arguments": {
+  "query": "LD1117AG-33-AA3-A-R"
+ },
+ "response": {
+  "results": [
+   {
+    "source": "cse",
+    "mfr_part_number": "LD1117AG-33-AA3-A-R",
+    "manufacturer": "Unisonic Tech",
+    "description": "Linear Voltage Regulator IC Positive Fixed 1 Output 1A SOT-223",
+    "datasheet_url": "https://www.unisonic.com.tw/uploadfiles/836/part_no_pdf/LD1117_A.pdf",
+    "has_model": true,
+    "has_3d": false,
+    "model_quality": 3,
+    "cse_part_id": 22150936,
+    "pin_count": 4,
+    "image_url": null
+   }
+  ],
+  "total": 1
+ }
+}

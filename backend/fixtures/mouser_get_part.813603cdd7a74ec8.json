@@ -12,42 +12,47 @@
     "manufacturer": "STMicroelectronics",
     "description": "ARM Microcontrollers - MCU 32BIT Cortex M3 64KB 20KB RAM 2X12 ADC",
     "category": "ARM Microcontrollers - MCU",
-    "stock": 0,
-    "price": 7.45,
+    "stock": 5578,
+    "price": 8.29,
     "price_breaks": [
      {
       "qty": 1,
-      "price": 7.45,
+      "price": 8.29,
       "currency": "USD"
      },
      {
       "qty": 10,
-      "price": 5.74,
+      "price": 5.79,
       "currency": "USD"
      },
      {
       "qty": 25,
-      "price": 5.05,
+      "price": 5.52,
       "currency": "USD"
      },
      {
       "qty": 100,
-      "price": 4.82,
+      "price": 4.79,
       "currency": "USD"
      },
      {
       "qty": 250,
-      "price": 4.6,
+      "price": 4.58,
       "currency": "USD"
      },
      {
       "qty": 500,
-      "price": 4.48,
+      "price": 4.37,
+      "currency": "USD"
+     },
+     {
+      "qty": 1000,
+      "price": 4.26,
       "currency": "USD"
      },
      {
       "qty": 1500,
-      "price": 4.47,
+      "price": 4.14,
       "currency": "USD"
      }
     ],
@@ -69,47 +74,47 @@
     "manufacturer": "STMicroelectronics",
     "description": "ARM Microcontrollers - MCU 32BIT Cortex M3 USB 7 TIMERS 2 ADCS CAN",
     "category": "ARM Microcontrollers - MCU",
-    "stock": 2,
-    "price": 8.3,
+    "stock": 38,
+    "price": 8.29,
     "price_breaks": [
      {
       "qty": 1,
-      "price": 8.3,
+      "price": 8.29,
       "currency": "USD"
      },
      {
       "qty": 10,
-      "price": 5.8,
+      "price": 5.79,
       "currency": "USD"
      },
      {
       "qty": 25,
-      "price": 5.53,
+      "price": 5.52,
       "currency": "USD"
      },
      {
       "qty": 100,
-      "price": 4.8,
+      "price": 4.79,
       "currency": "USD"
      },
      {
       "qty": 250,
-      "price": 4.59,
+      "price": 4.58,
       "currency": "USD"
      },
      {
       "qty": 500,
-      "price": 4.18,
+      "price": 4.37,
       "currency": "USD"
      },
      {
       "qty": 1000,
-      "price": 3.67,
+      "price": 4.26,
       "currency": "USD"
      },
      {
       "qty": 2400,
-      "price": 3.67,
+      "price": 4.14,
       "currency": "USD"
      }
     ],
