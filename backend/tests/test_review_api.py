@@ -773,6 +773,37 @@ def test_the_run_writes_the_change_request_it_produced():
     assert gateway["approvals_required"], "and who has to sign it"
 
 
+def test_an_ambiguous_candidate_is_announced_stored_and_returned_when_reopened(monkeypatch):
+    """A retry is not required to recover the review's one honest omission."""
+
+    async def resolve(mpn: str, manufacturer: str | None = None):
+        if mpn == LD1117.mpn:
+            raise matrix_api.Ambiguous(mpn, ["STMicroelectronics", "UTC"])
+        return CATALOGUE.get(mpn)
+
+    monkeypatch.setattr(matrix_api, "resolve", resolve)
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, notice_id):
+                frames = await frames_of(http, notice_id, candidates=[LD1117.mpn])
+                notices = (await http.get("/notices")).json()
+                return frames, next(notice for notice in notices if notice["id"] == notice_id)
+
+    frames, reopened = run(go())
+
+    expected = {
+        "mpn": LD1117.mpn,
+        "reason": (
+            f"{LD1117.mpn} is listed by STMicroelectronics and UTC, and their listings "
+            "disagree — say which manufacturer you mean"
+        ),
+    }
+    said = [frame["text"] for frame in frames if frame["type"] == "reasoning"]
+    assert f"{expected['mpn']}: {expected['reason']}, so it was not checked." in said
+    assert reopened["review_skipped"] == [expected]
+
+
 def test_the_applied_part_keeps_the_manufacturer_it_was_evaluated_as():
     """Applying used to resolve the proposal by part number alone, which is ambiguous —
     two manufacturers list TLV1117LV33DCYR — so the substitute landed on the bill with no

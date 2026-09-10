@@ -337,6 +337,36 @@ def found(**kwargs):
     return asyncio.run(review.candidates_for(retiring=AMS1117, resolve=catalogue, **kwargs))
 
 
+def test_a_named_ambiguous_candidate_is_reported_with_the_sentence_that_stopped_it():
+    """An uncheckable candidate is evidence, not an absence from the review."""
+    from continuity.api.matrix import Ambiguous
+    import asyncio
+
+    async def ambiguous(mpn: str, manufacturer: str | None = None):
+        raise Ambiguous(mpn, ["Texas Instruments", "JSMSEMI"])
+
+    skipped: list[review.SkippedCandidate] = []
+    candidates = asyncio.run(
+        review.candidates_for(
+            retiring=AMS1117,
+            resolve=ambiguous,
+            named=[TLV1117.mpn],
+            skipped=skipped,
+        )
+    )
+
+    assert candidates == ()
+    assert skipped == [
+        review.SkippedCandidate(
+            mpn=TLV1117.mpn,
+            reason=(
+                f"{TLV1117.mpn} is listed by Texas Instruments and JSMSEMI, and their "
+                "listings disagree — say which manufacturer you mean"
+            ),
+        )
+    ]
+
+
 def test_an_approved_part_is_resolved_with_the_manufacturer_the_company_records():
     """The lesson that has now cost three features: an MPN alone does not name a part.
 
