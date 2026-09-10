@@ -114,6 +114,15 @@ subject line**.
 **If the mailbox cannot be reached**, press **UPLOAD ONE INSTEAD** and pick the same PDF.
 Everything after this point is identical.
 
+- [ ] Doing both leaves **one** notice, not two. The same change arriving twice is one change, and the list shows one row.
+
+**Reading the notice replays**, as of 10 September, like every distributor call: 1903 ms live
+and 7 ms from `backend/fixtures/`, the same reading either way. It is keyed on the text the
+document extracts to, so a forwarded copy and an uploaded one hit the same recording. **A
+document nobody has recorded is refused rather than read** — the screen says *no fixture for
+notice_read*, which is correct rather than a bug. Both committed notices are recorded; to
+demonstrate a third, run `./demo.sh --live` and forward it once.
+
 ---
 
 ## Step 5 · Three lanes, one stream
@@ -180,9 +189,13 @@ in the header, then **REVIEW THIS LINE** inside the drawer.
 
 **Then press BOARD** in the graph pane's header.
 
+- [ ] While it works the pane says **Loading the board…**, never *Drawing*.
 - [ ] The real OpenJBOD project, before and after, cropped to the same rectangle around the regulator.
 - [ ] *"No connections break … SOT-223 → SOT-223."*
-- [ ] The two pictures are all but identical, which is the correct answer for a true drop-in.
+- [ ] A caption above the pair states the identities in full: **FOOTPRINT: SOT-223 → SOT-223 (DROP-IN) · FITTED PART: AMS1117-3.3 → NCP1117ST33T3G**.
+- [ ] The **AFTER** crop carries a violet tint and a violet border, and the **BEFORE** one does not. Violet means *this is the changed one*, never *this one is safe*.
+- [ ] Under the tint the two pictures are all but identical, which is the correct answer for a true drop-in.
+- [ ] Toggling back to **COMPONENTS** and forward to **BOARD** shows the picture again immediately. A second **PLACING…** is a bug — the board was already placed — and so is a pair of empty crops with the caption still above them.
 - [ ] The board names the part **U2** while the power tree beside it names **U1**. That is step 3 visible in one picture, not a fault.
 
 ---
@@ -211,10 +224,30 @@ it again.
 
 ---
 
+## Step 9b · The shortfall procurement accepted, on the released design
+
+**Do.** Sign the **Gateway** with all four desks, the way step 6 signed the Sensor node. Then
+`/lines` → **Gateway**.
+
+This is the only product line whose change needed somebody to accept a failure rather than
+merely approve one, so it is the only place this state exists.
+
+- [ ] The header reads **Rev D** and the bill reads `U1 TLV1117LV33DCYR` with **Texas Instruments** beside it. **JSMSEMI** there is a bug.
+- [ ] U1 on the power tree is **amber and dashed**, not green and not red. The legend in the graph's corner has gained an **Accepted** row, and only this board shows one.
+- [ ] The review pane leads with **U1 failed and accepted: availability**, and under it the rule's own arithmetic: *TLV1117LV33DCYR: 1,133 in stock at JLCPCB, below the 5,000 minimum.*
+- [ ] A green *nothing failed* here would be a bug, and so would a red conflict. The shortfall is real, somebody signed for it, and the screen says both.
+- [ ] The trace below is the review as it ran, with procurement's `availability` still marked failed. That is a record of the moment, not a contradiction: the signature came after it.
+
+---
+
 ## Step 10 · Memory, which is the company's record
 
-**Do.** `/memory`. Search `AMS1117`, then `NCP1117`.
+**Do.** `/memory`. Look at the graph before searching anything, then search `AMS1117`, then
+`NCP1117`.
 
+- [ ] **`AMS1117-3.3` reads as retired without being clicked**: a duller, browner fill than every other part, a heavier ring, and the word **NRND** under the part number. If it is the same orange as the rest, that is a bug.
+- [ ] Its edges to the boards that still carry it are **warm and dashed**, and they are the most obvious lines on the picture. An edge that was replaced is dashed and grey; a healthy one is solid and grey. Three states, three edges.
+- [ ] A **legend** sits in the bottom-left corner, four rows. A graph with no key is a bug.
 - [ ] `AMS1117-3.3` sorts first, marked **NRND** because its last order date has not passed, carrying the notice's own words and the boards it is still on.
 - [ ] **WHAT WAS DECIDED** for NCP1117 reads as a history: **RECOMMENDED** for AMS1117-3.3 quoting the notice, **WORKED** on the Sensor node, **APPROVED** on the Sensor node with the margin and who signed, and **WAITING ON A DESK** for the Cabinet controller if you have not answered it.
 - [ ] The verified datasheet readings underneath each carry the line they were read from in quotation marks, and the ones with no line say so rather than inventing a citation.
@@ -226,15 +259,20 @@ it again.
 
 ### The matrix, which is the working
 
-`/matrix` → the three affected lines → position `u1` → candidates:
+`/changes` → below the change requests → **SHOW THE WORKING · 3 BOARDS AT U1**.
+
+- [ ] The grid is already filled when the page opens. Nothing is typed and no button is pressed.
+- [ ] Three boards, and every part the review tried, including the ones it rejected.
+- [ ] Clicking a cell opens the evidence, every cell carrying the five coverage labels.
+- [ ] The same part is green on one line and red on another, and a cell that only just holds prints its margin.
+- [ ] Three candidates read *not found at the distributor*. Known, and in DEFERRED: those are the names the package search returns, and the matrix looks a part up by exact number.
+
+Typing it by hand still works, and is the way to ask a question the review did not: `/matrix`
+→ the three affected lines → position `u1` → candidates:
 
 ```
 AMS1117-3.3, NCP1117ST33T3G, LD1117S33TR, TLV1117LV33DCYR
 ```
-
-- [ ] **CHECK EVERY LINE** fills the grid, every cell carrying the five coverage labels.
-- [ ] Clicking a cell opens the evidence.
-- [ ] The same part is green on one line and red on another, and a cell that only just holds prints its margin.
 
 ### What the reader refuses to invent
 

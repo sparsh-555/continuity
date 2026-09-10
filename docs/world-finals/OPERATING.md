@@ -25,7 +25,7 @@ understand.
 | model key | no | Reading a change notice is the one step that needs it. Everything else still runs |
 | mailbox | no | The notice arrives by **UPLOAD ONE INSTEAD** rather than by email |
 | kicad image | no | The BOARD view reports itself unavailable |
-| recordings | no | With none in `backend/fixtures/`, every distributor call fails. `--live` records them as it goes |
+| recordings | no | With none in `backend/fixtures/`, every distributor call and every notice reading fails. `--live` records them as it goes |
 
 The port check runs before the world is rebuilt rather than after, because the rebuild is the
 first thing that cannot be undone and finding out afterwards that a run is already up would
@@ -171,6 +171,8 @@ naming, because each one has been seen at least once.
 | 6 | The same desk signing twice, or one desk's signature recorded against another desk |
 | 9a | A decision this desk has already signed still showing live buttons, or a desk with nothing waiting showing an error rather than saying so |
 | 9a | The count on the rail disagreeing with the number of rows that can be acted on |
+| 9b | The Gateway's bill reading **JSMSEMI** rather than Texas Instruments; U1 green, or U1 red, where a desk accepted the shortfall; a review pane saying *nothing failed* on a board that has an accepted failure |
+| 10 | A retired part drawn in the same orange as every other, its edges drawn like healthy ones, or a graph with no legend |
 | 10 | Another company's parts on `/memory`, or one approval listed twice |
 | any | The desk switcher offering a session this browser has not signed into, or a switch that does not change what the app says you hold |
 | extras | The PCN-2026-118 issue date of 2026-09-01 appearing as a last order date, or a part called `none` being proposed. Both passed every check this system had before item 17 |
@@ -193,7 +195,7 @@ somebody is deciding whether to sign. See BUILD.md's second governing rule.
 | `/design` | single-user local mode, no account |
 | `/changes` | notices received, the company-wide review in lanes, the change requests |
 | `/approvals` | what the signed-in desk owes, across every product line |
-| `/matrix` | every candidate against every product line |
+| `/matrix` | every candidate against every product line. `?lines=&slot=&candidates=` prefills it and runs it, which is what **SHOW THE WORKING** on `/changes` links to; all three or it stays a form |
 | `/memory` | the company's record: parts, boards, notices, and what was decided |
 
 Endpoints with no screen, worth knowing about:
@@ -220,9 +222,9 @@ curl -s -b cookies.txt -X POST 'http://localhost:8000/decisions/<id>' \
 
 ## 5 · Replay, which is the default
 
-`./demo.sh` sets `CONTINUITY_FIXTURES=1`. Every distributor call replays from
-`backend/fixtures/`, 617 recordings committed so a fresh clone has them, and none of them
-touches the network.
+`./demo.sh` sets `CONTINUITY_FIXTURES=1`. Every distributor call and every reading of a
+change notice replays from `backend/fixtures/`, 619 recordings committed so a fresh clone has
+them, and none of them touches the network.
 
 **Measured on 10 Sep.**
 
@@ -230,6 +232,7 @@ touches the network.
 |---|---|---|
 | One product line | 52 s one day, **unfinished after 140 s** the next | — |
 | All three | — | **0.25 s** |
+| Reading `PCN-2026-114.pdf` | 1903 ms | **7 ms** |
 
 Same frames, same verdicts, same margins: TLV1117LV33DCYR at 35 °C on the Gateway,
 NCP1117ST33T3G at 84 °C on the Sensor node and 11 °C on the Cabinet controller. Only the
@@ -244,9 +247,20 @@ run that quietly reaches the internet looks offline right up until the wifi fail
 Run that when a part, a bill or a search query has changed and the recordings need refreshing.
 It is slow for the reason above, and it is the only way new fixtures are made.
 
-**One step never replays: reading a change notice.** That calls the model directly and has no
-recorded path, so on a dead network the upload fails. Receive the notice while you have a
-connection, and everything after it replays.
+**Reading a change notice replays too, as of 10 Sep.** Both committed notices are recorded,
+keyed on a digest of the extracted text and a fingerprint of the reader's instructions — so a
+reworded prompt re-reads rather than believing an answer to a different question. The
+verification runs on the replayed reply exactly as on a live one: a recording is the model's
+answer, not a licence to believe it, and a quoted line the document does not contain is still
+refused.
+
+**A notice nobody has recorded is refused, not fetched.** Forwarding some other PDF under
+replay returns *no fixture for notice_read*, which is the same contract every distributor call
+keeps. To demonstrate a new notice, record it first:
+
+```bash
+./demo.sh --live      # then forward the new document once
+```
 
 Two consequences of the live path are worth knowing when you run with `--live`. The lanes are
 quiet for a stretch between the candidate list and the first line about a board, while that
@@ -264,22 +278,38 @@ The demo consequence of the speed, which is a choice rather than a defect, is in
 cd backend
 
 # offline, no infrastructure
-../.venv/bin/python -m pytest                                    # 932 passed, 223 skipped, ~9s
+../.venv/bin/python -m pytest                                    # 942 passed, 228 skipped, ~10s
 
 # with a database
 CONTINUITY_TEST_DB=postgresql:///continuity_test \
-  ../.venv/bin/python -m pytest                                  # 1135 passed, 20 skipped, ~40s
+  ../.venv/bin/python -m pytest                                  # 1150 passed, 20 skipped, ~40s
 
 # with a database and KiCad
 CONTINUITY_KICAD=docker CONTINUITY_TEST_DB=postgresql:///continuity_test \
-  ../.venv/bin/python -m pytest                                  # 1147 passed, 8 skipped, ~135s
+  ../.venv/bin/python -m pytest                                  # 1162 passed, 8 skipped, ~170s
 
 # the eight that still skip: five need the network, two need a real model, and one is
 # the answer given when KiCad is absent
 CONTINUITY_LIVE=1 ../.venv/bin/python -m pytest tests/test_parts.py tests/test_notice_document.py
 
-cd ../frontend && bun run build     # tsc first, then the bundle
+cd ../frontend
+bun run build     # tsc first, then the bundle
+bun run test      # the pure decisions behind the screens
+bun run lint      # oxlint; warnings only, no errors
+bun run e2e       # a real browser, against a running ./demo.sh
 ```
+
+**`bun run e2e` needs a world nobody has touched**, because it asserts `End of life (0)`
+before delivering the notice. Start `./demo.sh` without `--keep` and run it once. It reads
+its credentials from the environment and never from source:
+
+```bash
+CONTINUITY_E2E_EMAIL=engineer@northwind.example \
+CONTINUITY_E2E_PASSWORD=continuity-demo-2026 bun run e2e
+```
+
+**`bun test` on its own sweeps `e2e/` too** and fails on it, which is why `bun run test` is
+scoped to `src`. Playwright specs are not bun tests.
 
 `tools/eol_differential.py` prints the demo matrix from the command line, and
 `tools/brief_sweep.py` sweeps briefs for thin evidence.
@@ -294,7 +324,7 @@ cd ../frontend && bun run build     # tsc first, then the bundle
 | `CONTINUITY_ORIGINS` | `http://localhost:5173,http://localhost:5174` | origins allowed to send the session cookie |
 | `CONTINUITY_LLM_API_KEY` | *(from `backend/.env`)* | parsing and repair. Absent is degraded, not fatal |
 | `CONTINUITY_LLM_BASE_URL` | z.ai | set to `https://api.deepseek.com` for DeepSeek |
-| `CONTINUITY_FIXTURES` | `0` | `1` replays recorded distributor calls and never goes live |
+| `CONTINUITY_FIXTURES` | `0` | `1` replays recorded distributor calls and notice readings, and never goes live |
 | `CONTINUITY_FIXTURE_DIR` | `backend/fixtures` | point elsewhere to record without touching the committed set |
 | `CONTINUITY_KICAD` | *(unset)* | `docker` or `local`. Unset means the board view reports itself unavailable |
 | `CONTINUITY_KICAD_IMAGE` | `kicad/kicad:9.0` | the pinned image |
@@ -318,13 +348,17 @@ cd ../frontend && bun run build     # tsc first, then the bundle
 | The desk switcher offers nothing to switch to | Only sessions this browser has signed into appear. Sign in as that desk once and both stay live |
 | The mailbox poll fails on a foreign key after a reseed | The poller resolved the organisation at startup and the reseed replaced it. Restart the API |
 | Every call fails, console shows CORS | Vite is not on 5173 or 5174. Restart with `--strictPort` |
+| `port 8000 is in use` after a clean `--stop` | Fixed 10 Sep. An old `demo.sh` counted a browser's leftover socket as the port being taken; the check now looks for a listener |
 | `401` on `/auth/me` before signing in | Normal. Two of these on the landing page are expected |
 | The BOARD view says no KiCad is configured | `CONTINUITY_KICAD=docker` was not set on the API, or Docker is not running |
 | BOARD takes three seconds the first time | Expected. The render is cached on the bundle after that, and the page warms it on arrival. A server restart empties the cache |
+| BOARD takes three seconds again on the same page | Fixed 10 Sep. Placements are remembered for the session; a second **PLACING…** for a board already placed means an old build |
+| The board crops are empty, caption and border still there | Fixed 10 Sep. The SVG's blob URL was revoked by an effect cleanup a remount did not repeat. `net::ERR_FILE_NOT_FOUND` in the console names it |
 | A reviewed line shows a verdict but no trace | The API predates `/lines/:id/reviews`. Restart it |
 | Two identical notices in the drawer | Both forwarded and uploaded, or a reseed re-read the mailed message |
 | `no matching manifest for linux/arm64` | The `--platform linux/amd64` flag is missing |
-| A notice upload fails with nothing readable | No model key, or no network. The parse is the one step with no offline path |
+| A notice upload fails saying `no fixture for notice_read` | That document has never been read. `./demo.sh --live`, forward it once, and it replays from then on |
+| A notice upload fails with nothing readable | No model key under `--live`, or the document genuinely holds no part number backed by a line of its own text |
 | The run finishes fast with no real MPNs | `CONTINUITY_LLM_API_KEY` did not load |
 | A review dies on its second frame saying the part could not be sourced | A distributor call has no recording. `./demo.sh --live` records it |
 | Accounts vanish on restart | The API was started without `DATABASE_URL` |

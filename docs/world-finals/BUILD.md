@@ -1520,9 +1520,12 @@ Not written yet, and not covered anywhere in these documents.
 - **Slides**, same.
 - **The fallback recording.** The organiser advised one last time and it was never cut.
 - **Q&A preparation** against the questions the research says we still cannot answer: *"show me
-  why the green cell is justified on this actual board"*, *"what exactly did this person
-  approve, and does it survive a revision"*, *"why can't my component-intelligence tool plus my
-  EDA suite do this"*.
+  why the green cell is justified on this actual board"* and *"why can't my
+  component-intelligence tool plus my EDA suite do this"*. **The third one is now answered**:
+  *"what exactly did this person approve, and does it survive a revision"* — an approval
+  records the rule, the slot, the candidate, the revision and the desk, and the released design
+  reports that failure as **accepted** rather than passed. Change any one of those five and it
+  blocks again. See [FLOW.md](FLOW.md) §7.
 
 ---
 
@@ -1540,6 +1543,10 @@ work items:
 
 ## Open with the organiser
 
-Submission deadline for the finals work, pitch and Q&A length, what criterion 4.2 means by
-"product features", venue network reachability, and booth requirements. See
-[README.md](README.md).
+Submission deadline for the finals work, pitch and Q&A length, and what criterion 4.2 means by
+"product features". See [README.md](README.md).
+
+**The finals are an online demo** — Sparsh is not travelling — so venue network reachability
+and booth requirements are no longer questions. What replaces them is his to decide and is
+open in [DEFERRED.md](DEFERRED.md): whether the demo is a shared localhost or the deployed
+instance, which today neither replays nor has KiCad.

@@ -3,7 +3,7 @@
 What to say while each screen is up, and the answers to what somebody asks afterwards.
 
 [RUNNER.md](RUNNER.md) is the flow and what a correct screen looks like. This is the spoken
-layer over the same ten steps, so the two are read side by side in a rehearsal and only this
+layer over the same twelve steps, so the two are read side by side in a rehearsal and only this
 one is read on the day.
 
 **The format of the online demo is not settled yet**, so nothing here assumes a room, a stage
@@ -198,7 +198,26 @@ Switch desk from the rail and open **Waiting on you**. This is the other half of
 round trips: procurement does not have to be told which product line to open, or read a design
 trace to sign for procurement. Their own queue carries their own reason to care.
 
+### Step 9b · The shortfall procurement accepted
+
+Worth showing if the Gateway has been signed, because it answers the question the gate raises
+and nothing else in the demo answers: *what happens to a failure somebody accepted?*
+
+The Gateway ships at Rev D with a part that failed procurement's own rule. U1 is amber rather
+than green or red, and the pane says **failed and accepted** with the arithmetic still under
+it — 1,133 in stock against a 5,000 build. Nothing was repainted and nothing was deleted. The
+engine still reports the shortfall every time it checks that board; what the signature changed
+is whose problem it is.
+
+**This is the difference between a waiver and a pass**, and it is the reason the same
+shortfall is not put to procurement a second time when the next change touches that board.
+
 ### Step 10 · Memory, which is the company's record
+
+**Before searching anything**, the retired part is already visible: a duller fill, a heavier
+ring, the word NRND under its number, and three warm dashed edges to the boards that still
+carry it. The colour is never the only carrier, which matters on a projector and for a reader
+who does not separate those two hues at all.
 
 Every line of **WHAT WAS DECIDED** comes from a different table. Underneath it, the verified
 datasheet readings each carry the line they were read from, and the ones with no line say so
@@ -211,11 +230,12 @@ plainly instead of pretending to a citation.
 Say it rather than hiding it, in one sentence, when the lanes finish faster than anybody can
 read them.
 
-Every distributor call in this demo replays from recordings made against the real distributor.
-The parts data is real, the engine, every rule, KiCad and the model all still run, and a call
-with no recording is an error rather than a quiet trip to the internet. The same review took
-over two minutes live and takes a quarter of a second replayed, with identical verdicts and
-identical margins.
+Every distributor call in this demo, and the reading of the notice itself, replays from
+recordings made against the real services. The parts data is real, the engine, every rule,
+KiCad and the model all still run, and a call with no recording is an error rather than a quiet
+trip to the internet. The same review took over two minutes live and takes a quarter of a
+second replayed, with identical verdicts and identical margins; reading the notice took
+1903 ms live and takes 7 ms, with the same reading.
 
 **A choice to make before the day.** At a quarter of a second the lanes finish before anybody
 can watch them advance, so what you see is three verdicts appearing at once rather than three

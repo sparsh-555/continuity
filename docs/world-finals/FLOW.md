@@ -88,7 +88,12 @@ message. Attachments are tried before the body. A message that holds no notice i
 nothing stored, nothing deleted, nothing guessed at.
 
 `notices.py` asks the model for `{mpn, manufacturer, effective_date, replacement_mpn,
-reason}` **and the exact line of the document each was read from**. Then code checks:
+reason}` **and the exact line of the document each was read from**. That ask is recorded and
+replayed like every distributor call, keyed on a digest of the extracted text and a
+fingerprint of the instructions — so a reworded prompt re-reads rather than believing an
+answer to a question it did not ask, and a document nobody has recorded is refused rather than
+fetched. The checks below run on a replayed answer exactly as on a live one: a recording is
+the model's answer, not a licence to believe it. Then code checks:
 
 - every quoted line appears in the extracted text,
 - the part number appears *in the line quoted for it* — otherwise a model can cite any true
@@ -96,6 +101,11 @@ reason}` **and the exact line of the document each was read from**. Then code ch
 - the date is ISO-shaped and is the one that ends *ordering*, not the issue date, the
   response-by date or the last time ship,
 - a word a notice uses for absence — `none`, `to be advised` — is not a part number.
+
+The same notice arriving twice is one notice. `save_notice` returns the id it already holds
+for this company's `(mpn, effective_date, replacement_mpn)`, so a PCN forwarded to the mailbox
+and uploaded through the page is one change to act on — while the preliminary `PCN-2026-118`
+and the full `PCN-2026-114`, which name the same part and say different things, stay two.
 
 A notice whose MPN cannot be sourced from its own text is refused outright, because every
 step after this keys off that part number.
@@ -124,6 +134,15 @@ is not the differentiator and the pitch should not claim it is.
 
 Minus **what this board already ruled out** (`precedents`, scoped to the line: a part that
 cooks one product says nothing about a cooler one).
+
+**Every one of them is asked for by number and manufacturer**, from `store.recorded_manufacturers`
+— this company's own bills first, then its approved list. An MPN alone does not name a part:
+JLCPCB lists `TLV1117LV33DCYR` under Texas Instruments and under JSMSEMI, whose listing states
+a 12 V supply ceiling where TI's states 5.5 V, and only TI's fails the 12 V cabinet
+controller. Asking by number took whichever listing came back first. The same record answers
+`/matrix` and the notice-driven matrix, and `search.live_stock` carries the manufacturer too,
+so a stock figure belongs to the part in hand rather than to another company's listing of the
+same number.
 
 Four things the catalogue leg had to learn, each measured against JLCPCB:
 
@@ -223,6 +242,16 @@ the first applied substitution landed on a bill with no manufacturer.
 Declining writes the refusal and leaves the board carrying the retired part, which is a real
 answer and is remembered as one.
 
+**An approved decision that carried a gate rule is a waiver, and a waiver is not a pass.**
+`store.accepted_waivers_for_line` reads it back as `(rule, subject, mpn, revision, roles)` from
+the approval the owning desk signed, and `review.accepted_verdicts` marks the matching failure
+`accepted` without touching its status, its detail or its evidence. `rules.blocking` stops
+routing it and every screen keeps reporting it — so the released revision says *failed and
+accepted* with the arithmetic under it, and the next change to touch that board does not put
+the same shortfall to the same desk again. It is scoped to the rule, the slot, the candidate,
+the revision and the desk that owns the rule; change any one of those and the failure blocks
+as it did before.
+
 ## 7a · What is on the bill, and why it is three parts
 
 Asked on 9 Sep after a real board was attached and its forty-one rows were briefly imported.
@@ -267,6 +296,11 @@ Pinouts come from `kicad/catalogue.py`, a table of datasheet readings. A part no
 no board consequence and says so — LD1117 is absent because ST publishes its pin connections
 as a figure, and a figure is not extractable text.
 
+**The screen keeps what it was given.** A placement is remembered for the session, keyed on
+the product line, the retired part and the candidate, so toggling away from BOARD and back
+paints the picture rather than starting KiCad again — which used to take the board away and
+put **PLACING…** in its place whenever anything behind the page refetched.
+
 ## 9 · What is remembered
 
 All of it is read back on `/memory`, assembled by `api/recall.compose` from `line_parts`, the
@@ -284,6 +318,13 @@ so a company that had never run a design here had no memory at all.
   scoped to a board, and the asymmetry is the point: a rejection is about the board it
   happened on, and a part already qualified somewhere in the company is the cheap answer on
   the next product.
+
+**A retired part looks retired on the graph**, without being clicked: a duller, desaturated
+fill and a heavier ring rather than the pale outline it used to wear, the lifecycle word under
+the part number so the colour is never the only carrier, and warm dashed edges to the boards
+that still carry it — which is a different statement from the grey dashed edge that means
+*was here and was replaced*. `routes/memoryGraph.ts` holds those decisions and the canvas only
+draws them.
 
 ---
 
@@ -356,6 +397,12 @@ hardcoded it for any candidate that cleared and the product had no production ro
 Now every department that examined a change signs it, in any order, and the bill does not
 move until the last signature. The Gateway stops at **procurement** on a stock shortfall
 while the other two clear, so one notice produces answers that halt in different places.
+
+Once the Gateway has all four signatures, its released Rev D says **failed and accepted** at
+U1 rather than passing or failing: the shortfall is still true, procurement signed for it, and
+the screen says both. That is the answer to *what happens to a failure somebody accepted*, and
+it is why the same shortfall is not put to procurement again when the next change touches that
+board.
 
 **Watch for:** the quality gate still does not fire in the seeded world, because no line's
 best answer is off the approved manufacturer list. That row is still open in DEFERRED.

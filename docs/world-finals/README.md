@@ -7,6 +7,11 @@ Source for everything here: the pre-event briefing deck circulated 3 Sep
 (`~/Desktop/Tencent World Finals x China visa/online briefing session.pdf`), plus the
 organiser confirming the track on 4 Sep. **Track is Agent and switching is not allowed.**
 
+> **The finals are an online demo.** Sparsh is not travelling to Shenzhen, so the schedule
+> below is the record of what was originally arranged rather than what will happen. The one
+> open question it leaves behind is in [DEFERRED.md](DEFERRED.md): whether the demo runs from
+> a shared localhost or the deployed instance, which today neither replays nor has KiCad.
+
 ## The documents
 
 Read in this order.
@@ -15,9 +20,9 @@ Read in this order.
 |---|---|
 | **[FLOW.md](FLOW.md)** | **Start here.** Part one is the machine: every stage of a review, who decides it, the file that does it, and where a model is and is not. Part two is the demo beat. Written to be checked against the code. |
 | **[SPEC.md](SPEC.md)** | The contract. Flow diagram, data model, rules, coverage semantics, the demo case with its arithmetic, how the handoff is shown. |
-| **[BUILD.md](BUILD.md)** | Thirty ordered work items across six phases, each with its files, its done-condition and its own acceptance test. **Items 1 to 39 are built except 28**, the notice announcing itself. **Phase 8, items 31 to 39, built the cross-team response on 10 Sep**: four desks, every department signing what it examined, a queue per desk, and a switcher holding four real sessions. Phase 6, the presentation, is not written. **Start here for what to do next.** |
-| **[RUNNER.md](RUNNER.md)** | The run-through, and nothing else. Ten steps in the order that tells the story, each with the boxes a correct screen ticks. Walk it before every rehearsal; anything that does not match is a bug. |
-| **[DEMO-DAY.md](DEMO-DAY.md)** | What to say while each of those screens is up, and the answers to what a judge asks. The spoken layer over RUNNER's ten steps. |
+| **[BUILD.md](BUILD.md)** | Thirty-nine ordered work items across eight phases, each with its files, its done-condition and its own acceptance test. **Items 1 to 39 are all built**, item 28 — the notice announcing itself — closing on 10 Sep. **Phase 8, items 31 to 39, built the cross-team response on 10 Sep**: four desks, every department signing what it examined, a queue per desk, and a switcher holding four real sessions. Phase 6, the presentation, is not written, and is the only phase that is not. **Start here for what to do next.** |
+| **[RUNNER.md](RUNNER.md)** | The run-through, and nothing else. Twelve steps in the order that tells the story, each with the boxes a correct screen ticks. Walk it before every rehearsal; anything that does not match is a bug. |
+| **[DEMO-DAY.md](DEMO-DAY.md)** | What to say while each of those screens is up, and the answers to what a judge asks. The spoken layer over RUNNER's twelve steps. |
 | **[OPERATING.md](OPERATING.md)** | The machine around the run-through: what the start script checks, running the pieces by hand, every route and variable, what would be a bug at each step, what breaks and why, and what is known and not worth reporting. |
 | **[PARTS.md](PARTS.md)** | Every listing and datasheet value the demo rests on, with its quote and its provenance. Read before changing any number in SPEC.md's matrix. |
 | [SCENARIO-B.md](SCENARIO-B.md) | The assigned scenario, and the ECR/ECO framing that replaced our first answer |
