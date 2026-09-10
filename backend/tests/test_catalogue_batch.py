@@ -10,6 +10,42 @@ from continuity.parts.search import Candidate as SearchCandidate
 from tools.eol_differential import AMS1117, TLV1117
 
 
+def test_catalogue_search_filters_the_retiring_output_before_normalising(monkeypatch):
+    """A catalogue's 5 V regulator never spends a costly normalisation slot for 3.3 V."""
+    wrong_rail = SearchCandidate(
+        lcsc="C-WRONG", mpn="WRONG-5V", manufacturer="Test", description="LDO",
+        package="SOT-223", category="Regulator", subcategory="LDO", stock=1,
+        unit_price=0.1, library_type="basic", specs={"Output Voltage": "5V"},
+    )
+    right_rail = SearchCandidate(
+        lcsc="C-RIGHT", mpn="RIGHT-3V3", manufacturer="Test", description="LDO",
+        package="SOT-223", category="Regulator", subcategory="LDO", stock=1,
+        unit_price=0.1, library_type="basic", specs={"Output Voltage": "3.3V"},
+    )
+
+    async def go():
+        chosen: list[str] = []
+
+        async def find(*_args, constraint, **_kwargs):
+            assert constraint == {"package": "SOT-223", "vout": 3.3}
+            return [right_rail]
+
+        async def choose(hit):
+            chosen.append(hit.mpn)
+            return replace(TLV1117, mpn=hit.mpn, vout_min=3.3, vout_max=3.3)
+
+        monkeypatch.setattr(review_api.sourcing, "find", find)
+        monkeypatch.setattr(review_api.sourcing, "choose", choose)
+        found = await review_api._catalogue_search(AMS1117)
+        return chosen, found
+
+    chosen, found = asyncio.run(go())
+
+    assert wrong_rail.mpn not in chosen
+    assert chosen == [right_rail.mpn]
+    assert [part.mpn for part in found] == [right_rail.mpn]
+
+
 def test_catalogue_normalisation_is_bounded_concurrent_and_keeps_pool_order(monkeypatch):
     """One slow datasheet does not serialize the shortlist or reorder its answer."""
     mpns = [f"P{number}" for number in range(1, 10)]
