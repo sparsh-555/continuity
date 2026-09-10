@@ -594,6 +594,51 @@ export function listChangeRequests(noticeId: string) {
   return request<ChangeRequest[]>(`/notices/${encodeURIComponent(noticeId)}/review`)
 }
 
+export type WaitingDecision = {
+  id: string
+  line_id: string
+  line_name: string
+  revision: string | null
+  notice_id: string | null
+  notice_mpn: string | null
+  refdes: string
+  retiring: string
+  proposal: string
+  /** The rule a desk is being asked to accept, when one failed. */
+  gate_rule: string | null
+  detail: string
+  /** Every desk that must sign, every desk that has, and what this reader still owes. */
+  roles: string[]
+  signed: string[]
+  mine: string[]
+  created_at: string
+}
+
+/** Every pending decision one of the signed-in person's desks may answer. */
+export function listWaitingDecisions() {
+  return request<WaitingDecision[]>('/decisions')
+}
+
+export type HeldSession = {
+  email: string
+  roles: string[]
+  active: boolean
+}
+
+/** Every desk this browser is signed into. Tokens are never returned. */
+export function listSessions() {
+  return request<HeldSession[]>('/auth/sessions')
+}
+
+/** Make another session this browser already holds the active one.
+ *
+ *  Not an impersonation: the token has to be in this browser's own httpOnly cookie
+ *  already, so this changes which real session is in use rather than granting one. A desk
+ *  that has to sign has to be signed in. */
+export function switchDesk(email: string) {
+  return request<PublicUser>('/auth/switch', { method: 'POST', body: { email } })
+}
+
 export function answerDecision(decisionId: string, approve: boolean, rationale = '') {
   return request<DecisionAnswer>(`/decisions/${encodeURIComponent(decisionId)}`, {
     method: 'POST',

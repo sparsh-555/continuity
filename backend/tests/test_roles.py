@@ -13,6 +13,7 @@ into that slot — a part nobody looked at, carrying a temperature nobody approv
 
 from __future__ import annotations
 
+import os
 import pathlib
 from dataclasses import replace
 from types import SimpleNamespace
@@ -256,3 +257,83 @@ def test_physics_is_not_answerable():
         "capacitor_requirements",
     }
     assert not (walls & roles_module.ANSWERABLE_RULES)
+
+
+# ── several desks in one browser ──────────────────────────────────────────────
+
+
+def test_a_browser_holds_a_session_per_desk_and_switches_between_them():
+    """Walking a four-signature change on stage meant signing out three times.
+
+    The pattern is a principal switcher holding several genuine sessions, and the
+    distinction that matters is the one the *view as role* literature draws: a simulation
+    is visual only and cannot act, while switching accounts can. A desk has to sign, so
+    these are real sessions and the 403s still fire exactly as they did.
+    """
+    import asyncio
+
+    import httpx
+
+    from continuity.api.app import app
+    from continuity.api.store import Store
+
+    from psycopg_pool import AsyncConnectionPool
+
+    async def go():
+        url = os.environ["CONTINUITY_TEST_DB"]
+        async with AsyncConnectionPool(url, min_size=1, max_size=3, open=False) as pool:
+            await pool.open()
+            store = Store(pool)
+            await store.setup()
+            async with pool.connection() as conn:
+                await conn.execute(
+                    "TRUNCATE users, organisations, sessions, product_lines, threads CASCADE"
+                )
+            previous, app.state.store = app.state.store, store
+            try:
+                async with httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=app), base_url="http://test"
+                ) as http:
+                    await http.post(
+                        "/auth/register",
+                        json={"email": "one@example.com", "password": "a-good-password"},
+                    )
+                    first = (await http.get("/auth/me")).json()
+                    await http.post(
+                        "/auth/register",
+                        json={"email": "two@example.com", "password": "a-good-password"},
+                    )
+                    second = (await http.get("/auth/me")).json()
+
+                    held = (await http.get("/auth/sessions")).json()
+                    back = await http.post(
+                        "/auth/switch", json={"email": "one@example.com"}
+                    )
+                    now = (await http.get("/auth/me")).json()
+                    stranger = await http.post(
+                        "/auth/switch", json={"email": "nobody@example.com"}
+                    )
+                    return first, second, held, back.json(), now, stranger
+            finally:
+                app.state.store = previous
+
+    first, second, held, back, now, stranger = asyncio.run(go())
+
+    assert first["email"] == "one@example.com"
+    assert second["email"] == "two@example.com", "the second sign-in is the active one"
+
+    emails = {row["email"]: row for row in held}
+    assert emails.keys() == {"one@example.com", "two@example.com"}, "both sessions are live"
+    assert emails["two@example.com"]["active"] is True
+    assert emails["one@example.com"]["active"] is False
+    assert all("token" not in row for row in held), "a token readable by a script is not a token"
+
+    assert back["email"] == "one@example.com"
+    assert now["email"] == "one@example.com", "switching changes who /auth/me is"
+
+    assert stranger.status_code == 403, "no path to a session this browser did not sign into"
+
+
+test_a_browser_holds_a_session_per_desk_and_switches_between_them = pytest.mark.skipif(
+    not os.environ.get("CONTINUITY_TEST_DB"), reason="needs a database"
+)(test_a_browser_holds_a_session_per_desk_and_switches_between_them)

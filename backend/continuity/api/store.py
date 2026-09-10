@@ -1507,6 +1507,46 @@ class Store:
             )
             return await cursor.fetchall()
 
+    async def decisions_waiting_on(
+        self, org_id: str, roles: Sequence[str]
+    ) -> list[dict[str, Any]]:
+        """Every pending decision one of these desks may answer, newest first.
+
+        **The desk's own queue, across every product line.** A substitution needs a
+        signature from each department that examined it, and until this existed the other
+        desks had no way to find the thing they had to sign: they would have had to know
+        which product line it was on and navigate there. Ownership is by role rather than
+        by organisation, so a colleague holding none of the required desks sees an empty
+        list, which is not an error.
+
+        The line and the notice are joined here rather than fetched per row, because a
+        queue that costs one round trip per entry is a queue nobody opens.
+        """
+        if not roles:
+            return []
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT d.id, d.line_id, d.notice_id, d.slot_id, d.retiring, d.proposal,
+                       d.gate_rule, d.roles, d.detail, d.created_at,
+                       p.name AS line_name, p.revision AS revision,
+                       n.mpn AS notice_mpn,
+                       COALESCE(
+                           (SELECT array_agg(DISTINCT role)
+                              FROM approvals a, unnest(a.roles) AS role
+                             WHERE a.decision_id = d.id),
+                           ARRAY[]::text[]
+                       ) AS signed
+                  FROM decisions d
+                  JOIN product_lines p ON p.id = d.line_id AND p.org_id = d.org_id
+             LEFT JOIN notices n ON n.id = d.notice_id
+                 WHERE d.org_id = %s AND d.state = 'pending' AND d.roles && %s::text[]
+              ORDER BY d.created_at DESC
+                """,
+                (org_id, list(roles)),
+            )
+            return [dict(row) for row in await cursor.fetchall()]
+
     async def settle_decision(
         self, decision_id: str, org_id: str, *, state: str, by: str | None, rationale: str | None
     ) -> bool:

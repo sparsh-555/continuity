@@ -25,6 +25,7 @@ and the production values are a deliberate act.
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError, VerifyMismatchError
@@ -34,6 +35,24 @@ from pydantic import BaseModel, EmailStr, Field
 from .store import SESSION_TTL_SECONDS, EmailTaken, Store, User
 
 COOKIE = "continuity_session"
+HELD = "continuity_sessions"
+"""Every session this browser has authenticated, newest first.
+
+## Why a second cookie
+
+A substitution on a released design is signed by four departments, and walking that on stage
+meant signing out and back in three times. The pattern every multi-party demo uses is a
+principal switcher holding several genuine sessions, and the distinction that matters is the
+one the *view as role* literature draws: a simulation is visual only and cannot act, while
+switching accounts actually can. **A desk has to sign**, so this holds real sessions.
+
+`httponly` like the active one, so no script can read a token, and `/auth/switch` will only
+move to a session this browser already authenticated. There is no path here to a session the
+caller did not sign into.
+"""
+
+HELD_LIMIT = 6
+"""How many sessions one browser keeps. Four desks and room to be wrong twice."""
 
 MIN_PASSWORD_LENGTH = 8
 """A floor, not a policy. Composition rules push people towards worse passwords."""
@@ -113,10 +132,27 @@ async def current_user(request: Request) -> User:
     return user
 
 
+def _held(request: Request) -> list[str]:
+    """The tokens this browser holds, in order, newest first."""
+    raw = request.cookies.get(HELD) or ""
+    return [token for token in raw.split(".") if token][:HELD_LIMIT]
+
+
+def _set_held_cookie(response: Response, tokens: list[str]) -> None:
+    if not tokens:
+        response.delete_cookie(HELD, path="/")
+        return
+    _write_cookie(response, HELD, ".".join(tokens[:HELD_LIMIT]))
+
+
 def _set_session_cookie(response: Response, token: str) -> None:
+    _write_cookie(response, COOKIE, token)
+
+
+def _write_cookie(response: Response, name: str, value: str) -> None:
     response.set_cookie(
-        COOKIE,
-        token,
+        name,
+        value,
         httponly=True,
         samesite=os.environ.get("CONTINUITY_COOKIE_SAMESITE", "lax"),
         secure=os.environ.get("CONTINUITY_COOKIE_SECURE", "") == "1",
@@ -139,7 +175,9 @@ async def register(
     except EmailTaken:
         raise HTTPException(409, "an account with that email already exists")
 
-    _set_session_cookie(response, await store.create_session(user.id))
+    token = await store.create_session(user.id)
+    _set_session_cookie(response, token)
+    _set_held_cookie(response, [token, *_held(request)])
     return _public(user)
 
 
@@ -161,17 +199,77 @@ async def login(credentials: Credentials, request: Request, response: Response) 
     if hasher.check_needs_rehash(user.password_hash):
         await store.update_password_hash(user.id, hasher.hash(credentials.password))
 
-    _set_session_cookie(response, await store.create_session(user.id))
+    token = await store.create_session(user.id)
+    _set_session_cookie(response, token)
+    # Kept alongside whatever this browser already holds, so signing in as a second desk
+    # adds one rather than replacing one.
+    _set_held_cookie(response, [token, *(t for t in _held(request) if t != token)])
     return _public(user)
 
 
 @router.post("/logout", status_code=204)
 async def logout(request: Request, response: Response) -> None:
-    """Ends the session server-side, so a copied token stops working too."""
+    """Ends the session server-side, so a copied token stops working too.
+
+    Only this desk's. The others this browser holds stay live, because signing out of
+    procurement is not a statement about engineering.
+    """
     token = request.cookies.get(COOKIE)
     if token and request.app.state.store is not None:
         await request.app.state.store.delete_session(token)
     response.delete_cookie(COOKIE, path="/")
+    _set_held_cookie(response, [held for held in _held(request) if held != token])
+
+
+@router.get("/sessions")
+async def sessions(request: Request) -> list[dict[str, Any]]:
+    """Every desk this browser is signed into, and which one is active.
+
+    Tokens are never returned. The switcher names accounts by email and asks the server to
+    move; a token readable by a script would undo the whole point of an httpOnly cookie.
+    Expired or revoked tokens are dropped rather than reported, because a session that no
+    longer works is not a desk somebody can switch to.
+    """
+    store = request.app.state.store
+    if store is None:
+        return []
+    active = request.cookies.get(COOKIE)
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for token in _held(request):
+        user = await store.user_for_token(token)
+        if user is None or user.email in seen:
+            continue
+        seen.add(user.email)
+        out.append(
+            {"email": user.email, "roles": list(user.roles), "active": token == active}
+        )
+    return out
+
+
+class Desk(BaseModel):
+    email: EmailStr
+
+
+@router.post("/switch")
+async def switch(body: Desk, request: Request, response: Response) -> PublicUser:
+    """Make another session this browser already holds the active one.
+
+    **Not an impersonation.** There is no path here to a session the caller did not
+    authenticate: the token must already be in this browser's own httpOnly cookie, so
+    switching is a change of which real session is in use rather than a grant of one. A
+    desk that has to sign has to be signed in.
+    """
+    store = store_of(request)
+    for token in _held(request):
+        user = await store.user_for_token(token)
+        if user is not None and user.email.lower() == body.email.lower():
+            _set_session_cookie(response, token)
+            return _public(user)
+    raise HTTPException(
+        403,
+        f"this browser is not signed in as {body.email}. Sign in as that desk first.",
+    )
 
 
 @router.get("/me")

@@ -3,16 +3,24 @@ import { useLocation, useNavigate } from 'react-router'
 
 import { useAuth } from '../hooks/useAuth'
 import { useNewLine } from '../hooks/useNewLine'
+import { DeskSwitcher } from './DeskSwitcher'
+import { listWaitingDecisions } from '../lib/api'
+
+const WAITING_MS = 10_000
+/** How often the badge asks what this desk owes. Matches the arrivals poll on
+ *  `/changes`, so the two do not drift into different ideas of 'recently'. */
 
 type RailButtonProps = {
   active?: boolean
+  /** How many things wait behind this entry. Zero draws nothing. */
+  badge?: number
   disabled?: boolean
   icon: string
   label: string
   onClick: () => void
 }
 
-function RailButton({ active = false, disabled = false, icon, label, onClick }: RailButtonProps) {
+function RailButton({ active = false, badge = 0, disabled = false, icon, label, onClick }: RailButtonProps) {
   return (
     <button
       aria-current={active ? 'page' : undefined}
@@ -32,6 +40,12 @@ function RailButton({ active = false, disabled = false, icon, label, onClick }: 
       >
         {icon}
       </span>
+      {/* A count, not a dot: how many is the difference between glancing and opening. */}
+      {badge > 0 ? (
+        <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-tertiary-container text-[#001f24] font-data-tabular text-[10px] leading-4 text-center">
+          {badge}
+        </span>
+      ) : null}
       <span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 whitespace-nowrap bg-surface-container-high border border-outline-variant px-sm py-xs font-label-caps text-label-caps text-on-surface opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity z-50">
         {label}
       </span>
@@ -43,6 +57,29 @@ export function SideRail() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
+  const [waiting, setWaiting] = useState(0)
+
+  // What this desk owes, on the same ten seconds `/changes` watches for arrivals on. A
+  // decision can be raised by somebody else's review, so the count changes without this
+  // browser doing anything, and a badge that only updates on navigation is a badge that is
+  // wrong for as long as somebody stays on one page.
+  useEffect(() => {
+    if (!user) return
+    let alive = true
+    const read = () => {
+      listWaitingDecisions()
+        .then((rows) => {
+          if (alive) setWaiting(rows.filter((row) => row.mine.length > 0).length)
+        })
+        .catch(() => undefined)
+    }
+    read()
+    const timer = setInterval(read, WAITING_MS)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [user, location.pathname])
   const { createNewLine, creating } = useNewLine()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsRef = useRef<HTMLDivElement | null>(null)
@@ -81,6 +118,16 @@ export function SideRail() {
             and a change applied, and `mark_email_unread` described only the first third. It
             was the icon `/notices` had, and it survived the rename by a week. */}
         <RailButton active={location.pathname === '/changes'} icon="change_circle" label="Changes" onClick={() => navigate('/changes')} />
+        {/* `how_to_reg` — a person and a tick, which is what signing for a desk is. The
+            badge is what this desk owes across every product line: three of the four people
+            who must sign a substitution previously had no way to find it. */}
+        <RailButton
+          active={location.pathname === '/approvals'}
+          badge={waiting}
+          icon="how_to_reg"
+          label="Waiting on you"
+          onClick={() => navigate('/approvals')}
+        />
         <RailButton active={location.pathname === '/matrix'} icon="grid_view" label="Substitution matrix" onClick={() => navigate('/matrix')} />
         {/* `hub` — nodes and the links between them, which is literally what /memory shows.
             It was `memory`, a chip glyph, sitting one rail away from the wordmark's
@@ -89,6 +136,10 @@ export function SideRail() {
       </div>
 
       <div className="mt-auto flex flex-col gap-sm w-full items-center border-t border-outline-variant pt-sm">
+        {/* Which desk you are, in the chrome rather than behind a click. A substitution is
+            signed by four departments, and somebody who cannot see whose eyes they are
+            looking through signs from the wrong one and finds out from a 409. */}
+        <DeskSwitcher />
         <div className="relative" ref={settingsRef}>
           <RailButton icon="settings" label="Settings" onClick={() => setSettingsOpen((open) => !open)} />
           {settingsOpen ? (

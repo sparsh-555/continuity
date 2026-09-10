@@ -470,6 +470,9 @@ CREATE INDEX IF NOT EXISTS approvals_line_idx ON approvals(line_id, created_at D
 -- like everything else in this file.
 CREATE INDEX IF NOT EXISTS approvals_decision_idx ON approvals(decision_id);
 
+-- 10 Sep 2026. Every desk now has a queue of what is waiting on it, read by org and state.
+CREATE INDEX IF NOT EXISTS decisions_pending_idx ON decisions(org_id, state);
+
 -- Added 8 Sep 2026. Where the mailbox poller got to, per organisation.
 --
 -- A UID rather than the \Seen flag. Marking messages read is the obvious way to remember

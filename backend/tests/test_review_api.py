@@ -877,3 +877,54 @@ def test_one_desk_declining_stops_the_change_without_waiting_for_the_others():
 
     assert answered["state"] == "declined"
     assert {row["refdes"]: row["mpn"] for row in bom}["u1"] != gateway["proposal"]
+
+
+def test_every_desk_can_see_what_is_waiting_on_it():
+    """The queue that did not exist. Three of the four desks that must sign a substitution
+    had no way to find it: the decision lived on a product line's page, and a person at the
+    procurement desk would have had to know which product line to open."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store, roles=["procurement"]) as (http, me, notice_id):
+                await a_pending_decision(store, http, notice_id, me["org_id"])
+                mine = (await http.get("/decisions")).json()
+
+                # Sign one of them, and it stops being outstanding for this desk.
+                signed = await http.post(
+                    f"/decisions/{mine[0]['id']}", json={"approve": True}
+                )
+                after = (await http.get("/decisions")).json()
+                return mine, signed.json(), after
+
+    mine, signed, after = run(go())
+
+    assert len(mine) == 3, "three affected product lines, three decisions"
+    first = mine[0]
+    assert first["line_name"] and first["proposal"] and first["retiring"]
+    assert "procurement" in first["roles"]
+    assert first["mine"] == ["procurement"], "what this reader still owes"
+    assert first["signed"] == []
+
+    assert signed["state"] == "pending"
+    stayed = {row["id"]: row for row in after}
+    assert stayed[first["id"]]["signed"] == ["procurement"]
+    assert stayed[first["id"]]["mine"] == [], "signed, so nothing left for this desk"
+
+
+def test_a_desk_with_nothing_waiting_gets_an_empty_list_rather_than_a_refusal():
+    """A company that keeps no approved-manufacturer list never runs `part_qualification`,
+    so quality has nothing to sign. Nothing waiting is not an error."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store, qualified=None, roles=["quality"]) as (
+                http, me, notice_id,
+            ):
+                await a_pending_decision(store, http, notice_id, me["org_id"])
+                return await http.get("/decisions")
+
+    response = run(go())
+
+    assert response.status_code == 200
+    assert response.json() == []
