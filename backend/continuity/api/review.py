@@ -495,6 +495,10 @@ async def run_review(
 
     approved = await store.approved_lists(user.org_id)
     fitted_manufacturer = await store.manufacturer_of(user.org_id, notice["mpn"])
+    # Who this company says makes each part it knows about. Read once for the whole review,
+    # because every candidate asked for by number alone is a candidate that can come back as
+    # somebody else's listing of the same number.
+    recorded_manufacturers = await store.recorded_manufacturers(user.org_id)
     stream = events.EventStream(f"review:{notice_id}")
 
     # The company's own verified readings, read back. Without this every SOT-223 part falls
@@ -569,6 +573,7 @@ async def run_review(
             approved=sorted(approved.parts or ()),
             search=search_or_say,
             named=list(body.candidates),
+            manufacturers=recorded_manufacturers,
         )
         for reason in unreachable:
             yield aloud(

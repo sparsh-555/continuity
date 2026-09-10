@@ -323,6 +323,7 @@ async def candidates_for(
     approved: Sequence[str] = (),
     search=None,
     named: Sequence[str] = (),
+    manufacturers: Mapping[str, str] | None = None,
 ) -> tuple[Candidate, ...]:
     """What to try, in the order to try it, and why each one is on the list.
 
@@ -350,8 +351,19 @@ async def candidates_for(
     and a typed part are deliberate choices, and refusing either because our category strings
     disagree would be the tool overruling a person.
 
+    **Every part is asked for by number and manufacturer where the company records one.**
+    An MPN alone does not name a part: JLCPCB lists `TLV1117LV33DCYR` under Texas
+    Instruments and under JSMSEMI, whose listing states a 12 V supply ceiling where TI's
+    states 5.5 V, and only TI's fails the 12 V cabinet controller. Asking by number took
+    whichever listing came back first, so a part this company had qualified as TI's was
+    evaluated, proposed and written onto a bill under a clone's name. `manufacturers` is
+    what the company itself records — its own bills first, then its approved list — and it
+    is an improvement on the question rather than a precondition for asking it: a part
+    nobody here has bought is still asked for by number.
+
     The part being retired is never a candidate to replace itself.
     """
+    recorded = {mpn.upper(): maker for mpn, maker in (manufacturers or {}).items()}
     seen: set[str] = {retiring.mpn.casefold()}
     found: list[Candidate] = []
 
@@ -366,7 +378,11 @@ async def candidates_for(
     async def consider(mpn: str | None, origin: str, *, same_category: bool) -> None:
         if not mpn or mpn.casefold() in seen:
             return
-        keep(await resolve(mpn), origin, same_category=same_category)
+        keep(
+            await resolve(mpn, recorded.get(mpn.upper())),
+            origin,
+            same_category=same_category,
+        )
 
     await consider(notice_replacement, NOTICE_ORIGIN, same_category=False)
     for mpn in approved:

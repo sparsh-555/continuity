@@ -306,12 +306,24 @@ async def enrich(mpn: str) -> Enrichment:
     return Enrichment(datasheet=datasheet, lifecycle=lifecycle)
 
 
-async def live_stock(mpn: str) -> int | None:
-    """Current JLCPCB stock for exactly this MPN, or None when it cannot be established.
+async def live_stock(mpn: str, manufacturer: str | None = None) -> int | None:
+    """Current JLCPCB stock for exactly this part, or None when it cannot be established.
 
     A found and typed part is still usable when this slow live lookup fails, so it must
     never take down a run that already has its answer. The query is fuzzy; only an
     exact, case-insensitive match on JLCPCB's `model` field is safe to use.
+
+    **The model alone does not identify a part.** JLCPCB lists `TLV1117LV33DCYR` under
+    Texas Instruments and under JSMSEMI, and the two rows carry entirely different
+    inventory — so matching on the model returned whichever row came back first, and an
+    availability verdict about the part in hand was computed from another company's shelf.
+    Naming the manufacturer is what makes the answer belong to the part.
+
+    When a manufacturer is named and no row is that company's, the answer is `None` rather
+    than somebody else's number: a figure attributed to the wrong source is worse than an
+    admission that stock could not be established, which every caller already handles.
+    Asking without one is unchanged, for the callers that genuinely have no better
+    identifier than the number.
     """
     try:
         payload = await mcp.call_tool("jlc_stock_check", {"query": mpn, "limit": 5})
@@ -330,6 +342,10 @@ async def live_stock(mpn: str) -> int | None:
         model = row.get("model")
         if not isinstance(model, str) or model.upper() != mpn.upper():
             continue
+        if manufacturer:
+            listed = row.get("manufacturer")
+            if not isinstance(listed, str) or listed.upper() != manufacturer.upper():
+                continue
         stock = row.get("stock")
         return stock if isinstance(stock, int) and not isinstance(stock, bool) else None
     return None

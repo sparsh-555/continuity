@@ -193,8 +193,15 @@ async def _build(body: MatrixRequest, store: Any, user: User) -> dict[str, Any]:
     wanted = {row["mpn"] for bom in boms.values() for row in bom if row.get("populated", True)}
     wanted |= set(body.candidates)
     ordered = sorted(wanted)
+    # Who this company says makes each of these, from its own bills and its approved list.
+    # An MPN alone does not name a part — JLCPCB lists `AMS1117-3.3` under three
+    # manufacturers and `TLV1117LV33DCYR` under two — so asking by number came back as
+    # *several companies list this* and the part was skipped rather than checked. The
+    # record answers the question for anything this company has bought or qualified.
+    recorded = await store.recorded_manufacturers(user.org_id)
     resolved = await asyncio.gather(
-        *(resolve(mpn) for mpn in ordered), return_exceptions=True
+        *(resolve(mpn, recorded.get(mpn.upper())) for mpn in ordered),
+        return_exceptions=True,
     )
 
     specs: dict[str, PartSpec] = {}

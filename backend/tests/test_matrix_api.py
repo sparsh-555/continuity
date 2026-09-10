@@ -120,7 +120,7 @@ def sourced(monkeypatch):
     """Resolve MPNs from the demo's sourced specs instead of calling a distributor."""
     from continuity.api import matrix as matrix_api
 
-    async def resolve(mpn: str):
+    async def resolve(mpn: str, manufacturer: str | None = None):
         return SPECS.get(mpn)
 
     monkeypatch.setattr(matrix_api, "resolve", resolve)
@@ -370,6 +370,48 @@ def test_resolve_refuses_to_choose_between_two_manufacturers_of_one_mpn():
     assert "JSMSEMI" in str(raised.value)
 
 
+def test_a_candidate_the_company_has_qualified_is_not_ambiguous():
+    """The other half of the BOM rule, and the same lesson a third time.
+
+    A part on a bill is not ambiguous because the row says whose it is. A part on the
+    **approved manufacturer list** is not ambiguous either, for exactly the same reason:
+    quality qualified somebody's part, and the record says whose. Without that,
+    `TLV1117LV33DCYR` — which PARTS.md resolves to TI's listing and this company has
+    qualified — came back as *two manufacturers list this* and was skipped rather than
+    checked.
+    """
+    from continuity.api import matrix as matrix_api
+
+    asked = []
+
+    async def go():
+        async with a_store() as store:
+            async with signed_in() as http:
+                ids = await seed(http)
+                me = (await http.get("/auth/me")).json()
+                await store.qualify_part(
+                    me["org_id"], TLV1117.mpn, manufacturer="Texas Instruments", by=me["id"]
+                )
+
+                async def resolve(mpn: str, manufacturer: str | None = None):
+                    asked.append((mpn, manufacturer))
+                    if mpn == TLV1117.mpn and not manufacturer:
+                        raise matrix_api.Ambiguous(mpn, ["Texas Instruments", "JSMSEMI"])
+                    return SPECS.get(mpn)
+
+                matrix_api.resolve = resolve
+                try:
+                    return (await post_matrix(http, ids)).json()
+                finally:
+                    del matrix_api.resolve
+
+    body = run(go())
+
+    assert (TLV1117.mpn, "Texas Instruments") in asked, "asked for the one that was qualified"
+    assert TLV1117.mpn not in body["ambiguous"]
+    assert TLV1117.mpn in body["candidates"], "and it is checked rather than skipped"
+
+
 def test_an_ambiguous_candidate_is_named_on_the_matrix_rather_than_checked():
     """Saying which one you meant is a question only the person asking can answer."""
     from continuity.api import matrix as matrix_api
@@ -380,7 +422,7 @@ def test_an_ambiguous_candidate_is_named_on_the_matrix_rather_than_checked():
                 ids = await seed(http)
                 real = matrix_api.resolve
 
-                async def resolve(mpn: str):
+                async def resolve(mpn: str, manufacturer: str | None = None):
                     if mpn == TLV1117.mpn:
                         raise matrix_api.Ambiguous(mpn, ["Texas Instruments", "JSMSEMI"])
                     return SPECS.get(mpn)

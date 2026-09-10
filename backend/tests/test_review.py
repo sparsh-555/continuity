@@ -324,14 +324,66 @@ def test_the_part_reported_is_the_part_evaluated(candidate):
 CATALOGUE = {part.mpn: part for part in (AMS1117, NCP1117, LD1117, TLV1117, OUTPUT_CAPACITOR)}
 
 
-async def catalogue(mpn):
-    return CATALOGUE.get(mpn)
+async def catalogue(mpn, manufacturer=None):
+    part = CATALOGUE.get(mpn)
+    if part is None or (manufacturer and part.manufacturer != manufacturer):
+        return None
+    return part
 
 
 def found(**kwargs):
     import asyncio
 
     return asyncio.run(review.candidates_for(retiring=AMS1117, resolve=catalogue, **kwargs))
+
+
+def test_an_approved_part_is_resolved_with_the_manufacturer_the_company_records():
+    """The lesson that has now cost three features: an MPN alone does not name a part.
+
+    JLCPCB lists `TLV1117LV33DCYR` under Texas Instruments and under JSMSEMI, whose listing
+    states a 12 V supply ceiling where TI's states 5.5 V. The approved list records whose
+    part was qualified, and asking without it took whichever listing came back first — so a
+    part the company had qualified as TI's was checked, proposed and finally written onto a
+    bill under a clone's name.
+    """
+    asked = []
+
+    async def resolve(mpn, manufacturer=None):
+        asked.append((mpn, manufacturer))
+        return CATALOGUE.get(mpn)
+
+    import asyncio
+
+    candidates = asyncio.run(
+        review.candidates_for(
+            retiring=AMS1117,
+            resolve=resolve,
+            approved=[TLV1117.mpn],
+            manufacturers={TLV1117.mpn: "Texas Instruments"},
+        )
+    )
+
+    assert [c.part.mpn for c in candidates] == [TLV1117.mpn]
+    assert asked == [(TLV1117.mpn, "Texas Instruments")]
+
+
+def test_a_part_the_company_has_no_record_of_is_still_asked_for_by_number():
+    """The record is an improvement on the question, not a precondition for asking it."""
+    asked = []
+
+    async def resolve(mpn, manufacturer=None):
+        asked.append((mpn, manufacturer))
+        return CATALOGUE.get(mpn)
+
+    import asyncio
+
+    asyncio.run(
+        review.candidates_for(
+            retiring=AMS1117, resolve=resolve, approved=[TLV1117.mpn], manufacturers={}
+        )
+    )
+
+    assert asked == [(TLV1117.mpn, None)]
 
 
 def test_the_manufacturers_recommendation_is_tried_first():

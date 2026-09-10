@@ -194,18 +194,23 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
         )
 
     # A part on a bill of materials carries the manufacturer it was bought as, so an MPN
-    # several vendors publish is not ambiguous *here* — the board already chose. A
-    # candidate somebody names is a different matter and stays ambiguous.
-    fitted: dict[str, str | None] = {}
+    # several vendors publish is not ambiguous *here* — the board already chose. A candidate
+    # somebody names has the same answer wherever this company has already recorded one: the
+    # approved manufacturer list says whose part quality qualified, which is why
+    # `TLV1117LV33DCYR` used to come back as *two companies list this* and be skipped rather
+    # than checked. These boards' own bills go on top, because they are the most specific
+    # record there is.
+    fitted: dict[str, str | None] = dict(await store.recorded_manufacturers(user.org_id))
     for bom in boms.values():
         for row in bom:
-            if row.get("populated", True):
-                fitted.setdefault(row["mpn"], row.get("manufacturer"))
-    wanted = set(fitted) | set(body.candidates) | {notice["mpn"]}
+            if row.get("populated", True) and row.get("manufacturer"):
+                fitted[row["mpn"].upper()] = row["manufacturer"]
+    wanted = {row["mpn"] for bom in boms.values() for row in bom if row.get("populated", True)}
+    wanted |= set(body.candidates) | {notice["mpn"]}
 
     ordered = sorted(wanted)
     outcomes = await asyncio.gather(
-        *(matrix_api.resolve(mpn, fitted.get(mpn)) for mpn in ordered),
+        *(matrix_api.resolve(mpn, fitted.get(mpn.upper())) for mpn in ordered),
         return_exceptions=True,
     )
     specs: dict[str, PartSpec] = {}

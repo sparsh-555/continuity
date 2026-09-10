@@ -1588,6 +1588,45 @@ class Store:
             row = await cursor.fetchone()
         return row[0] if row else None
 
+    async def recorded_manufacturers(self, org_id: str) -> dict[str, str]:
+        """Who this company says makes each part it knows about, keyed by uppercased MPN.
+
+        Two records, and the bill wins where they disagree. The approved list is a
+        statement of what quality qualified; a bill is a statement of what is on a board
+        somebody ships, which is the stronger evidence and the one `manufacturer_of`
+        already relies on for a single part.
+
+        Read once per review rather than per candidate: it is two small reads of the
+        organisation's own tables, and a lookup per candidate would put a round trip in
+        front of every part in the catalogue leg.
+        """
+        recorded: dict[str, str] = {}
+        async with self.pool.connection() as conn:
+            # Written out rather than looped over a table name, so no identifier is
+            # interpolated into SQL even from a literal this module controls.
+            qualified = await (
+                await conn.execute(
+                    """
+                    SELECT mpn, manufacturer FROM approved_parts
+                     WHERE org_id = %s AND manufacturer IS NOT NULL AND manufacturer <> ''
+                    """,
+                    (org_id,),
+                )
+            ).fetchall()
+            fitted = await (
+                await conn.execute(
+                    """
+                    SELECT mpn, manufacturer FROM line_parts
+                     WHERE org_id = %s AND manufacturer IS NOT NULL AND manufacturer <> ''
+                    """,
+                    (org_id,),
+                )
+            ).fetchall()
+            # The bill last, so it wins.
+            for mpn, manufacturer in [*qualified, *fitted]:
+                recorded[mpn.upper()] = manufacturer
+        return recorded
+
     async def apply_substitution(
         self,
         *,

@@ -388,7 +388,11 @@ async def normalize(
     # so they run together. Serially they roughly doubled the time to place a part, and
     # a board is several parts deep.
     enrichment = asyncio.create_task(search.enrich(candidate.mpn))
-    live_stock = asyncio.create_task(search.live_stock(candidate.mpn))
+    # With the manufacturer, so the figure belongs to this listing rather than to
+    # whichever company's row the distributor returned first for the same number.
+    live_stock = asyncio.create_task(
+        search.live_stock(candidate.mpn, candidate.manufacturer)
+    )
     # A θJA cache is keyed by document text, which is not available until the fetch
     # completes. Do not probe it with an MPN: two revisions for one part are precisely
     # the stale-answer hazard the document identity removes.

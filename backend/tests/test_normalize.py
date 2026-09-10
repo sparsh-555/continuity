@@ -51,7 +51,7 @@ def no_live_stock_lookup(monkeypatch):
     """Keep existing normalisation tests offline unless they opt into this lookup."""
     actual_live_stock = normalize.search.live_stock
 
-    async def unavailable(_mpn):
+    async def unavailable(_mpn, _manufacturer=None):
         return None
 
     monkeypatch.setattr(normalize.search, "live_stock", unavailable)
@@ -428,7 +428,7 @@ def test_live_stock_replaces_indexed_stock_and_r6_fails_on_the_live_figure(monke
     monkeypatch.setattr(normalize.llm, "available", lambda: False)
     monkeypatch.setattr(normalize.search, "enrich", _plain)
 
-    async def live(_mpn):
+    async def live(_mpn, _manufacturer=None):
         return 19
 
     monkeypatch.setattr(normalize.search, "live_stock", live)
@@ -451,7 +451,7 @@ def test_a_live_stock_figure_of_zero_is_not_treated_as_missing(monkeypatch):
     monkeypatch.setattr(normalize.llm, "available", lambda: False)
     monkeypatch.setattr(normalize.search, "enrich", _plain)
 
-    async def live(_mpn):
+    async def live(_mpn, _manufacturer=None):
         return 0
 
     monkeypatch.setattr(normalize.search, "live_stock", live)
@@ -494,7 +494,7 @@ def test_live_lookup_starts_before_the_llm_returns(monkeypatch):
     monkeypatch.setattr(normalize.llm, "available", lambda: True)
     monkeypatch.setattr(normalize.search, "enrich", _plain)
 
-    async def live(_mpn):
+    async def live(_mpn, _manufacturer=None):
         events.append("live lookup started")
         await asyncio.sleep(0)
         return None
@@ -519,7 +519,7 @@ def test_live_stock_is_not_frozen_by_the_parse_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(normalize.llm, "complete_json", _model_reply)
     monkeypatch.setattr(normalize.search, "enrich", _plain)
 
-    async def live(mpn):
+    async def live(mpn, _manufacturer=None):
         calls.append(mpn)
         return next(values)
 

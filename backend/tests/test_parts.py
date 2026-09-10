@@ -47,8 +47,10 @@ def test_replay_without_a_recording_is_an_error_not_a_live_call(monkeypatch, tmp
         fixtures.require("jlc_search", {"query": "nothing recorded"})
 
 
-def test_a_recording_round_trips(monkeypatch, tmp_path):
-    monkeypatch.setattr(fixtures, "FIXTURE_DIR", tmp_path)
+def test_a_recording_round_trips(monkeypatch, scratch_recordings):
+    # Where `conftest` already sends every write, so a save and a load agree about the
+    # directory without either of them reaching the committed set.
+    monkeypatch.setattr(fixtures, "FIXTURE_DIR", scratch_recordings)
     fixtures.save("jlc_search", {"query": "ldo"}, {"results": [{"model": "AMS1117-3.3"}]})
 
     assert fixtures.require("jlc_search", {"query": "ldo"})["results"][0]["model"] == "AMS1117-3.3"
@@ -84,6 +86,50 @@ def test_live_stock_uses_the_exact_model_match_and_preserves_zero(monkeypatch):
 
     assert run(search.live_stock("MT3608")) == 0
     assert called == [("jlc_stock_check", {"query": "MT3608", "limit": 5})]
+
+
+def test_live_stock_belongs_to_the_manufacturer_that_was_asked_for(monkeypatch):
+    """One MPN, two companies, two inventories.
+
+    JLCPCB lists `TLV1117LV33DCYR` under Texas Instruments and under JSMSEMI, and the two
+    rows carry entirely different stock. Matching on the model alone reads whichever row
+    came back first, which is how an availability verdict about the part in hand came to be
+    computed from a different company's shelf. The recorded call is unchanged; only which
+    row is believed.
+    """
+    called = []
+
+    async def call_tool(tool, arguments):
+        called.append((tool, arguments))
+        return {
+            "results": [
+                {"model": "TLV1117LV33DCYR", "manufacturer": "JSMSEMI", "stock": 166_924},
+                {"model": "TLV1117LV33DCYR", "manufacturer": "Texas Instruments", "stock": 1_133},
+            ]
+        }
+
+    monkeypatch.setattr(mcp, "call_tool", call_tool)
+
+    assert run(search.live_stock("TLV1117LV33DCYR", "Texas Instruments")) == 1_133
+    assert run(search.live_stock("TLV1117LV33DCYR", "jsmsemi")) == 166_924
+    assert called[0] == ("jlc_stock_check", {"query": "TLV1117LV33DCYR", "limit": 5}), (
+        "the same recorded call, so every fixture stays valid"
+    )
+
+
+def test_live_stock_refuses_another_companys_shelf_rather_than_falling_back(monkeypatch):
+    """Naming a manufacturer and getting somebody else's number is worse than getting none:
+    the rule would report a figure with a source that is not the part's."""
+
+    async def call_tool(*_args):
+        return {"results": [{"model": "TLV1117LV33DCYR", "manufacturer": "JSMSEMI", "stock": 166_924}]}
+
+    monkeypatch.setattr(mcp, "call_tool", call_tool)
+
+    assert run(search.live_stock("TLV1117LV33DCYR", "Texas Instruments")) is None
+    assert run(search.live_stock("TLV1117LV33DCYR")) == 166_924, (
+        "asking without a manufacturer is unchanged"
+    )
 
 
 def test_live_stock_returns_none_on_a_tool_error(monkeypatch):
