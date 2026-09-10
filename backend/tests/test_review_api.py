@@ -22,6 +22,7 @@ import pytest
 from continuity.api import app as app_module
 from continuity import review
 from continuity.api import matrix as matrix_api
+from continuity.api import store as store_module
 from continuity.api.app import app
 from continuity.api.store import Store
 from tools.eol_differential import (
@@ -98,13 +99,20 @@ def bom_for(regulator, load_part):
 
 
 @asynccontextmanager
-async def a_company(store, *, qualified=QUALIFIED, vendors=("JLCPCB",)):
+async def a_company(store, *, qualified=QUALIFIED, vendors=("JLCPCB",), roles=None):
     """Three products carrying the retired part, and the two standing lists."""
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=120.0
     ) as http:
         await http.post(
             "/auth/register", json={"email": "run@example.com", "password": "a-good-password"}
+        )
+        me = (await http.get("/auth/me")).json()
+        # Every desk, on one person. A substitution now needs a signature from each
+        # department that examined it, and these tests are about the substitution rather
+        # than about the routing — which has its own tests below, with one desk each.
+        await store.add_user_to_organisation(
+            me["id"], me["org_id"], list(roles or store_module.ROLES)
         )
         me = (await http.get("/auth/me")).json()
         for line in LINES:
@@ -121,8 +129,11 @@ async def a_company(store, *, qualified=QUALIFIED, vendors=("JLCPCB",)):
                     "revision": "Rev C",
                 },
             )
-        await store.keep_lists(me["org_id"], aml=True, avl=True)
-        for mpn in qualified:
+        # `qualified=None` means the company keeps no approved-manufacturer list at all, so
+        # `part_qualification` never runs and quality never looks at the change. Different
+        # from an empty list, which keeps one and approves nobody.
+        await store.keep_lists(me["org_id"], aml=qualified is not None, avl=True)
+        for mpn in qualified or ():
             await store.qualify_part(me["org_id"], mpn, manufacturer=None, by=me["id"])
         # A kept list that approves nobody rejects everybody, which is the whole point of
         # `None` meaning "no list" and an empty list meaning "nothing is approved". Leaving
@@ -235,7 +246,9 @@ def test_an_approved_part_that_clears_the_board_beats_qualifying_a_new_one():
 
     assert gateway["proposal"] == TLV1117.mpn, "approved and clear wins"
     assert gateway["conditional"] is False
-    assert gateway["roles"] == ["engineering"]
+    assert set(gateway["roles"]) >= {"engineering", "procurement", "production"}, (
+        "nothing failed, and every department that examined the change still signs it"
+    )
 
 
 def test_the_decision_leaves_engineering_when_no_approved_part_clears():
@@ -484,24 +497,66 @@ def test_approving_writes_the_successful_precedent_that_was_never_written():
     assert [row["mpn"] for row in worked] == [TLV1117.mpn]
 
 
-def test_a_desk_that_does_not_own_the_decision_is_refused():
+def test_an_engineer_cannot_apply_a_change_procurement_has_not_signed():
     """The whole point of routing a decision. Who we buy from is procurement's alone, and
     an engineer has no standing to approve a source however good the part is.
 
+    **Changed 10 Sep, and the guarantee got stronger.** This used to assert a 403: the
+    decision belonged to procurement and an engineer could not touch it. Now every
+    department that examined the change signs it, so an engineer *can* sign — for
+    engineering — and the change still does not happen, because the desk that owns the
+    failure has not signed. The protection moved from *you may not answer* to *your answer
+    is not enough*, which is what a change board actually does.
+
     Qualification is deliberately not the case used here: `roles.py` addresses it to
-    engineering *and* quality, so an engineer can answer it — see DEFERRED on whether that
-    should need two signatures rather than either one.
+    engineering *and* quality, and both signing it is exactly the point of the test below.
     """
 
     async def go():
         async with a_store() as store:
             # A kept vendor list that approves nobody. Every part is then fine and from a
             # source procurement has not signed off.
-            async with a_company(store, vendors=[]) as (http, me, notice_id):
+            async with a_company(store, vendors=[], roles=["engineering"]) as (
+                http, me, notice_id,
+            ):
                 pending = await a_pending_decision(store, http, notice_id, me["org_id"])
                 gateway = pending["Gateway"]
                 assert gateway["gate_rule"] == "source_approval", "precondition"
-                assert gateway["roles"] == ["procurement"]
+                assert "procurement" in gateway["roles"]
+                answered = await http.post(
+                    f"/decisions/{gateway['id']}", json={"approve": True}
+                )
+                bom = (await http.get(f"/lines/{gateway['line_id']}/bom")).json()
+                line = (await http.get(f"/lines/{gateway['line_id']}")).json()
+                return gateway, answered.json(), bom, line
+
+    gateway, answered, bom, line = run(go())
+
+    assert answered["state"] == "pending", "signed, and not enough"
+    assert answered["signed"] == ["engineering"]
+    assert "procurement" in answered["outstanding"]
+
+    fitted = {row["refdes"]: row["mpn"] for row in bom}
+    assert fitted["u1"] != gateway["proposal"], "the board did not change"
+    assert line["revision"] == "Rev C", "and neither did the revision"
+
+
+def test_a_desk_that_examined_nothing_is_refused_outright():
+    """The 403 still exists, for somebody with no standing at all.
+
+    A company that keeps no approved-manufacturer list never runs `part_qualification`, so
+    quality never looked at this change and has nothing to sign. 403 and not 404, because
+    the caller can already see the decision.
+    """
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store, qualified=None, roles=["quality"]) as (
+                http, me, notice_id,
+            ):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                assert "quality" not in gateway["roles"], "precondition: quality did not look"
                 return await http.post(
                     f"/decisions/{gateway['id']}", json={"approve": True}
                 )
@@ -509,7 +564,7 @@ def test_a_desk_that_does_not_own_the_decision_is_refused():
     response = run(go())
 
     assert response.status_code == 403
-    assert "procurement" in response.json()["detail"]
+    assert "quality" in response.json()["detail"], "name what they hold"
 
 
 def test_a_decision_can_only_be_answered_once():
@@ -720,3 +775,105 @@ def test_a_line_that_has_never_been_reviewed_replays_nothing():
                 return (await http.get(f"/lines/{spare['id']}/reviews")).json()
 
     assert run(go()) == []
+
+
+def test_a_decision_waits_until_every_department_has_signed():
+    """The change board, in one test.
+
+    Each desk signs for itself and the bill does not move until the last one does. Until
+    10 September this was first-response: `roles.py` addresses `part_qualification` to
+    engineering *and* quality with the words *"it needs both"*, and whoever answered first
+    settled it.
+    """
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store, roles=["engineering"]) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                required = list(gateway["roles"])
+
+                first = (
+                    await http.post(f"/decisions/{gateway['id']}", json={"approve": True})
+                ).json()
+                mid_bom = (await http.get(f"/lines/{gateway['line_id']}/bom")).json()
+
+                # The same person, now holding the rest. In the demo world these are four
+                # people; here it is one client, and the endpoint only ever sees the desks
+                # a caller holds.
+                await store.add_user_to_organisation(
+                    me["id"], me["org_id"], list(store_module.ROLES)
+                )
+                last = (
+                    await http.post(f"/decisions/{gateway['id']}", json={"approve": True})
+                ).json()
+                bom = (await http.get(f"/lines/{gateway['line_id']}/bom")).json()
+                line = (await http.get(f"/lines/{gateway['line_id']}")).json()
+                signatures = await store.approvals_for_decision(gateway["id"], me["org_id"])
+                return required, first, mid_bom, last, bom, line, signatures, gateway
+
+    required, first, mid_bom, last, bom, line, signatures, gateway = run(go())
+
+    assert len(required) > 1, "precondition: more than one desk examined this change"
+
+    assert first["state"] == "pending"
+    assert first["signed"] == ["engineering"]
+    assert set(first["outstanding"]) == set(required) - {"engineering"}
+    assert {row["refdes"]: row["mpn"] for row in mid_bom}["u1"] != gateway["proposal"], (
+        "one signature does not change a released design"
+    )
+
+    assert last["state"] == "approved"
+    assert last["outstanding"] == []
+    assert {row["refdes"]: row["mpn"] for row in bom}["u1"] == gateway["proposal"]
+    assert line["revision"] == "Rev D"
+
+    # Two rows, and both name the revision the change produced rather than the one it left.
+    assert len(signatures) == 2
+    assert all(row["roles"] for row in signatures)
+    assert {role for row in signatures for role in row["roles"]} == set(required)
+
+
+def test_a_desk_cannot_sign_the_same_decision_twice():
+    """**Replaces the old `a decision can only be answered once`**, which asserted that the
+    second answer of any kind was refused. A decision now takes several answers on purpose;
+    what it must not take is the same desk answering twice, which would let one person
+    complete a set on their own."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store, roles=["engineering"]) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                first = await http.post(f"/decisions/{gateway['id']}", json={"approve": True})
+                second = await http.post(f"/decisions/{gateway['id']}", json={"approve": True})
+                return first, second
+
+    first, second = run(go())
+
+    assert first.json()["state"] == "pending"
+    assert second.status_code == 409
+    assert "already signed" in second.json()["detail"]
+    assert "waiting on" in second.json()["detail"], "and say who it is waiting for"
+
+
+def test_one_desk_declining_stops_the_change_without_waiting_for_the_others():
+    """A rejection is decisive where an approval is not. A change board does not hold a
+    refusal open until everybody else has agreed with it."""
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store, roles=["engineering"]) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                answered = await http.post(
+                    f"/decisions/{gateway['id']}",
+                    json={"approve": False, "rationale": "Not this quarter."},
+                )
+                bom = (await http.get(f"/lines/{gateway['line_id']}/bom")).json()
+                return gateway, answered.json(), bom
+
+    gateway, answered, bom = run(go())
+
+    assert answered["state"] == "declined"
+    assert {row["refdes"]: row["mpn"] for row in bom}["u1"] != gateway["proposal"]

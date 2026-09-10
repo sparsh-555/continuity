@@ -29,7 +29,7 @@ from typing import Any, Mapping, Sequence
 
 from .engine.models import Verdict
 from .matrix import Cell, Matrix
-from .roles import DEFAULT_DECISION_ROLES, by_department, decision_roles
+from .roles import by_department, desks_that_must_sign
 
 QUALIFIED_PART_COST = 1_281.0
 """Typical cost of resolving an end-of-life with a part already on the approved list.
@@ -371,20 +371,19 @@ def _departments_for(
 def _approvals_for(chosen: Cell | None, verdicts: Sequence[Verdict]) -> tuple[str, ...]:
     """Who has to sign this request.
 
-    Every desk that owns a failing rule — and **engineering when nothing failed at all**,
-    because a change to a released design is approved before it is implemented rather than
-    after. A request proposing a part and claiming nobody needs to sign it is not a lighter
-    process, it is an unauthorised change. A request with no proposal asks for nothing and
-    needs nobody: it is a finding, not a change.
+    **Every desk that examined the change**, which is what a change control board is: its
+    composition mirrors the change's blast radius. A request proposing a part and claiming
+    nobody needs to sign it is not a lighter process, it is an unauthorised change. A
+    request with no proposal asks for nothing and needs nobody: it is a finding, not a
+    change.
+
+    This returned the desks that owned a *failing* rule, falling back to engineering when
+    nothing failed — so every request in a world where the answer is good named engineering
+    alone, and the cross-team response the scenario asks about was invisible.
     """
-    owed = tuple(
-        dict.fromkeys(
-            role for v in verdicts if v.status == "failed" for role in decision_roles(v)
-        )
-    )
-    if owed or chosen is None:
-        return owed
-    return DEFAULT_DECISION_ROLES
+    if chosen is None:
+        return ()
+    return desks_that_must_sign(verdicts)
 
 
 def for_every_line(

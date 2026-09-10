@@ -50,6 +50,10 @@ export function useLineReview({
   const [reason, setReason] = useState('')
   const [question, setQuestion] = useState<LineQuestion | null>(null)
   const [settled, setSettled] = useState<'approved' | 'declined' | null>(null)
+  /** Which desks have signed and which have not, once anybody has signed. */
+  const [signatures, setSignatures] = useState<{ signed: string[]; outstanding: string[] } | null>(
+    null,
+  )
   const [applied, setApplied] = useState<string | null>(null)
   const [answering, setAnswering] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -123,6 +127,7 @@ export function useLineReview({
     setReason('')
     setQuestion(null)
     setSettled(null)
+    setSignatures(null)
     setApplied(null)
     setError(null)
   }, [])
@@ -182,7 +187,14 @@ export function useLineReview({
       setAnswering(true)
       try {
         const outcome = await answerDecision(question.decisionId, approve)
-        setSettled(outcome.state)
+        // Three outcomes now, not two. `pending` means this desk signed and the change is
+        // waiting on the others, so the question goes but nothing has been applied.
+        setSignatures(
+          outcome.signed || outcome.outstanding
+            ? { signed: outcome.signed ?? [], outstanding: outcome.outstanding ?? [] }
+            : null,
+        )
+        setSettled(outcome.state === 'pending' ? null : outcome.state)
         setQuestion(null)
         setApplied(
           outcome.state === 'approved' && outcome.mpn
@@ -217,6 +229,7 @@ export function useLineReview({
     reason,
     question,
     settled,
+    signatures,
     applied,
     answering,
     error,

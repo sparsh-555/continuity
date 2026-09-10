@@ -671,12 +671,23 @@ class Answer(BaseModel):
 async def answer_decision(
     decision_id: str, body: Answer, request: Request, user: User = Depends(current_user)
 ) -> dict[str, Any]:
-    """Approve a substitution and apply it, or decline it.
+    """Sign a substitution for one desk, applying it when the last desk signs. Or decline it.
 
-    **Authorisation is here, at the boundary.** The decision names the roles that may answer
-    it, and a person outside them is refused with a 403 rather than having their answer
-    quietly recorded — the whole point of routing a decision to a desk is that another desk
-    cannot sign it. 403 and not 404, because the caller can already see the decision.
+    **Authorisation is here, at the boundary.** The decision names the desks that must
+    answer it, and a person outside them is refused with a 403 rather than having their
+    answer quietly recorded — the whole point of routing a decision to a desk is that
+    another desk cannot sign it. 403 and not 404, because the caller can already see the
+    decision.
+
+    **Parallel and all-must-approve, not sequential.** Every required desk may sign at any
+    time and the change applies when the last one does. Sequential review adds a stage of
+    latency per desk, and those round trips are the thing this product exists to remove; a
+    first-response rule, which is what this was until 10 September, is unsafe wherever
+    separation of duties is required — and `part_qualification` is addressed to two desks
+    with the words *"it needs both"*.
+
+    **A decline settles immediately.** One desk refusing stops the change rather than
+    leaving it to time out against the others, which is how a change board works.
     """
     store = store_of(request)
     decision = await store.decision_for(decision_id, user.org_id)
@@ -685,11 +696,12 @@ async def answer_decision(
     if decision["state"] != "pending":
         raise HTTPException(409, f"that decision was already {decision['state']}")
 
-    allowed = set(decision["roles"] or ())
-    if allowed and not allowed.intersection(user.roles):
+    required = set(decision["roles"] or ())
+    signing = required.intersection(user.roles)
+    if required and not signing:
         raise HTTPException(
             403,
-            f"this decision belongs to {' or '.join(sorted(allowed))}. "
+            f"this decision belongs to {' and '.join(sorted(required))}. "
             f"You hold {', '.join(sorted(user.roles)) or 'no roles'}.",
         )
 
@@ -699,6 +711,44 @@ async def answer_decision(
             rationale=body.rationale or None,
         )
         return {"state": "declined", "line_id": decision["line_id"]}
+
+    already = await store.approvals_for_decision(decision_id, user.org_id)
+    signed = {role for row in already for role in (row["roles"] or ())}
+    if signing and signing <= signed:
+        raise HTTPException(
+            409,
+            f"{' and '.join(sorted(signing))} already signed this. "
+            f"It is waiting on {' and '.join(sorted(required - signed)) or 'nobody'}.",
+        )
+
+    # The signature first, then the question of whether it completes the set. Recorded as
+    # the desks it speaks *for* rather than every desk the person happens to hold, so the
+    # row says what was signed rather than who signed it, and against the revision the
+    # change produces rather than the one it is leaving — every desk signs the same Rev D.
+    proposed_revision = next_revision(decision["revision"]) or decision["revision"]
+    await store.record_approval(
+        org_id=user.org_id,
+        decision_id=decision_id,
+        line_id=decision["line_id"],
+        user_id=user.id,
+        user_email=user.email,
+        roles=sorted(signing or user.roles),
+        rule=decision["gate_rule"] or "substitution",
+        subject=decision["slot_id"],
+        mpn=decision["proposal"],
+        revision=proposed_revision,
+        rationale=body.rationale or decision["detail"],
+    )
+    outstanding = sorted(required - signed - signing)
+    if outstanding:
+        return {
+            "state": "pending",
+            "line_id": decision["line_id"],
+            "mpn": decision["proposal"],
+            "refdes": decision["slot_id"],
+            "signed": sorted(signed | signing),
+            "outstanding": outstanding,
+        }
 
     # Out of the run's own record rather than resolved again. The part that was evaluated
     # is the part being applied, and asking the distributor for it by number alone is
@@ -734,19 +784,6 @@ async def answer_decision(
         decision_id, user.org_id, state="approved", by=user.id,
         rationale=body.rationale or None,
     )
-    await store.record_approval(
-        org_id=user.org_id,
-        decision_id=decision_id,
-        line_id=decision["line_id"],
-        user_id=user.id,
-        user_email=user.email,
-        roles=sorted(user.roles),
-        rule=decision["gate_rule"] or "substitution",
-        subject=decision["slot_id"],
-        mpn=decision["proposal"],
-        revision=revision or decision["revision"],
-        rationale=body.rationale or decision["detail"],
-    )
     # The success half of memory, which has been missing since precedents were built. A
     # rejection is scoped to the board it happened on; a success is evidence anywhere in the
     # company that this part can do this job.
@@ -771,4 +808,6 @@ async def answer_decision(
         "mpn": decision["proposal"],
         "refdes": decision["slot_id"],
         "revision": revision or decision["revision"],
+        "signed": sorted(signed | signing),
+        "outstanding": [],
     }

@@ -32,7 +32,7 @@ from typing import Mapping, Sequence
 from .engine import rules
 from .engine.models import Board, PartSpec, Verdict
 from .matrix import substitute
-from .roles import ANSWERABLE_RULES, decision_roles
+from .roles import ANSWERABLE_RULES, decision_roles, desks_that_must_sign, roles_for_rule
 
 GATE_RULES = ANSWERABLE_RULES
 """Rules a department owns rather than physics. A failure here is a decision, not a wall.
@@ -105,7 +105,16 @@ class Proposal:
     """The department rule standing between the part and the board, when there is one.
 
     `None` means nothing failed and the approval is the ordinary one every released design
-    needs. A rule here means the part works and the decision belongs to another desk."""
+    needs. A rule here means the part works and one of the desks below has something to
+    accept rather than merely approve."""
+
+    @property
+    def owner_of_the_gate(self) -> tuple[str, ...]:
+        """The desk being asked to accept a failure, as opposed to the desks approving.
+
+        Empty when nothing failed, which is the ordinary case and reads as such.
+        """
+        return roles_for_rule(self.gate_rule) if self.gate_rule else ()
 
     @property
     def conditional(self) -> bool:
@@ -160,7 +169,15 @@ def choose(attempts: Sequence[Attempt], *, excluded: Mapping[str, str] | None = 
             margin = f", with {candidate.margin} to spare" if candidate.margin else ""
             return Proposal(
                 mpn=candidate.mpn,
-                roles=("engineering",),
+                # Every department that examined this change, not engineering by default.
+                # The standard the scenario is held to is the field's own: *any change to a
+                # released design must be approved before implementation, no exceptions*.
+                # A substitution affects design electrically, procurement commercially,
+                # production on the line and quality on the approved list, and a real change
+                # board is signed by all of them whether or not anything failed. Hardcoding
+                # engineering here meant a desk was consulted only when the answer was a
+                # compromise, and never when it was good.
+                roles=desks_that_must_sign(candidate.verdicts),
                 detail=f"Clears every check on this board{margin}.",
             )
 
@@ -169,7 +186,11 @@ def choose(attempts: Sequence[Attempt], *, excluded: Mapping[str, str] | None = 
             gate = candidate.gates[0]
             return Proposal(
                 mpn=candidate.mpn,
-                roles=tuple(decision_roles(gate)),
+                # The same desks, and one of them has something to accept rather than
+                # merely approve. `gate_rule` says which; `decision_roles(gate)` is the
+                # owner and is always among these, because a failed verdict is one the
+                # engine looked at.
+                roles=desks_that_must_sign(candidate.verdicts),
                 gate_rule=gate.rule,
                 detail=gate.detail,
             )

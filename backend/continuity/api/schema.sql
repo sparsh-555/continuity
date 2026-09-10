@@ -465,6 +465,11 @@ ALTER TABLE approvals ADD COLUMN IF NOT EXISTS line_id text
 
 CREATE INDEX IF NOT EXISTS approvals_line_idx ON approvals(line_id, created_at DESC);
 
+-- 10 Sep 2026. A decision now holds a signature per department rather than one answer, so
+-- answering reads back what has already been signed against it. Additive and idempotent,
+-- like everything else in this file.
+CREATE INDEX IF NOT EXISTS approvals_decision_idx ON approvals(decision_id);
+
 -- Added 8 Sep 2026. Where the mailbox poller got to, per organisation.
 --
 -- A UID rather than the \Seen flag. Marking messages read is the obvious way to remember

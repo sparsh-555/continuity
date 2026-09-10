@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ReasoningLine } from '../design/ReasoningLine'
+import { departmentLabel } from './Departments'
 import { ApiError, answerDecision, type ReviewFrame } from '../lib/api'
 import { runReview } from '../lib/reviewStream'
 
@@ -15,6 +16,8 @@ type Lane = {
   reason: string
   running: boolean
   settled: 'approved' | 'declined' | null
+  /** Which desks have signed and which have not, once anybody has. */
+  signatures: { signed: string[]; outstanding: string[] } | null
   applied: string | null
   error: string | null
 }
@@ -30,6 +33,7 @@ function fresh(lineId: string, name: string): Lane {
     reason: '',
     running: true,
     settled: null,
+    signatures: null,
     applied: null,
     error: null,
   }
@@ -171,8 +175,14 @@ export function ReviewLanes({
       setBusy(lane.lineId)
       try {
         const outcome = await answerDecision(lane.question.decisionId, approve)
+        // Three outcomes. `pending` means this desk signed and the change is waiting on the
+        // rest, so the question goes and nothing has been applied.
         update(lane.lineId, {
-          settled: outcome.state,
+          settled: outcome.state === 'pending' ? null : outcome.state,
+          signatures:
+            outcome.signed || outcome.outstanding
+              ? { signed: outcome.signed ?? [], outstanding: outcome.outstanding ?? [] }
+              : null,
           question: null,
           applied:
             outcome.state === 'approved' && outcome.mpn
@@ -297,8 +307,10 @@ export function ReviewLanes({
                     one thing on this page nobody should have to expand a row to find. */}
                 {lane.question ? (
                   <div className="px-md pb-md pl-[46px] space-y-sm">
+                    {/* **And**, not **or**: every department that examined the change
+                        signs it, so this is the list it needs rather than a choice. */}
                     <p className="font-data-tabular text-[10px] text-tertiary-container uppercase">
-                      {lane.question.roles.join(' or ')} decides
+                      {lane.question.roles.map(departmentLabel).join(' and ')} must sign
                     </p>
                     <p className="font-data-tabular text-[11px] text-on-surface leading-relaxed">
                       {lane.question.text}
@@ -310,7 +322,11 @@ export function ReviewLanes({
                         onClick={() => void answer(lane, true)}
                         type="button"
                       >
-                        {busy === lane.lineId ? 'APPLYING…' : 'APPROVE AND APPLY'}
+                        {busy === lane.lineId
+                          ? 'SIGNING…'
+                          : lane.question.roles.length > 1
+                            ? 'SIGN FOR MY DESK'
+                            : 'APPROVE AND APPLY'}
                       </button>
                       <button
                         className="h-7 px-md border border-outline-variant rounded font-data-tabular text-[10px] text-on-surface-variant hover:bg-surface-variant transition-colors disabled:opacity-40"
@@ -322,6 +338,15 @@ export function ReviewLanes({
                       </button>
                     </div>
                   </div>
+                ) : null}
+
+                {/* Signed, and waiting. In words, because which approvals are missing must
+                    not depend on a colour or a position. */}
+                {lane.signatures && lane.signatures.outstanding.length > 0 ? (
+                  <p className="px-md pb-sm pl-[46px] font-data-tabular text-[10px] text-tertiary-container leading-relaxed">
+                    Signed by {lane.signatures.signed.map(departmentLabel).join(' and ')}. Waiting
+                    on {lane.signatures.outstanding.map(departmentLabel).join(' and ')}.
+                  </p>
                 ) : null}
 
                 {lane.settled === 'declined' ? (

@@ -1586,6 +1586,26 @@ class Store:
                 )
         return True
 
+    async def approvals_for_decision(
+        self, decision_id: str, org_id: str
+    ) -> list[dict[str, Any]]:
+        """Every signature already given against one decision.
+
+        A decision needs one from each department that examined the change, so answering it
+        is a read of what is already there rather than a single write. `decisions.state`
+        stays the record of the outcome; these are the record of who got there.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT id, user_id, user_email, roles, rationale, created_at
+                  FROM approvals WHERE decision_id = %s AND org_id = %s
+              ORDER BY created_at
+                """,
+                (decision_id, org_id),
+            )
+            return [dict(row) for row in await cursor.fetchall()]
+
     async def approvals_for_line(self, line_id: str, org_id: str) -> list[dict[str, Any]]:
         """Who signed what on this product line. The audit trail an ECO process asks for."""
         async with self.pool.connection() as conn:

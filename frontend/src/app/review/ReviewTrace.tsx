@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { ReasoningLine } from '../design/ReasoningLine'
 import type { LineCheck, LineRequest } from '../lib/api'
 import type { EventStatus } from '../lib/types'
-import { DepartmentBlock, groupByDepartment } from './Departments'
+import { DepartmentBlock, departmentLabel, groupByDepartment } from './Departments'
 import type { LineReview, TraceItem } from './useLineReview'
 
 /** How a check reads once it has an answer.
@@ -247,11 +247,14 @@ export function ReviewTrace({
               <p className="font-body-sm text-body-sm text-on-surface leading-relaxed">
                 {review.question.text}
               </p>
-              {/* Whose it is, before the buttons. The server refuses an answer from the
-                  wrong desk, and being told that after pressing approve is too late. */}
+              {/* Whose it is, before the buttons. The server refuses an answer from a desk
+                  with no standing here, and being told that after pressing approve is too
+                  late. **And** rather than **or**: a substitution on a released design is
+                  signed by every department that examined it, so this is the list of
+                  people it needs, not a choice between them. */}
               {review.question.roles.length > 0 ? (
                 <p className="font-data-tabular text-[10px] text-on-surface-variant uppercase">
-                  {review.question.roles.join(' or ')} decides
+                  {review.question.roles.map(departmentLabel).join(' and ')} must sign
                 </p>
               ) : null}
               <div className="flex gap-sm">
@@ -261,7 +264,11 @@ export function ReviewTrace({
                   onClick={() => void review.answer(true)}
                   type="button"
                 >
-                  {review.answering ? 'APPLYING…' : 'APPROVE AND APPLY'}
+                  {review.answering
+                    ? 'SIGNING…'
+                    : review.question.roles.length > 1
+                      ? 'SIGN FOR MY DESK'
+                      : 'APPROVE AND APPLY'}
                 </button>
                 <button
                   className="h-7 px-md border border-outline-variant rounded font-data-tabular text-[10px] text-on-surface-variant hover:bg-surface-variant transition-colors disabled:opacity-40"
@@ -274,6 +281,15 @@ export function ReviewTrace({
               </div>
             </div>
           </div>
+        ) : null}
+
+        {/* Signed, and not enough. Words rather than a colour or a position, because which
+            approvals are missing has to survive greyscale and a projector. */}
+        {review.signatures && review.signatures.outstanding.length > 0 ? (
+          <p className="font-data-tabular text-[11px] text-tertiary-container px-sm py-2 leading-relaxed">
+            Signed by {review.signatures.signed.map(departmentLabel).join(' and ')}. Waiting on{' '}
+            {review.signatures.outstanding.map(departmentLabel).join(' and ')}.
+          </p>
         ) : null}
 
         {review.applied ? (

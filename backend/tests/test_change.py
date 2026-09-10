@@ -146,23 +146,30 @@ def test_the_unit_delta_is_measured_against_the_part_fitted_today():
 # ── who has to sign ───────────────────────────────────────────────────────────
 
 
-def test_a_clean_proposal_still_needs_engineering_to_sign_it():
-    """**Changed 8 Sep.** This asserted that a request with nothing failing asks nobody to
-    approve anything, on the reasoning that manufacturing an approver wastes an afternoon.
+def test_a_clean_proposal_is_signed_by_every_department_that_examined_it():
+    """**Changed 8 Sep, then again 10 Sep.**
 
-    That is the wrong reading of the framing this product adopted. A change to a released
-    design is approved before it is implemented, never after — SCENARIO-B quotes the most
-    common audit finding in the field on exactly this — and a request proposing a part while
-    claiming nobody needs to sign it is not a lighter process, it is an unauthorised change.
-    Engineering is not an invented approver; it is the design authority.
+    On 8 Sep this stopped asserting that a request with nothing failing asks nobody to
+    approve anything: a change to a released design is approved before it is implemented,
+    never after, and SCENARIO-B quotes the field's most common audit finding on exactly
+    that.
 
-    The concern that produced the old test still holds and is still tested below: a request
-    with *no* proposal asks for nothing and needs nobody.
+    On 10 Sep it stopped asserting `("engineering",)`. That was the desks owning a *failing*
+    rule, falling back to engineering when nothing failed — so in a world where the answer
+    is good, every request named one desk and the cross-team response the topic asks about
+    appeared nowhere. A change control board's composition mirrors the change's blast
+    radius, and this is that radius.
+
+    The concern that produced the original test still holds and is still tested below: a
+    request with *no* proposal asks for nothing and needs nobody.
     """
     [request] = [r for r in requests(prefer=[LD1117.mpn]) if r.line_id == "A"]
 
     assert request.viable
-    assert request.approvals_required == ("engineering",)
+    assert set(request.approvals_required) >= {"engineering", "procurement", "production"}
+    assert request.approvals_required == tuple(d.role for d in request.departments), (
+        "the desks that must sign are exactly the desks the document reports on"
+    )
 
 
 def test_a_request_with_no_proposal_asks_nobody_for_anything():

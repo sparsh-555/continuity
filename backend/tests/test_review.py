@@ -88,8 +88,14 @@ def test_a_part_nobody_can_buy_is_procurements_call_rather_than_a_wall():
 
     proposal = review.choose([made])
     assert proposal is not None, "a gated candidate is still a proposal"
-    assert proposal.roles == ("procurement",)
     assert proposal.gate_rule == "availability"
+    assert proposal.owner_of_the_gate == ("procurement",), (
+        "procurement is the desk being asked to accept the shortfall"
+    )
+    assert "procurement" in proposal.roles
+    assert set(proposal.roles) > {"procurement"}, (
+        "and the other desks that examined the change still sign it"
+    )
 
 
 def test_a_package_that_does_not_fit_is_productions_call():
@@ -109,7 +115,7 @@ def test_a_package_that_does_not_fit_is_productions_call():
         )
         assert made.gated, f"{rule} is a board revision somebody signs for"
         assert not made.physical
-        assert review.choose([made]).roles == ("production",)
+        assert review.choose([made]).owner_of_the_gate == ("production",)
 
 
 def test_arithmetic_is_still_a_wall_after_widening_the_gates():
@@ -131,15 +137,31 @@ def test_a_qualified_part_that_clears_everything_is_clear():
 # ── who is asked ──────────────────────────────────────────────────────────────
 
 
-def test_a_clear_part_is_proposed_and_engineering_signs_it():
+def test_a_clear_part_is_proposed_and_every_department_that_looked_signs_it():
     """Approved before implementation, never after — a released design is not changed by
-    a tool on its own."""
+    a tool on its own.
+
+    **Changed 10 Sep.** This asserted `("engineering",)`, which was hardcoded into `choose`
+    and meant a department was consulted only when the answer was a compromise. The
+    assigned scenario is about how three departments coordinate, and every change request
+    named one desk. A substitution on a shipping product affects design electrically,
+    procurement commercially, production on the line and quality on the approved list.
+    """
     proposal = review.choose(attempts_on(gateway(approved=QUALIFIED), [TLV1117]))
 
     assert proposal.mpn == TLV1117.mpn
-    assert proposal.roles == ("engineering",)
     assert proposal.gate_rule is None
-    assert not proposal.conditional
+    assert not proposal.conditional, "nothing failed, so nobody is accepting anything"
+
+    assert set(proposal.roles) >= {"engineering", "procurement", "production"}, (
+        "the three departments the topic names all examined this change"
+    )
+    assert proposal.roles == tuple(
+        role
+        for role in ("engineering", "procurement", "production", "quality")
+        if role in proposal.roles
+    ), "in the one order every surface renders them in"
+    assert proposal.owner_of_the_gate == (), "nothing failed, so no desk is being asked to accept"
 
 
 def test_the_decision_leaves_engineering_when_only_a_department_rule_stands():

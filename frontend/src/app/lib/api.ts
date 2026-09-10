@@ -189,11 +189,17 @@ export type ReviewFrame =
   | { type: 'error'; seq: number; line_id: string | null; message: string; recoverable: boolean }
 
 export type DecisionAnswer = {
-  state: 'approved' | 'declined'
+  /** `pending` means this desk signed and the change is waiting on the others. A
+   *  substitution on a released design is signed by every department that examined it, in
+   *  any order, and applies when the last one signs. */
+  state: 'approved' | 'declined' | 'pending'
   line_id: string
   mpn?: string
   refdes?: string
   revision?: string | null
+  /** Desks that have signed so far, and desks still to sign. Empty on a decline. */
+  signed?: string[]
+  outstanding?: string[]
 }
 
 export type LinePart = {
