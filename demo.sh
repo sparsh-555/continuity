@@ -148,16 +148,19 @@ else
 fi
 
 recorded=$(ls "$ROOT"/backend/fixtures/*.json 2>/dev/null | wc -l | tr -d ' ')
+notices_recorded=$(ls "$ROOT"/backend/fixtures/notice_read.*.json 2>/dev/null | wc -l | tr -d ' ')
 if [ "$FIXTURES" = 1 ]; then
   if [ "${recorded:-0}" -gt 0 ]; then
-    ok "$recorded recorded distributor calls — replaying, not calling out"
+    ok "$recorded recorded calls — replaying, not calling out"
+    note "$notices_recorded of them are notice readings; a notice nobody recorded is refused, not fetched"
   else
-    warn "no recordings in backend/fixtures — every distributor call will fail"
+    warn "no recordings in backend/fixtures — every outward call will fail"
     note "./demo.sh --live records them as it goes"
   fi
 else
-  warn "--live: every distributor call goes to the network and is recorded as it goes"
+  warn "--live: every outward call goes to the network and is recorded as it goes"
   note "a review took over 140 s live on 10 Sep and under 1 s replayed"
+  note "reading a notice took 1903 ms live and 7 ms replayed, with the same reading"
 fi
 
 if docker info >/dev/null 2>&1; then
@@ -182,8 +185,12 @@ fi
 # Both ports, before anything is written rather than after. Rebuilding the world is
 # the first thing this script does that cannot be undone, and finding out afterwards
 # that a run is already up would mean losing a world to a message about a port.
+# `-sTCP:LISTEN`, because a *connection* to this port is not this port being taken. A
+# browser that had the app open leaves a socket behind for a while after the server goes,
+# and without the filter the next start refuses with "close whatever holds it" pointing at
+# Chrome. Only something listening can stop us binding.
 for port in "$API_PORT" "$UI_PORT"; do
-  if lsof -ti tcp:"$port" >/dev/null 2>&1; then
+  if lsof -ti tcp:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
     die "port $port is in use — ./demo.sh --stop, or close whatever holds it"
   fi
 done
