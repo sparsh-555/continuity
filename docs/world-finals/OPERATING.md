@@ -377,6 +377,7 @@ scoped to `src`. Playwright specs are not bun tests.
 | BOARD takes three seconds again on the same page | Fixed 10 Sep. Placements are remembered for the session; a second **PLACING…** for a board already placed means an old build |
 | The board crops are empty, caption and border still there | Fixed 10 Sep. The SVG's blob URL was revoked by an effect cleanup a remount did not repeat. `net::ERR_FILE_NOT_FOUND` in the console names it |
 | A reviewed line shows a verdict but no trace | The API predates `/lines/:id/reviews`. Restart it |
+| `/changes` shows no lanes on a notice that was reviewed | The API predates `/notices/:id/reviews`, or the run predates the `decisions` rows that back it. Restart it, then **RUN IT AGAIN** once |
 | Two identical notices in the drawer | Both forwarded and uploaded, or a reseed re-read the mailed message |
 | `no matching manifest for linux/arm64` | The `--platform linux/amd64` flag is missing |
 | A notice upload fails saying `no fixture for notice_read` | That document has never been read **under this prompt**. Changing `notices.SYSTEM` restages every recording. `./demo.sh --live`, forward it once, and it replays from then on |

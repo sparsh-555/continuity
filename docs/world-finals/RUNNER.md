@@ -138,6 +138,7 @@ demonstrate a third, run `./demo.sh --live` and forward it once.
 **Do.** Press **START THE REVIEW**. Type nothing into **TRY A PARTICULAR PART TOO**.
 
 - [ ] Discovery is said once, above the lanes, rather than three times.
+- [ ] **Leave the page and come back.** `/lines` and then `/changes` again: the three lanes, their traces and their questions are all still there, with nothing pressed and nothing re-run. An empty review where a run had been is a bug — that was the state until 11 September.
 - [ ] Three lanes advance together, one row per product, each showing the newest thing that board has said and its state. Replayed they finish in about a quarter of a second.
 - [ ] The three answers are these three, and they stop in two different places:
 

@@ -227,6 +227,8 @@ The three product lines run **concurrently on one stream** (`api/review.py`). On
 because browsers cap around six connections per origin and three sequence spaces would race,
 and the client drops anything at or below its high-water mark.
 
+**A review outlives the page it ran on.** `GET /notices/{id}/reviews` rebuilds each decision's trace from what the run wrote down — the same assembly `/lines/{id}/reviews` serves per product, keyed by notice — and a pending decision comes back with the question the run asked, so a replay can be answered rather than only read. **Both paths reduce through one function** (`review/laneState.ts`), so a hydrated lane and a live one cannot drift; `api/replay.frames_from` marks which frames belong to a board and leaves the two notice-level opening lines unmarked, because the part is retired on every board and the run says that once.
+
 **One review, two surfaces.** `POST /notices/{id}/review/run` takes an optional `line_id`,
 and that is the only difference between the two places a review is started from: `/changes`
 asks the question about the whole company, and a product line page asks it about itself.

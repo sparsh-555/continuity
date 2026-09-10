@@ -212,6 +212,16 @@ Worth saying out loud only if a judge asks how the tool handles a part retiring 
 small beat and it is honest: the number is read from the document under the same rule as every
 other field, so it has a line to point at.
 
+### Step 5b · The review is still there tomorrow
+
+Worth knowing rather than saying, unless a judge asks what happens when you close the tab.
+
+Leave `/changes` mid-review and come back: the lanes, their traces and their questions are
+all still on the page, with nothing re-run. The same is true of a notice reviewed yesterday —
+which matters for the demo's own premise, because a change that takes four signatures is not
+something anybody watches from start to finish in one sitting. The desks who have not signed
+will open it later, and what they see is the run that produced the question they are answering.
+
 ### Step 9a · What each desk owes
 
 Switch desk from the rail and open **Waiting on you**. This is the other half of removing the
