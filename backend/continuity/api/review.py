@@ -96,7 +96,7 @@ class ReviewRun(BaseModel):
     two surfaces cannot drift into disagreeing about what a review is."""
 
 
-def _decision_text(line_name: str, proposal: review.Proposal) -> str:
+def decision_text(line_name: str, proposal: review.Proposal) -> str:
     """What the person being asked is actually deciding.
 
     A conditional proposal leads with the fact that the part works, because the desk being
@@ -473,7 +473,7 @@ async def _run_line(
         line_id,
         stream.question(
             question_id=f"decision:{decision_id}",
-            text=_decision_text(line_name, proposal),
+            text=decision_text(line_name, proposal),
             suggestions=("Approve and apply", "Leave it"),
             roles=proposal.roles,
         ),

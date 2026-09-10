@@ -2,72 +2,24 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ReasoningLine } from '../design/ReasoningLine'
 import { departmentLabel } from './Departments'
-import { ApiError, answerDecision, type ReviewFrame } from '../lib/api'
+import {
+  ApiError,
+  answerDecision,
+  noticeReviews,
+  type NoticeReview,
+  type ReviewFrame,
+} from '../lib/api'
 import type { EventStatus } from '../lib/types'
 import { runReview } from '../lib/reviewStream'
-
-type LaneCheck = Pick<Extract<ReviewFrame, { type: 'check' }>,
-  'rule' | 'scope' | 'status' | 'detail' | 'margin' | 'departments' | 'accepted'>
-type LaneTraceItem = { kind: 'said'; text: string } | ({ kind: 'check' } & LaneCheck)
-
-export type Lane = {
-  lineId: string
-  name: string
-  /** Everything this board's run said, in stream order. The expansion is evidence, so
-   * candidate A and its verdict must not be separated by candidate B's narration. */
-  trace: LaneTraceItem[]
-  question: { decisionId: string; text: string; roles: string[] } | null
-  proposal: string | null
-  conditional: boolean
-  reason: string
-  running: boolean
-  settled: 'approved' | 'declined' | null
-  /** Which desks have signed and which have not, once anybody has. */
-  signatures: { signed: string[]; outstanding: string[] } | null
-  applied: string | null
-  error: string | null
-}
-
-export function fresh(lineId: string, name: string): Lane {
-  return {
-    lineId,
-    name,
-    trace: [],
-    question: null,
-    proposal: null,
-    conditional: false,
-    reason: '',
-    running: true,
-    settled: null,
-    signatures: null,
-    applied: null,
-    error: null,
-  }
-}
-
-/** The line-scoped frames that are evidence rather than control flow. `ReviewLanes` used to
- * drop both, so the company view stated three outcomes without showing how any was reached. */
-export function withReviewFrame(
-  lane: Lane,
-  frame: Extract<ReviewFrame, { type: 'candidate' | 'check' }>,
-): Lane {
-  if (frame.type === 'candidate') {
-    return { ...lane, trace: [...lane.trace, { kind: 'said', text: `Trying ${frame.part.mpn}.` }] }
-  }
-  return {
-    ...lane,
-    trace: [...lane.trace, {
-      kind: 'check',
-      rule: frame.rule,
-      scope: frame.scope,
-      status: frame.status,
-      detail: frame.detail,
-      margin: frame.margin,
-      departments: frame.departments,
-      accepted: frame.accepted,
-    }],
-  }
-}
+import {
+  emptyLanes,
+  lanesFromReview,
+  reduceFrame,
+  type Lane,
+  type LaneState,
+  type LaneCheck,
+  type LaneTraceItem,
+} from './laneState'
 
 const CHECK_MARK: Record<EventStatus, { icon: string; tone: string }> = {
   satisfied: { icon: 'check_circle', tone: 'text-[#4ade80]' },
@@ -152,8 +104,9 @@ export function ReviewLanes({
   /** A product line changed, so anything showing it is stale. */
   onApplied?: (lineId: string) => void
 }) {
-  const [lanes, setLanes] = useState<Lane[]>([])
-  const [preamble, setPreamble] = useState<string[]>([])
+  /** One state object rather than five, because the reducer owns the whole of it. */
+  const [state, setState] = useState<LaneState>(emptyLanes)
+  const { lanes, preamble } = state
   const [open, setOpen] = useState<Set<string>>(new Set())
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -162,80 +115,57 @@ export function ReviewLanes({
 
   useEffect(() => () => abort.current?.(), [])
 
-  const update = useCallback((lineId: string, change: Partial<Lane>) => {
-    setLanes((current) =>
-      current.map((lane) => (lane.lineId === lineId ? { ...lane, ...change } : lane)),
-    )
-  }, [])
-
-  const say = useCallback((lineId: string, text: string) => {
-    setLanes((current) =>
-      current.map((lane) =>
-        lane.lineId === lineId
-          ? { ...lane, trace: [...lane.trace, { kind: 'said', text }] }
-          : lane,
+  const patch = useCallback((lineId: string, change: Partial<Lane>) => {
+    setState((current) => ({
+      ...current,
+      lanes: current.lanes.map((lane) =>
+        lane.lineId === lineId ? { ...lane, ...change } : lane,
       ),
-    )
-  }, [])
-
-  const record = useCallback((lineId: string, frame: Extract<ReviewFrame, { type: 'candidate' | 'check' }>) => {
-    setLanes((current) =>
-      current.map((lane) => (lane.lineId === lineId ? withReviewFrame(lane, frame) : lane)),
-    )
+    }))
   }, [])
 
   const start = useCallback(() => {
     abort.current?.()
-    setLanes([])
-    setPreamble([])
+    setState(emptyLanes)
     setOpen(new Set())
     setError(null)
     setRunning(true)
 
     abort.current = runReview(
       { noticeId, candidates },
-      (frame: ReviewFrame) => {
-        switch (frame.type) {
-          case 'review_started':
-            setLanes(frame.lines.map((line) => fresh(line.line_id, line.name)))
-            break
-          case 'reasoning':
-            if (frame.line_id) say(frame.line_id, frame.text)
-            else setPreamble((current) => [...current, frame.text])
-            break
-          case 'candidate':
-          case 'check':
-            record(frame.line_id, frame)
-            break
-          case 'question':
-            update(frame.line_id, {
-              question: {
-                decisionId: frame.question_id.replace(/^decision:/, ''),
-                text: frame.text,
-                roles: frame.roles,
-              },
-            })
-            break
-          case 'line_done':
-            update(frame.line_id, {
-              running: false,
-              proposal: frame.proposal,
-              conditional: frame.conditional,
-              reason: frame.reason,
-            })
-            break
-          case 'error':
-            if (frame.line_id) update(frame.line_id, { error: frame.message, running: false })
-            else setError(frame.message)
-            break
-          default:
-            break
-        }
-      },
+      // Every frame goes through the same reducer a replay uses, so a running review and a
+      // read-back one cannot come to mean different things on the way to the screen.
+      (frame: ReviewFrame) => setState((current) => reduceFrame(current, frame)),
       setError,
       () => setRunning(false),
     )
-  }, [candidates, noticeId, record, say, update])
+  }, [candidates, noticeId])
+
+  /**
+   * Coming back to a notice shows the review that ran, not just its conclusions.
+   *
+   * The run is assembled from stored frames through the same reducer the live stream uses.
+   * It is a read, so it never starts a run and never overwrites one: a live run or a second
+   * `RUN IT AGAIN` replaces the hydration exactly as it replaces a finished live run.
+   */
+  useEffect(() => {
+    let active = true
+    noticeReviews(noticeId)
+      .then((rows: NoticeReview[]) => {
+        if (!active || rows.length === 0) return
+        setState((current) =>
+          // A run that started while this was in flight owns the screen now.
+          current.lanes.length > 0 ? current : lanesFromReview(rows),
+        )
+      })
+      .catch(() => {
+        // A replay that cannot be read is not an error worth a banner: the page still has
+        // its notices and its change requests, and RUN IT AGAIN is still there.
+      })
+    return () => {
+      active = false
+    }
+  }, [noticeId])
 
   const answer = useCallback(
     async (lane: Lane, approve: boolean) => {
@@ -245,7 +175,7 @@ export function ReviewLanes({
         const outcome = await answerDecision(lane.question.decisionId, approve)
         // Three outcomes. `pending` means this desk signed and the change is waiting on the
         // rest, so the question goes and nothing has been applied.
-        update(lane.lineId, {
+        patch(lane.lineId, {
           settled: outcome.state === 'pending' ? null : outcome.state,
           signatures:
             outcome.signed || outcome.outstanding
@@ -261,7 +191,7 @@ export function ReviewLanes({
         })
         if (outcome.state === 'approved') onApplied?.(lane.lineId)
       } catch (caught) {
-        update(lane.lineId, {
+        patch(lane.lineId, {
           // The server's own sentence. A 403 here names the desk that owns the decision,
           // which is the only useful thing it could say.
           error:
@@ -273,7 +203,7 @@ export function ReviewLanes({
         setBusy(null)
       }
     },
-    [onApplied, update],
+    [onApplied, patch],
   )
 
   const toggle = (lineId: string) =>

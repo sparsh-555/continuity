@@ -54,6 +54,16 @@ test('a delivered notice announces itself and refreshes rows and an open product
   await expect(page.getByText(/^Trying .+\.$/).first()).toBeVisible()
   await expect(page.getByText(/SATISFIED · thermal dissipation/).first()).toBeVisible()
 
+  // **Leaving and coming back shows the review that ran.** Lane state used to be component
+  // state, so navigating away abandoned the run and returning showed the stored change
+  // requests where the trace had been. Nothing is pressed here and nothing is re-run: the
+  // lanes are rebuilt from what the run wrote down, with the questions still answerable.
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'RUN IT AGAIN' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('AMS1117-3.3 is going end of life.')).toBeVisible()
+  await expect(page.getByRole('button', { name: /Sensor node/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'SIGN FOR MY DESK' }).first()).toBeVisible()
+
   await line.reload()
   await expect(line.getByRole('button', { name: 'BOARD' })).toBeVisible()
   await line.getByRole('button', { name: 'BOARD' }).click()

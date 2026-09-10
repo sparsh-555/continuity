@@ -32,13 +32,25 @@ from typing import Any, Mapping, Sequence
 from ..roles import roles_for_rule
 
 
-def _said(text: str) -> dict[str, Any]:
-    return {"type": "reasoning", "text": text, "slot": None}
+def _said(text: str, line_id: str | None = None) -> dict[str, Any]:
+    """One narration line. `line_id` says whose it is, and its absence is a statement.
+
+    **The notice is stated once and the boards are stated each.** The two opening lines —
+    what is retiring and what the notice recommends — are true of every affected product, and
+    the live run says them above the lanes rather than three times inside them. The lines
+    that follow name a board, and belong to it. A company view replaying three decisions has
+    to be able to tell those apart, and guessing from position would break the moment the
+    preamble gained a line.
+    """
+    frame: dict[str, Any] = {"type": "reasoning", "text": text, "slot": None}
+    if line_id is not None:
+        frame["line_id"] = line_id
+    return frame
 
 
-def _check(verdict: Mapping[str, Any]) -> dict[str, Any]:
+def _check(verdict: Mapping[str, Any], line_id: str | None = None) -> dict[str, Any]:
     rule = verdict.get("rule", "")
-    return {
+    frame = {
         "type": "check",
         "rule": rule,
         "scope": verdict.get("scope"),
@@ -50,6 +62,10 @@ def _check(verdict: Mapping[str, Any]) -> dict[str, Any]:
         # existed replays with them and cannot disagree with the live stream.
         "departments": list(roles_for_rule(rule)),
     }
+    if line_id is not None:
+        frame["line_id"] = line_id
+    # `frame` is a dict of mixed value types; the literal above is the contract.
+    return frame
 
 
 def frames_from(notice: Mapping[str, Any], decision: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -61,6 +77,7 @@ def frames_from(notice: Mapping[str, Any], decision: Mapping[str, Any]) -> list[
     """
     document = decision.get("document") or {}
     line_name = document.get("line_name") or "this product line"
+    line_id = decision.get("line_id")
     attempts: Sequence[Mapping[str, Any]] = document.get("attempts") or []
     proposal = decision.get("proposal")
 
@@ -71,7 +88,7 @@ def frames_from(notice: Mapping[str, Any], decision: Mapping[str, Any]) -> list[
         )
     slot = (decision.get("slot_id") or "").upper()
     if slot:
-        frames.append(_said(f"{notice['mpn']} sits at {slot} on the {line_name}."))
+        frames.append(_said(f"{notice['mpn']} sits at {slot} on the {line_name}.", line_id))
 
     for attempt in attempts:
         mpn = attempt.get("mpn")
@@ -80,27 +97,28 @@ def frames_from(notice: Mapping[str, Any], decision: Mapping[str, Any]) -> list[
             # against, and it was never a candidate. Narrating it as one would say the run
             # considered replacing the part with itself.
             continue
-        frames.append(_said(f"Trying {mpn}."))
+        frames.append(_said(f"Trying {mpn}.", line_id))
         if attempt.get("narration"):
-            frames.append(_said(attempt["narration"]))
+            frames.append(_said(attempt["narration"], line_id))
 
     chosen = next((a for a in attempts if a.get("mpn") == proposal), None)
     for verdict in (chosen or {}).get("verdicts") or []:
-        frames.append(_check(verdict))
+        frames.append(_check(verdict, line_id))
 
     # The run's own ending, in the frame the reducer already knows. Without it a replayed
     # review reached `done` with no proposal, and a finished run that had chosen a part and
     # had it approved rendered as **NO VIABLE PART** — the loudest possible way to be wrong
     # about a board that shipped.
-    frames.append(
-        {
-            "type": "line_done",
-            "line_name": line_name,
-            "proposal": proposal,
-            "decision_id": decision.get("id"),
-            "reason": decision.get("detail") or "",
-            "conditional": bool(decision.get("gate_rule")),
-            "roles": list(decision.get("roles") or ()),
-        }
-    )
+    ending = {
+        "type": "line_done",
+        "line_name": line_name,
+        "proposal": proposal,
+        "decision_id": decision.get("id"),
+        "reason": decision.get("detail") or "",
+        "conditional": bool(decision.get("gate_rule")),
+        "roles": list(decision.get("roles") or ()),
+    }
+    if line_id is not None:
+        ending["line_id"] = line_id
+    frames.append(ending)
     return frames

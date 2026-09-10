@@ -963,6 +963,102 @@ def test_retired_not_assessed_status_is_absent_from_trace_and_document():
     assert all("not_assessed" not in request for request in requests)
 
 
+def test_a_notice_replays_the_review_it_started():
+    """P6. Leaving `/changes` used to lose the run and coming back showed only documents.
+
+    The frames here are the ones the run already wrote down, reassembled by `api/replay` —
+    no new storage and nothing invented. What the endpoint adds is the path: `frames_from`
+    is per decision, and the page that starts a company-wide run is keyed by notice.
+    """
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, notice_id):
+                await frames_of(http, notice_id)
+                return (await http.get(f"/notices/{notice_id}/reviews")).json()
+
+    rows = run(go())
+
+    assert rows, "the review left decisions behind"
+    assert {row["line_name"] for row in rows} == {
+        "Sensor node", "Gateway", "Cabinet controller"
+    }
+    for row in rows:
+        assert row["decision_id"] and row["line_id"]
+        assert row["proposal"], "a replayed decision still names what it chose"
+        assert row["frames"], "and carries the working that reached it"
+        assert row["frames"][-1]["type"] == "line_done", (
+            "a lane that never ends renders as still running"
+        )
+        assert all(frame["type"] != "not_assessed" for frame in row["frames"])
+
+
+def test_a_pending_decision_replays_with_the_question_it_asked():
+    """A replay that showed a verdict with no way to answer it would be a dead end.
+
+    The sentence is rebuilt by the same function the run used, so a replay re-raises the
+    identical question rather than a second phrasing of it, and it carries the desks that
+    have to answer.
+    """
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, notice_id):
+                await frames_of(http, notice_id)
+                return (await http.get(f"/notices/{notice_id}/reviews")).json()
+
+    rows = run(go())
+    gateway = next(row for row in rows if row["line_name"] == "Gateway")
+
+    assert gateway["state"] == "pending", "the Gateway stops on procurement"
+    assert gateway["gate_rule"] == "availability"
+
+    # **Every decision waits on its desks, not only the gated one.** A substitution needs a
+    # signature from each department that examined it, so all three are pending until four
+    # people have answered — and all three have a question to re-raise.
+    for row in rows:
+        assert row["state"] == "pending", row["line_name"]
+        questions = [frame for frame in row["frames"] if frame["type"] == "question"]
+        assert len(questions) == 1, f"{row['line_name']}: exactly one question, the run's"
+        assert questions[0]["question_id"] == f"decision:{row['decision_id']}"
+        assert row["proposal"] in questions[0]["text"]
+        assert set(questions[0]["roles"]) == set(row["roles"])
+        assert row["outstanding"] == sorted(row["roles"]), "nobody has signed yet"
+
+    # Only the Gateway's is a gate rather than an approval, and its question says so.
+    assert gateway["gate_rule"] is not None
+    assert all(row["gate_rule"] is None for row in rows if row["line_name"] != "Gateway")
+
+
+def test_the_replay_says_who_has_signed_so_far():
+    """Three desks signed and one has not is not the same screen as nobody looking."""
+    async def go():
+        async with a_store() as store:
+            # One desk, so a signature leaves the decision waiting on the rest rather than
+            # settling it — which is the state this test is about.
+            async with a_company(store, roles=["engineering"]) as (http, me, notice_id):
+                await frames_of(http, notice_id)
+                before = (await http.get(f"/notices/{notice_id}/reviews")).json()
+                gateway = next(row for row in before if row["line_name"] == "Gateway")
+                await http.post(
+                    f"/decisions/{gateway['decision_id']}",
+                    json={"approve": True, "rationale": "Bridge-buy covers this release."},
+                )
+                after = (await http.get(f"/notices/{notice_id}/reviews")).json()
+                return before, after
+
+    before, after = run(go())
+
+    gateway_before = next(row for row in before if row["line_name"] == "Gateway")
+    assert gateway_before["state"] == "pending"
+    assert gateway_before["signed"] == [], "nobody has looked at it yet"
+    assert "engineering" in gateway_before["outstanding"]
+
+    gateway_after = next(row for row in after if row["line_name"] == "Gateway")
+    assert gateway_after["state"] == "pending", "one desk signed; the rest have not"
+    assert "engineering" in gateway_after["signed"]
+    assert "engineering" not in gateway_after["outstanding"]
+    assert gateway_after["outstanding"], "and it still names who is outstanding"
+
+
 def test_a_line_that_has_never_been_reviewed_replays_nothing():
     async def go():
         async with a_store() as store:

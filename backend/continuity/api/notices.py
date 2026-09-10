@@ -30,6 +30,8 @@ from .auth import current_user, store_of
 # reference, so anything that swaps the real one — a test, or a future cache in front
 # of it — silently would not reach this caller.
 from . import matrix as matrix_api
+from . import replay
+from .review import decision_text
 from .store import User
 from .. import change, notices as reader
 from ..engine import situation
@@ -38,6 +40,10 @@ from ..parts import categories
 from ..matrix import evaluate_matrix
 from ..parts import normalize
 from ..profile import OperatingProfile, board_from
+# By name, not `review.Proposal`: this module defines a route handler called `review`, and
+# that rebinds the module-level name at import time — the same shadowing that silently broke
+# every change request when `change.py` gained a second `_headline`.
+from ..review import Proposal
 
 log = logging.getLogger(__name__)
 
@@ -297,6 +303,92 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
             for request_id, request in zip(ids, requests)
         ],
     }
+
+
+@router.get("/{notice_id}/reviews")
+async def reviews(
+    notice_id: str, request: Request, user: User = Depends(current_user)
+) -> list[dict[str, Any]]:
+    """Every decision this notice produced, with the trace that reached it.
+
+    **A review used to be lost the moment you left the page.** Lane state was component
+    state, so navigating away abandoned the stream and coming back showed the stored change
+    requests where the run had been. `api/replay` already rebuilds one line's trace from
+    `decisions.document`, and `/lines/{id}/reviews` already serves it per product; this is
+    the same assembly keyed by notice, which is the page the run is started from.
+
+    **Nothing new is stored and nothing is invented.** Every frame here is derived from what
+    the run already wrote down, and they are the frames the client already reduces — a
+    hydrated lane and a live one go through the same function, so they cannot drift.
+
+    **A pending decision carries its question.** The run asked it with `_decision_text`, and
+    it is rebuilt by that same function from the stored proposal, detail and gate rule, so a
+    replay re-raises the identical sentence rather than a second phrasing of it. Without it
+    a replayed lane would show a verdict with no way to answer it.
+
+    **Who has signed so far travels with it.** A decision three desks have signed and one has
+    not is not the same screen as one nobody has looked at, and the replay has to say so.
+    """
+    store = store_of(request)
+    notice = await store.notice_for_org(notice_id, user.org_id)
+    if notice is None:
+        raise HTTPException(404, "no such notice")
+
+    out: list[dict[str, Any]] = []
+    for decision in await store.decisions_for_notice(notice_id, user.org_id):
+        frames = replay.frames_from(notice, decision)
+        required = list(decision.get("roles") or ())
+        # A signature records the roles the signer held, which can be more than one, and
+        # only the ones this decision actually needs count towards it.
+        signed = sorted(
+            {
+                role
+                for approval in await store.approvals_for_decision(decision["id"], user.org_id)
+                for role in (approval["roles"] or ())
+                if role in required
+            }
+        )
+        pending = decision["state"] == "pending"
+        if pending:
+            # The same builder the run used, from the same three stored fields.
+            question = decision_text(
+                decision.get("line_name") or "this product line",
+                Proposal(
+                    mpn=decision["proposal"] or "",
+                    roles=tuple(required),
+                    detail=decision.get("detail") or "",
+                    gate_rule=decision.get("gate_rule"),
+                ),
+            )
+            asked = {
+                "type": "question",
+                # A question is addressed to a board's change, so it belongs to that lane.
+                "line_id": decision["line_id"],
+                "question_id": f"decision:{decision['id']}",
+                "text": question,
+                "suggestions": ["Approve and apply", "Leave it"],
+                "roles": required,
+            }
+            # **Before the ending, because that is the order the run spoke them in.**
+            # `_run_line` asks the question and then closes the line, and a replay that put
+            # them the other way round would be a trace nobody ever saw.
+            end = len(frames) - 1 if frames and frames[-1]["type"] == "line_done" else len(frames)
+            frames = [*frames[:end], asked, *frames[end:]]
+        out.append(
+            {
+                "decision_id": decision["id"],
+                "line_id": decision["line_id"],
+                "line_name": decision.get("line_name"),
+                "state": decision["state"],
+                "proposal": decision["proposal"],
+                "gate_rule": decision.get("gate_rule"),
+                "roles": required,
+                "signed": signed,
+                "outstanding": [role for role in required if role not in signed] if pending else [],
+                "frames": frames,
+            }
+        )
+    return out
 
 
 @router.get("/{notice_id}/review")

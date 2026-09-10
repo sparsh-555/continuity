@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
-import { checkLabel, fresh, withReviewFrame } from './ReviewLanes'
+import { checkLabel } from './ReviewLanes'
+import { fresh, withReviewFrame } from './laneState'
 
 describe('company-wide review lanes', () => {
   test('keeps candidate narration and complete check verdicts for an expanded lane', () => {

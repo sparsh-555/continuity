@@ -671,6 +671,29 @@ export type StoredReview = {
   frames: ReviewFrame[]
 }
 
+/** One decision a notice produced, with the trace it left and who has signed it.
+ *
+ * `frames` is the run's own record reassembled, and for a decision still waiting on a desk
+ * it ends with the question the run asked — rebuilt by the same function, so a replay
+ * re-raises the identical sentence rather than a second phrasing of it.
+ */
+export type NoticeReview = {
+  decision_id: string
+  line_id: string
+  line_name: string | null
+  state: 'pending' | 'approved' | 'declined'
+  proposal: string | null
+  gate_rule: string | null
+  roles: string[]
+  signed: string[]
+  outstanding: string[]
+  frames: ReviewFrame[]
+}
+
+export function noticeReviews(noticeId: string) {
+  return request<NoticeReview[]>(`/notices/${encodeURIComponent(noticeId)}/reviews`)
+}
+
 export function listLineReviews(lineId: string) {
   return request<StoredReview[]>(`/lines/${encodeURIComponent(lineId)}/reviews`)
 }
