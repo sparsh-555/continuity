@@ -334,6 +334,8 @@ CREATE TABLE IF NOT EXISTS notices (
     id                  text PRIMARY KEY,
     org_id              text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
     user_id             text REFERENCES users(id) ON DELETE SET NULL,
+    reference           text,
+    reference_line      text,
     mpn                 text NOT NULL,
     mpn_line            text NOT NULL,
     manufacturer        text,
@@ -352,6 +354,11 @@ CREATE INDEX IF NOT EXISTS notices_mpn_idx ON notices(org_id, mpn);
 -- Added 11 Sep 2026. A review's omissions are evidence too: a part that could not be
 -- identified cannot be silently absent from a reopened notice.
 ALTER TABLE notices ADD COLUMN IF NOT EXISTS review_skipped jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+-- Added 11 Sep 2026. A notice reference distinguishes preliminary and final notices that
+-- retire the same part; its line remains with it so the list's label is auditable.
+ALTER TABLE notices ADD COLUMN IF NOT EXISTS reference text;
+ALTER TABLE notices ADD COLUMN IF NOT EXISTS reference_line text;
 
 -- Added 8 Sep 2026. What actually gets sent to a person: one per affected product line,
 -- because the answer differs per line and a single company-wide recommendation is the thing

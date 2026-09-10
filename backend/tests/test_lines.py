@@ -768,6 +768,8 @@ class _Notice:
 
     mpn = "AMS1117-3.3"
     mpn_line = "Affected part: AMS1117-3.3 (SOT-223)"
+    reference = "AMS-PCN-2026-114"
+    reference_line = "AMS-PCN-2026-114 · Advanced Monolithic Systems"
     manufacturer = "Advanced Monolithic Systems"
     effective_date = "2027-03-31"
     effective_date_line = "Last time buy: 2027-03-31"

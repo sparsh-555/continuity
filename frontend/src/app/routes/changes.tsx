@@ -22,6 +22,22 @@ export function skippedFor(notice: Notice | null): Notice['review_skipped'] {
   return notice?.review_skipped ?? []
 }
 
+/** The two facts that distinguish notices which retire the same manufacturer part.
+ *
+ * A notice's own reference number is the thing that tells two of them apart, and the date it
+ * arrived is the fallback for one that carries no number — which preliminary notices often do.
+ *
+ * The date is rendered in the reader's own timezone, the way `NoticePanel` already renders a
+ * stored timestamp. It used to be `created_at.slice(0, 10)`, which is a UTC truncation: for
+ * anybody east of Greenwich a notice received at nine in the morning shows yesterday's date,
+ * and a date that can be a day wrong is worse than no date on the one row whose whole job is
+ * telling two same-part notices apart.
+ */
+export function noticeIdentity(notice: Notice): string {
+  const received = new Date(notice.created_at).toLocaleDateString()
+  return notice.reference ? `${notice.reference} · received ${received}` : `received ${received}`
+}
+
 export default function ChangesRoute() {
   const { arrival } = useNoticeArrivals()
   const [notices, setNotices] = useState<Notice[]>([])
@@ -187,6 +203,9 @@ export default function ChangesRoute() {
                   <span className="font-data-tabular text-[10px] text-outline shrink-0">
                     {notice.source}
                   </span>
+                </span>
+                <span className="block font-data-tabular text-[10px] text-on-surface-variant mt-0.5">
+                  {noticeIdentity(notice)}
                 </span>
                 <span className="block font-data-tabular text-[10px] text-on-surface-variant mt-0.5">
                   {notice.manufacturer ?? 'manufacturer not stated'}

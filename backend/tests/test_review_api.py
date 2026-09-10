@@ -70,6 +70,8 @@ it: it is the part that holds the Gateway and has never been qualified."""
 class _Notice:
     mpn = AMS1117.mpn
     mpn_line = f"Affected part: {AMS1117.mpn} (SOT-223)"
+    reference = "AMS-PCN-2026-114"
+    reference_line = f"AMS-PCN-2026-114 · Advanced Monolithic Systems"
     manufacturer = "Advanced Monolithic Systems"
     effective_date = "2027-03-31"
     effective_date_line = "Last time buy: 2027-03-31"
@@ -83,6 +85,8 @@ class _CapacitorNotice:
 
     mpn = OUTPUT_CAPACITOR.mpn
     mpn_line = f"Affected part: {OUTPUT_CAPACITOR.mpn} (1206)"
+    reference = "AMS-PCN-2027-004"
+    reference_line = "AMS-PCN-2027-004 · Samsung Electro-Mechanics"
     manufacturer = OUTPUT_CAPACITOR.manufacturer
     effective_date = "2027-09-30"
     effective_date_line = "Last time buy: 2027-09-30"

@@ -40,9 +40,11 @@ MAX_TEXT = 20_000
 SYSTEM = """You read a product change notice and report only what it states.
 
 Return ONE JSON object with ONLY these keys:
-  mpn, mpn_line, manufacturer, effective_date, effective_date_line,
+  reference, reference_line, mpn, mpn_line, manufacturer, effective_date, effective_date_line,
   replacement_mpn, replacement_line, reason
 
+- reference: the notice or change-control number, exactly as printed, or null if absent.
+- reference_line: the exact line you read the reference from, or null.
 - mpn: the manufacturer part number being discontinued or changed. Exact, as printed.
 - mpn_line: the exact full line of the document you read the MPN from.
 - manufacturer: who issued the notice.
@@ -101,6 +103,8 @@ class Notice:
 
     mpn: str
     mpn_line: str
+    reference: str | None = None
+    reference_line: str | None = None
     manufacturer: str | None = None
     effective_date: str | None = None
     effective_date_line: str | None = None
@@ -110,6 +114,8 @@ class Notice:
 
     def to_json(self) -> dict[str, Any]:
         return {
+            "reference": self.reference,
+            "reference_line": self.reference_line,
             "mpn": self.mpn,
             "mpn_line": self.mpn_line,
             "manufacturer": self.manufacturer,
@@ -165,6 +171,17 @@ def _from_reply(reply: Mapping[str, Any], text: str) -> Notice | None:
             return None, None
         return value, line
 
+    reference, reference_line = quoted("reference", "reference_line")
+    if reference is not None and not (
+        isinstance(reference, str)
+        # The rule the replacement below lives under, for the same reason: quoting *a* line
+        # is not sourcing *this* value. The reference labels a notice in the list, so one
+        # hung off a line that does not carry it is a citation that sources nothing — and
+        # on screen it is indistinguishable from a real one.
+        and _collapsed(reference) in _collapsed(reference_line or "")
+    ):
+        reference, reference_line = None, None
+
     effective_date, effective_line = quoted("effective_date", "effective_date_line")
     replacement, replacement_line = quoted("replacement_mpn", "replacement_line")
     if replacement is not None and not (
@@ -188,6 +205,8 @@ def _from_reply(reply: Mapping[str, Any], text: str) -> Notice | None:
     return Notice(
         mpn=mpn.strip(),
         mpn_line=mpn_line.strip(),
+        reference=reference.strip() if isinstance(reference, str) else None,
+        reference_line=reference_line,
         manufacturer=manufacturer.strip() if isinstance(manufacturer, str) else None,
         effective_date=effective_date.strip() if isinstance(effective_date, str) else None,
         effective_date_line=effective_line,

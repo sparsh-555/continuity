@@ -311,6 +311,8 @@ export type BoardConsequence = {
 
 export type Notice = {
   id: string
+  reference: string | null
+  reference_line: string | null
   mpn: string
   mpn_line: string
   manufacturer: string | null

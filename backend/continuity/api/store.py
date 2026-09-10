@@ -1126,13 +1126,14 @@ class Store:
             await conn.execute(
                 """
                 INSERT INTO notices (
-                    id, org_id, user_id, mpn, mpn_line, manufacturer, effective_date,
+                    id, org_id, user_id, reference, reference_line, mpn, mpn_line, manufacturer, effective_date,
                     effective_date_line, replacement_mpn, replacement_line, reason, source
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    notice_id, org_id, user_id, notice.mpn, notice.mpn_line,
+                    notice_id, org_id, user_id, notice.reference, notice.reference_line,
+                    notice.mpn, notice.mpn_line,
                     notice.manufacturer, notice.effective_date, notice.effective_date_line,
                     notice.replacement_mpn, notice.replacement_line, notice.reason, source,
                 ),
@@ -1149,7 +1150,7 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, mpn, mpn_line, manufacturer, effective_date, replacement_mpn,
+                SELECT id, reference, reference_line, mpn, mpn_line, manufacturer, effective_date, replacement_mpn,
                        reason, source, review_skipped, created_at
                   FROM notices WHERE id = %s AND org_id = %s
                 """,
@@ -1161,7 +1162,7 @@ class Store:
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
-                SELECT id, mpn, mpn_line, manufacturer, effective_date, replacement_mpn,
+                SELECT id, reference, reference_line, mpn, mpn_line, manufacturer, effective_date, replacement_mpn,
                        reason, source, review_skipped, created_at
                   FROM notices WHERE org_id = %s ORDER BY created_at DESC LIMIT %s
                 """,

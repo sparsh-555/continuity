@@ -127,6 +127,42 @@ def test_a_real_line_with_the_wrong_part_number_attached_is_refused(model):
     assert run(notices.read(PCN.encode())) is None
 
 
+def test_a_reference_whose_number_is_not_on_its_own_line_is_dropped(model):
+    """The same rule the replacement part number lives under, for the same reason.
+
+    The reference labels a notice in the list, so a model that quotes a real line and hangs
+    a different number off it puts a citation on screen that sources nothing. The notice
+    survives without a reference; it does not survive an invented one, because the invented
+    one is indistinguishable from a real one on screen.
+    """
+    model(reply(reference="PCN 2026-999", reference_line="Issued 1 September 2026"))
+
+    notice = run(notices.read(PCN.encode()))
+
+    assert notice is not None, "the rest of the notice is unaffected"
+    assert notice.reference is None
+    assert notice.reference_line is None
+
+
+def test_a_reference_line_that_is_not_in_the_document_is_dropped(model):
+    model(reply(reference_line="Reference: PCN-2026-114 (a line the document does not carry)"))
+
+    notice = run(notices.read(PCN.encode()))
+
+    assert notice is not None
+    assert notice.reference is None
+
+
+def test_a_notice_with_no_reference_at_all_is_still_a_notice(model):
+    """Preliminary notices often carry no number. Absent is not a failure."""
+    model(reply(reference=None, reference_line=None))
+
+    notice = run(notices.read(PCN.encode()))
+
+    assert notice is not None
+    assert notice.reference is None
+
+
 def test_an_unsourced_date_is_dropped_and_the_rest_survives(model):
     """A notice is still useful without a date. It is useless with an invented one."""
     model(reply(effective_date_line="Last time buy: 2026-01-01"))
@@ -317,11 +353,13 @@ def test_a_posted_notice_names_the_products_that_carry_the_part(model):
     assert posted.status_code == 201
     body = posted.json()
     assert body["notice"]["mpn"] == "AMS1117-3.3"
+    assert body["notice"]["reference"] == "PCN 2026-114"
     assert {row["name"] for row in body["affected"]} == {"Gateway", "Sensor node"}
     assert all(row["refdes"] == ["u1"] for row in body["affected"])
 
     assert len(listed) == 1
     assert listed[0]["mpn"] == "AMS1117-3.3"
+    assert listed[0]["reference"] == "PCN 2026-114"
     assert listed[0]["source"] == "PCN-2026-114.pdf", (
         "how it arrived is the first thing anybody asks, and the document's own name is an "
         "answer a person recognises where the literal string `api` was not"
@@ -395,6 +433,8 @@ def test_a_preliminary_and_a_full_notice_about_one_part_are_two_notices(model):
                 class Preliminary:
                     mpn = "AMS1117-3.3"
                     mpn_line = "Affected part: AMS1117-3.3 (SOT-223)"
+                    reference = "AMS-PCN-2026-118"
+                    reference_line = "AMS-PCN-2026-118 · Advanced Monolithic Systems"
                     manufacturer = "Advanced Monolithic Systems"
                     effective_date = None
                     effective_date_line = None

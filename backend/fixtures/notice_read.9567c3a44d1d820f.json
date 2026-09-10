@@ -1,18 +1,20 @@
 {
  "tool": "notice_read",
  "arguments": {
-  "prompt": "4e78ab093990",
+  "prompt": "fd4b4de6b204",
   "document": "f964c9df2690da11",
   "opens": "CONSTRUCTED EXAMPLE. NOT A REAL MANUFACTURER NOTICE."
  },
  "response": {
+  "reference": "AMS-PCN-2026-118",
+  "reference_line": "PCN reference: AMS-PCN-2026-118",
   "mpn": "AMS1117-3.3",
   "mpn_line": "Affected part: AMS1117-3.3 (SOT-223)",
   "manufacturer": "Advanced Monolithic Systems",
   "effective_date": null,
   "effective_date_line": null,
   "replacement_mpn": null,
-  "replacement_line": null,
+  "replacement_line": "Recommended replacement: none.",
   "reason": "Closure of the wafer fabrication line that supplies this device."
  }
 }
