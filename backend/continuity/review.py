@@ -320,6 +320,7 @@ async def candidates_for(
     retiring: PartSpec,
     resolve,
     notice_replacement: str | None = None,
+    worked: Mapping[str, str] | None = None,
     approved: Sequence[str] = (),
     search=None,
     named: Sequence[str] = (),
@@ -330,6 +331,9 @@ async def candidates_for(
     **The manufacturer's own recommendation first.** It is the answer the notice puts in
     front of everybody, it is what a reader asks about if it is missing, and on a board it
     does not suit, watching it fail is the point.
+
+    **Then the parts that already resolved this retirement elsewhere**, because they are
+    the cheapest known answer on this board.
 
     **Then the parts this company has already qualified**, because that is the cheap
     resolution: roughly $1,281 against $15,656 to qualify one from scratch. A tool that
@@ -385,6 +389,8 @@ async def candidates_for(
         )
 
     await consider(notice_replacement, NOTICE_ORIGIN, same_category=False)
+    for mpn, line_name in (worked or {}).items():
+        await consider(mpn, f"resolved this on the {line_name}", same_category=False)
     for mpn in approved:
         await consider(mpn, APPROVED_ORIGIN, same_category=True)
     if search is not None:

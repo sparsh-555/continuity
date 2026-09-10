@@ -551,6 +551,11 @@ async def run_review(
             }
             return
 
+        worked = {
+            row["mpn"]: row["line_name"]
+            for row in await store.worked_anywhere(user.org_id, f"eol|{notice['mpn']}")
+        }
+
         yield aloud(
             f"Looking for anything else in {retiring.package or 'the same package'}: the "
             f"approved manufacturer list first, then the distributor's catalogue."
@@ -572,6 +577,7 @@ async def run_review(
             retiring=retiring,
             resolve=_resolve_quietly,
             notice_replacement=notice.get("replacement_mpn"),
+            worked=worked,
             approved=sorted(approved.parts or ()),
             search=search_or_say,
             named=list(body.candidates),
@@ -808,7 +814,7 @@ async def answer_decision(
         decision["line_id"],
         [
             {
-                "signature": f"eol|{decision['retiring']}|{decision['slot_id']}",
+                "signature": f"eol|{decision['retiring']}",
                 "mpn": decision["proposal"],
                 "outcome": "worked",
                 "detail": (
