@@ -315,6 +315,14 @@ CATALOGUE_ORIGIN = "found in the distributor's catalogue"
 NAMED_ORIGIN = "named by you"
 
 
+@dataclass(frozen=True)
+class SkippedCandidate:
+    """A candidate the review could name, but could not honestly check."""
+
+    mpn: str
+    reason: str
+
+
 async def candidates_for(
     *,
     retiring: PartSpec,
@@ -325,6 +333,7 @@ async def candidates_for(
     search=None,
     named: Sequence[str] = (),
     manufacturers: Mapping[str, str] | None = None,
+    skipped: list[SkippedCandidate] | None = None,
 ) -> tuple[Candidate, ...]:
     """What to try, in the order to try it, and why each one is on the list.
 
@@ -382,11 +391,22 @@ async def candidates_for(
     async def consider(mpn: str | None, origin: str, *, same_category: bool) -> None:
         if not mpn or mpn.casefold() in seen:
             return
-        keep(
-            await resolve(mpn, recorded.get(mpn.upper())),
-            origin,
-            same_category=same_category,
-        )
+        try:
+            part = await resolve(mpn, recorded.get(mpn.upper()))
+        except Exception as error:
+            # `Ambiguous` belongs to the distributor-facing API, rather than this domain
+            # module. Recognise it by contract without importing that API and creating a
+            # core-to-HTTP dependency. Other failures still belong to the caller.
+            if type(error).__name__ != "Ambiguous":
+                raise
+            if skipped is not None:
+                skipped.append(SkippedCandidate(mpn=mpn, reason=str(error)))
+            return
+        if part is None:
+            if skipped is not None:
+                skipped.append(SkippedCandidate(mpn=mpn, reason="could not be sourced"))
+            return
+        keep(part, origin, same_category=same_category)
 
     await consider(notice_replacement, NOTICE_ORIGIN, same_category=False)
     for mpn, line_name in (worked or {}).items():

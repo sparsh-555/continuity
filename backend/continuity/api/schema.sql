@@ -349,6 +349,10 @@ CREATE TABLE IF NOT EXISTS notices (
 CREATE INDEX IF NOT EXISTS notices_org_idx ON notices(org_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS notices_mpn_idx ON notices(org_id, mpn);
 
+-- Added 11 Sep 2026. A review's omissions are evidence too: a part that could not be
+-- identified cannot be silently absent from a reopened notice.
+ALTER TABLE notices ADD COLUMN IF NOT EXISTS review_skipped jsonb NOT NULL DEFAULT '[]'::jsonb;
+
 -- Added 8 Sep 2026. What actually gets sent to a person: one per affected product line,
 -- because the answer differs per line and a single company-wide recommendation is the thing
 -- this product exists to replace.

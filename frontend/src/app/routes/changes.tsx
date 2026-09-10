@@ -18,13 +18,17 @@ import {
   type ReceivedNotice,
 } from '../lib/api'
 
+export function skippedFor(notice: Notice | null): Notice['review_skipped'] {
+  return notice?.review_skipped ?? []
+}
+
 export default function ChangesRoute() {
   const { arrival } = useNoticeArrivals()
   const [notices, setNotices] = useState<Notice[]>([])
   const [selected, setSelected] = useState<Notice | null>(null)
   const [received, setReceived] = useState<ReceivedNotice | null>(null)
   const [requests, setRequests] = useState<ChangeRequest[]>([])
-  const [skipped, setSkipped] = useState<string[]>([])
+  const [skipped, setSkipped] = useState<Notice['review_skipped']>([])
   const [affected, setAffected] = useState<AffectedLine[] | null>(null)
   const [candidates, setCandidates] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -81,7 +85,7 @@ export default function ChangesRoute() {
     setSelected(notice)
     setReceived(null)
     setError(null)
-    setSkipped([])
+    setSkipped(skippedFor(notice))
     setAffected(null)
     try {
       setRequests(await listChangeRequests(notice.id))
@@ -248,9 +252,9 @@ export default function ChangesRoute() {
           <h2 className="font-data-tabular text-[11px] text-tertiary-container">
             NOT CHECKED
           </h2>
-          {skipped.map((reason) => (
-            <p key={reason} className="font-data-tabular text-[10px] text-tertiary-container">
-              {reason}
+          {skipped.map(({ mpn, reason }) => (
+            <p key={mpn} className="font-data-tabular text-[10px] text-tertiary-container">
+              {mpn}: {reason}, so it was not checked.
             </p>
           ))}
         </section>

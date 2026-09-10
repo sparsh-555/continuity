@@ -125,8 +125,10 @@ async def _resolve_quietly(mpn: str, manufacturer: str | None = None) -> PartSpe
         # quietly go to the real distributor from an offline suite.
         return await matrix_api.resolve(mpn, manufacturer)
     except Ambiguous as ambiguous:
-        log.info("skipping %s: %s", mpn, ambiguous)
-        return None
+        # Candidates need to say exactly why they were not checked. `candidates_for`
+        # owns that disclosure; swallowing this here leaves it with indistinguishable
+        # `None` and silently drops the one thing a person can answer.
+        raise ambiguous
     except Exception as unreachable:  # noqa: BLE001
         log.warning("could not resolve %s from a distributor: %s", mpn, unreachable)
         return None
@@ -585,6 +587,7 @@ async def run_review(
                 unreachable.append(str(error))
                 return []
 
+        skipped: list[review.SkippedCandidate] = []
         candidates = await review.candidates_for(
             retiring=retiring,
             resolve=_resolve_quietly,
@@ -594,11 +597,21 @@ async def run_review(
             search=search_or_say,
             named=list(body.candidates),
             manufacturers=recorded_manufacturers,
+            skipped=skipped,
+        )
+        await store.save_review_skipped(
+            user.org_id,
+            notice_id,
+            [{"mpn": candidate.mpn, "reason": candidate.reason} for candidate in skipped],
         )
         for reason in unreachable:
             yield aloud(
                 "The distributor could not be searched, so only the notice's "
                 f"recommendation and the approved list were tried. ({reason})"
+            )
+        for candidate in skipped:
+            yield aloud(
+                f"{candidate.mpn}: {candidate.reason}, so it was not checked."
             )
         yield aloud(
             "Trying " + ", ".join(f"{c.part.mpn} ({c.origin})" for c in candidates) + "."

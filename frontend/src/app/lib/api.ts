@@ -319,6 +319,7 @@ export type Notice = {
   reason: string | null
   source: string
   created_at: string
+  review_skipped: Array<{ mpn: string; reason: string }>
 }
 
 export type AffectedLine = {

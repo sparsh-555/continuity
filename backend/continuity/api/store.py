@@ -1150,7 +1150,7 @@ class Store:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
                 SELECT id, mpn, mpn_line, manufacturer, effective_date, replacement_mpn,
-                       reason, source, created_at
+                       reason, source, review_skipped, created_at
                   FROM notices WHERE id = %s AND org_id = %s
                 """,
                 (notice_id, org_id),
@@ -1162,12 +1162,25 @@ class Store:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
                 SELECT id, mpn, mpn_line, manufacturer, effective_date, replacement_mpn,
-                       reason, source, created_at
+                       reason, source, review_skipped, created_at
                   FROM notices WHERE org_id = %s ORDER BY created_at DESC LIMIT %s
                 """,
                 (org_id, limit),
             )
             return await cursor.fetchall()
+
+    async def save_review_skipped(
+        self, org_id: str, notice_id: str, skipped: Sequence[Mapping[str, str]]
+    ) -> None:
+        """The current discovery omissions, alongside the current requests for this notice."""
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                UPDATE notices SET review_skipped = %s
+                 WHERE id = %s AND org_id = %s
+                """,
+                (Json(list(skipped)), notice_id, org_id),
+            )
 
     # ── change requests ──────────────────────────────────────────────────────
 
