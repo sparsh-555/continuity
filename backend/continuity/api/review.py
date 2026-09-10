@@ -183,7 +183,10 @@ async def _catalogue_search(retiring: PartSpec) -> list[PartSpec]:
     and it is the only leg that can produce the answer no approved part gives.
     """
     query = _search_query(retiring)
-    constraint = {"package": retiring.package} if retiring.package else None
+    constraint = {
+        **({"package": retiring.package} if retiring.package else {}),
+        **({"vout": retiring.vout} if retiring.vout is not None else {}),
+    } or None
     try:
         hits = await sourcing.find(query, constraint=constraint, pool=CATALOGUE_POOL)
     except Exception as error:  # noqa: BLE001 — a dead distributor is not a failed review
