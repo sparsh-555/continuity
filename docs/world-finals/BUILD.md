@@ -1268,6 +1268,150 @@ proposal it chose, and a line that has never been reviewed replays nothing.
 
 ---
 
+# Phase 8 · The cross-team response, 10 Sep
+
+**Opened after the third flow pass, and it outranks everything else in this file.**
+
+The assigned topic is one question: *how does your tool coordinate the cross-team response —
+design validates alternatives, procurement checks availability, and production confirms
+assembly compatibility?* The build answers it with one desk. Every proposal, every question and
+every change request says **engineering**, the word *production* does not exist in the product,
+and the word *procurement* reaches the screen only on `/matrix`.
+
+The engine is not the problem. Every rule those departments own is already checked on every
+candidate, simultaneously, before anybody is asked anything, which is the actual claim and is
+the actual value. What is missing is that the product never attributes any of it, never asks a
+second desk, and cannot represent a decision that needs two signatures.
+
+The mechanism, verified 10 Sep:
+
+- `review.choose` (`review.py:152-162`) hardcodes `roles=("engineering",)` for any candidate
+  that clears. Only its second pass, reached when **nothing** clears, calls `decision_roles`.
+- `change._approvals_for` (`change.py:293-309`) falls back to engineering when nothing failed.
+- `api/store.py:71` is `ROLES = ("engineering", "procurement", "quality")`. No production.
+- `roles.py:30-31` routes `footprint` and `footprint_compatibility` to engineering, and
+  SCENARIO-B's own table assigns them to production.
+
+**Nothing in this phase is a talking point.** A gap here is built, not explained. See
+[RESEARCH-3rd-Passthrough.md](RESEARCH-3rd-Passthrough.md#r8-the-cross-team-response-is-the-problem-statement-and-one-desk-answers-everything).
+
+## 31 · The production desk exists
+
+**Files** `api/store.py`, `roles.py`, `tools/seed_world.py`, `tests/test_roles.py`
+
+**Done when** `ROLES` carries `production`, `footprint` and `footprint_compatibility` route to
+it, and the seed creates an account that holds it. Nothing else in this phase can be right
+until the department the scenario names is a thing the product can express.
+
+**Note** the four desks are engineering, procurement, production and quality. The topic names
+three; quality is the fourth because the approved manufacturer list has to have an owner and
+`part_qualification` is already addressed to it. Lead with the three the topic names.
+
+**Test** every role appearing in `ROLES_BY_RULE` exists in `store.ROLES`. The existing
+completeness test asserts every rule is mapped; this is the other direction, and it is the one
+that would have caught a department the routing table believes in and the product does not.
+
+## 32 · Every check carries its department, and every screen groups by it
+
+**Files** `roles.py`, `api/review.py`, `change.py`, `review/ReviewTrace.tsx`,
+`review/ReviewLanes.tsx`, `review/RequestCard.tsx`
+
+**Done when** the trace, every lane and every change request show the result **per department,
+pass or fail**, on every candidate:
+
+```
+DESIGN         8 checks, all clear · 35 °C thermal margin
+PROCUREMENT    availability clear · 1,020,639 in stock at JLCPCB, an approved source
+PRODUCTION     footprint clear · SOT-223 → SOT-223, a drop-in, no layout change
+```
+
+**Note** this is the item that turns the claim into a screenshot, and every figure in it is
+already computed today. The department comes from `roles.py`, which is already the single
+routing table both the graph and the matrix read, so no second source of truth is created.
+
+**Test** a review of the Gateway emits a department against every check frame, and the three
+departments appear in the change request document with no rule unattributed.
+
+## 33 · A substitution on a shipping product needs every affected department to sign
+
+**Files** `review.py` (`choose`), `change.py` (`_approvals_for`), `api/review.py`
+
+**Done when** `choose` stops hardcoding engineering, and the desks required are every
+department whose rules were evaluated against the change, with a failing rule requiring an
+override rather than an approval.
+
+**Note** the current behaviour is defensible engineering and wrong for this product: it asks a
+desk only when there is a question for it, so a good answer raises nobody. A part substitution
+on a released design affects design electrically, procurement commercially and production on
+the line, and a real ECO is signed by all three whether or not anything failed. That is what
+makes the cross-team beat fire without inventing a failure.
+
+**Test** the Gateway's change request names three departments, and applying the decision is
+refused until they have all answered.
+
+## 34 · A decision holds more than one signature
+
+**Files** `api/store.py`, `api/review.py` (`answer_decision`)
+
+**Done when** answering as one desk records that desk's approval and leaves the decision
+pending, answering as the last outstanding desk applies it, and answering twice as the same
+desk is refused.
+
+**Note** **the table already exists.** `approvals` carries `decision_id`, `line_id`, `roles[]`,
+`rule`, `user_email` and `rationale`. No migration is needed; `decisions.state` stops being the
+sole record and becomes a function of the approvals against it. This is also what finally makes
+`part_qualification` mean what `roles.py:20` says it means — *"it needs both"* — which is the
+🟡 that has been open since 8 September and becomes 🔴 the moment item 33 lands.
+
+**Test** a decision addressed to two desks stays pending after the first signature, applies on
+the second, and the same user cannot sign twice.
+
+## 35 · Everyone can see what is waiting for them
+
+**Files** `api/decisions.py` (new), `shell/SideRail.tsx`, a decisions surface
+
+**Done when** signing in as the production account shows every decision addressed to production
+across every product line, and one can be answered from there.
+
+**Note** there is no such endpoint today: `_pending_roles` and `_pending_question` in `app.py`
+belong to the design graph and are thread-scoped. Without this, *sign in as the second desk and
+answer it* means navigating to the right product line from memory, which is not a beat. Pairs
+naturally with item 28, since the same provider that raises the notification can carry
+**3 waiting on you**.
+
+**Test** a decision addressed to production appears for the production account and not for the
+engineer, and the engineer answering it is refused with the desk named.
+
+## 36 · Three product lines, three desks
+
+**Files** `tools/seed_world.py`, `profile.py`
+
+**Done when** one notice produces three answers that stop in three different places.
+
+**Note** the two honest levers, and both need a number he is happy to defend on stage.
+Procurement: `availability` fails below `min_stock`, which defaults to 100, and
+TLV1117LV33DCYR has 1,133 in stock at JLCPCB — so a product line with a real annual volume on
+its operating profile makes that rule bite for a real reason. Quality: `LD1117-3.3` is already
+electrically fine and off the approved manufacturer list on all three boards, and loses only
+because a clear candidate exists. Neither invents a failure; both put a fact into the world
+that a real company would have.
+
+**Test** the three lanes end at three different desks, and each names the rule that put it
+there.
+
+## 37 · The coordination that was removed, counted
+
+**Files** `change.py`, `review/RequestCard.tsx`
+
+**Done when** the change request states what was checked before anybody was asked: three
+products, four candidates, every rule, three departments, in one pass.
+
+**Note** the topic hands us the clock — *within 48 hours* — and no surface in the product
+carries a time figure of any kind. The honest number is not a fabricated saving, it is the
+count of round trips that did not have to happen, and it is derivable from what already ran.
+
+---
+
 # Phase 6 · Presentation
 
 Not written yet, and not covered anywhere in these documents.
