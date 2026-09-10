@@ -73,6 +73,12 @@ Each one costs a distributor lookup and a datasheet read, and a shortlist nobody
 not a better answer than a short one. Four is enough for the search to be a real leg of the
 flow rather than a gesture."""
 
+CATALOGUE_BATCH = 4
+"""Maximum concurrent catalogue normalisations.
+
+The distributor's shortlist is already bounded.  Working it four at a time avoids making a
+slow datasheet serialize the review, without starting work for every hit at once."""
+
 
 class ReviewRun(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -182,28 +188,34 @@ async def _catalogue_search(retiring: PartSpec) -> list[PartSpec]:
         log.warning("catalogue search failed for %s: %s", retiring.mpn, error)
         raise CatalogueUnreachable(str(error)) from error
 
+    # Filtered before normalising, because normalising costs a datasheet read: the top of a
+    # distributor's shortlist for "3.3V LDO regulator in SOT-223" is the retired part and
+    # its clones. Another manufacturer's listing of the same part number is still the part
+    # going away.  The remaining work is independent, but batches preserve the distributor's
+    # order and keep the number of concurrent datasheet reads bounded.
+    eligible = [hit for hit in hits if not _same_part(hit.mpn, retiring.mpn)]
     found: list[PartSpec] = []
-    for hit in hits:
+    for start in range(0, len(eligible), CATALOGUE_BATCH):
         if len(found) >= CATALOGUE_LIMIT:
             break
-        # Filtered before normalising, because normalising costs a datasheet read: the top
-        # of a distributor's shortlist for "3.3V LDO regulator in SOT-223" is the retired
-        # part itself and three other listings of it. Another manufacturer's listing of the
-        # same part number is the same part, and this notice retires that part.
-        if _same_part(hit.mpn, retiring.mpn):
-            continue
-        try:
-            part = await sourcing.choose(hit)
-        except Exception as error:  # noqa: BLE001
-            log.info("could not normalise %s: %s", getattr(hit, "mpn", "?"), error)
-            continue
-        # A fixed regulator defines the rail it makes, so one with a different fixed output
-        # is not a substitute for this position — it is a different board. The engine would
-        # say so too, by moving the rail and failing everything downstream, but a shortlist
-        # of four that spends three of them on that is a worse shortlist.
-        if retiring.vout is not None and part.vout is not None and part.vout != retiring.vout:
-            continue
-        found.append(part)
+        batch = eligible[start:start + CATALOGUE_BATCH]
+        normalised = await asyncio.gather(
+            *(sourcing.choose(hit) for hit in batch), return_exceptions=True
+        )
+        for hit, result in zip(batch, normalised):
+            if isinstance(result, Exception):
+                log.info("could not normalise %s: %s", getattr(hit, "mpn", "?"), result)
+                continue
+            part = result
+            # A fixed regulator defines the rail it makes, so one with a different fixed
+            # output is not a substitute for this position — it is a different board. The
+            # engine would say so too, by moving the rail and failing everything downstream,
+            # but a shortlist of four that spends three of them on that is a worse shortlist.
+            if retiring.vout is not None and part.vout is not None and part.vout != retiring.vout:
+                continue
+            found.append(part)
+            if len(found) >= CATALOGUE_LIMIT:
+                break
     return found
 
 

@@ -12,11 +12,12 @@ from tools.eol_differential import AMS1117, TLV1117
 
 def test_catalogue_normalisation_is_bounded_concurrent_and_keeps_pool_order(monkeypatch):
     """One slow datasheet does not serialize the shortlist or reorder its answer."""
+    mpns = [f"P{number}" for number in range(1, 10)]
     parts = {
         mpn: replace(TLV1117, mpn=mpn, vout_min=3.3, vout_max=3.3)
-        for mpn in "ABCDEFGHIZ"
+        for mpn in mpns
     }
-    parts["C"] = replace(parts["C"], vout_min=5.0, vout_max=5.0)
+    parts["P3"] = replace(parts["P3"], vout_min=5.0, vout_max=5.0)
     hits = [
         SearchCandidate(
             lcsc=f"C-{mpn}", mpn=mpn, manufacturer="Test", description="LDO",
@@ -38,7 +39,7 @@ def test_catalogue_normalisation_is_bounded_concurrent_and_keeps_pool_order(monk
             started.append(hit.mpn)
             if len(started) == 4:
                 first_batch_started.set()
-            if hit.mpn in "ABCD":
+            if hit.mpn in {"P1", "P2", "P3", "P4"}:
                 await release_first_batch.wait()
             return parts[hit.mpn]
 
@@ -57,6 +58,6 @@ def test_catalogue_normalisation_is_bounded_concurrent_and_keeps_pool_order(monk
 
     before_releasing, started, found = asyncio.run(go())
 
-    assert before_releasing == ["A", "B", "C", "D"]
-    assert started == ["A", "B", "C", "D", "E", "F", "G", "H"]
-    assert [part.mpn for part in found] == ["A", "B", "D", "E"]
+    assert before_releasing == ["P1", "P2", "P3", "P4"]
+    assert started == ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"]
+    assert [part.mpn for part in found] == ["P1", "P2", "P4", "P5"]
