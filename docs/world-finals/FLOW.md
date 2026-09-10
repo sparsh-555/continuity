@@ -203,6 +203,13 @@ Seventeen rules run on every board, every time:
 `energy_budget` · `rail_coverage` · `output_capacitor_stability` · `emc` ·
 `signal_integrity`
 
+Each of the last three stacks published figures rather than asserting anything: the stability
+condition each regulator states, the regulation type of each part, and a regulator's output
+accuracy plus its load regulation against every load's supply window. Those figures are
+**hand-read datasheet values recorded as dossier facts**, so they survive the company's own
+record — which is exactly what three of them did not do on the first pass, and why a rule can
+test green against fixtures while declining in the product.
+
 **The last three were an admission until 11 September.** A fifteenth entry in `RULES` called
 `not_assessed` checked nothing and declared the three questions this engine did not answer for
 any board, so that an approver had an honest denominator. Sparsh overruled keeping it: either

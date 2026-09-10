@@ -216,7 +216,7 @@ request · NCP1117ST33T3G**. Press it.
 
 - [ ] The document opens in the right-hand drawer: the proposal, every rejection with its sentence, **every department that examined the change with its own result**, evidence, anything that could not be checked, cost, the desks required, and what was checked before anybody was asked.
 - [ ] **The recurring cost is a real figure**, because the line's own profile states an annual volume with a source. The Gateway reads **$2,344 a year**, under **+$0.1172 a unit at 20,000/yr**; the Sensor node $171.60 and the Cabinet controller $68.64. *No annual volume stated* would be a bug.
-- [ ] **Known and still open:** `signal_integrity` appears under *could not be checked* on all three requests. The rule is real; the parts do not publish the accuracy figures it stacks. It has its own DEFERRED row, and it is the last coverage admission left.
+- [ ] **Nothing on this document says a rule could not be checked.** Until 11 September `signal_integrity` did, on all three requests, because the datasheet figures it stacks never reached the engine. A `COULD NOT CHECK` block here is now a bug rather than a known state.
 - [ ] Clicking a **notice** opens the notice, not the change request.
 
 ---

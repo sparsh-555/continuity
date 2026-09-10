@@ -177,7 +177,7 @@ naming, because each one has been seen at least once.
 | 9b | The Gateway's bill reading **JSMSEMI** rather than Texas Instruments; U1 green, or U1 red, where a desk accepted the shortfall; a review pane saying *nothing failed* on a board that has an accepted failure |
 | 10 | A retired part drawn in the same orange as every other, its edges drawn like healthy ones, or a graph with no legend |
 | any | A power-tree legend offering a state nothing on that board is in. It is derived from the slots it was handed, so a board at rest offers *Fitted · unchecked* and a running one offers what it has |
-| any | A change request saying a rule could not be checked. `emc`, `output_capacitor_stability` and `signal_integrity` became real checks on 11 Sep. **`signal_integrity` is the known exception** and has its own DEFERRED row — it declines for want of published accuracy figures on the parts |
+| any | A change request saying a rule could not be checked. `emc`, `output_capacitor_stability` and `signal_integrity` became real checks on 11 Sep and **no request admits a gap any more** — the figures `signal_integrity` stacks are hand-read datasheet values on the dossier, so losing them is silent: the rule declines and the document says so rather than failing |
 | 10 | Another company's parts on `/memory`, or one approval listed twice |
 | any | The desk switcher offering a session this browser has not signed into, or a switch that does not change what the app says you hold |
 | extras | The PCN-2026-118 issue date of 2026-09-01 appearing as a last order date, or a part called `none` being proposed. Both passed every check this system had before item 17 |

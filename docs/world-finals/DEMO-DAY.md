@@ -296,10 +296,12 @@ with 420 mA through a 5 V rail, NCP1117 reaches 159 °C against a 150 °C limit.
 number on screen, and it is the one that makes the case.
 
 **Can it check a part it could not source?** No, and it says so rather than guessing. The four
-coverage labels are on every cell of the matrix, and what could not be checked is in the change
-request. There is no longer a rule the engine declines to attempt: `emc`,
+coverage labels are on every cell of the matrix, and nothing is left admitting a gap: `emc`,
 `output_capacitor_stability` and `signal_integrity` were three standing admissions until
-11 September and are now three real checks with published arithmetic behind them.
+11 September and are now three real checks with published arithmetic behind them. The last of
+the three needed four datasheet figures that had been researched and then dropped on the way
+to the engine, which is worth saying plainly if a judge asks how you know the checks run: the
+empty statement is the answer, and it was not empty twenty-four hours earlier.
 
 **How do the three departments actually interact?** Every rule each of them owns is checked on
 every candidate simultaneously, before the first person is asked. Then each department signs
