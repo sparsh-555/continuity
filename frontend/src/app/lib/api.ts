@@ -158,6 +158,9 @@ export type ReviewFrame =
       status: EventStatus
       detail: string
       margin: string | null
+      /** The desks that own this rule. Derived server-side from one routing table, so the
+       *  live stream and a replayed one cannot disagree about who owns what. */
+      departments: string[]
       /** A failure somebody has already decided to live with. */
       accepted: boolean
     }
@@ -344,6 +347,14 @@ export type ChangeRequestCost = {
   one_time_basis: string
 }
 
+export type ChangeRequestDepartment = {
+  role: string
+  satisfied: number
+  failed: number
+  /** The rule's own sentence, never one composed for the screen. */
+  headline: string
+}
+
 export type ChangeRequest = {
   id?: string
   line_id: string
@@ -370,6 +381,9 @@ export type ChangeRequest = {
   no_evidence: string[]
   cost: ChangeRequestCost
   approvals_required: string[]
+  /** What each desk found, over the same verdicts the evidence is drawn from. A desk that
+   *  looked at nothing is absent rather than empty. */
+  departments: ChangeRequestDepartment[]
 }
 
 export type Review = {

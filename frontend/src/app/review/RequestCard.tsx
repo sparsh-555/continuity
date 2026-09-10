@@ -1,4 +1,7 @@
+import { Fragment } from 'react'
+
 import { BoardConsequence } from '../board/BoardConsequence'
+import { departmentLabel } from './Departments'
 import type { ChangeRequest } from '../lib/api'
 
 /** A change request, as the person who has to sign it reads it.
@@ -58,6 +61,41 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
         <p className="font-data-tabular text-[10px] text-on-surface-variant">
           Also viable, not chosen: {viable.map((a) => a.mpn).join(', ')}
         </p>
+      ) : null}
+
+      {/* What each desk found, over the same verdicts the evidence below is drawn from.
+          Scenario B: one finding, several renderings, a view layer over one shared result.
+          Every candidate was checked against all four departments' rules before anybody was
+          asked anything, and until this block existed no screen said so. */}
+      {request.departments.length > 0 ? (
+        <section className="space-y-1">
+          <h4 className="font-data-tabular text-[10px] text-on-surface-variant">
+            EVERY DEPARTMENT, CHECKED AT ONCE
+          </h4>
+          <dl className="grid grid-cols-[minmax(0,7rem)_auto] gap-x-md gap-y-1">
+            {request.departments.map((desk) => (
+              <Fragment key={desk.role}>
+                <dt
+                  className={`font-data-tabular text-[10px] uppercase ${
+                    desk.failed > 0 ? 'text-error' : 'text-on-surface-variant'
+                  }`}
+                >
+                  {departmentLabel(desk.role)}
+                </dt>
+                <dd className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed">
+                  {/* Words rather than a colour alone: which desk is outstanding has to
+                      survive greyscale and a projector. */}
+                  <span className={desk.failed > 0 ? 'text-error' : 'text-[#4ade80]'}>
+                    {desk.failed > 0
+                      ? `${desk.failed} failed of ${desk.satisfied + desk.failed}`
+                      : `${desk.satisfied} checked, nothing failed`}
+                  </span>{' '}
+                  — {desk.headline}
+                </dd>
+              </Fragment>
+            ))}
+          </dl>
+        </section>
       ) : null}
 
       {request.evidence.length > 0 ? (

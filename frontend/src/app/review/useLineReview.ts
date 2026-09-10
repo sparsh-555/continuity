@@ -15,6 +15,8 @@ export type TraceItem =
       detail: string
       margin: string | null
       accepted: boolean
+      /** The desks that own this rule, from the frame. */
+      departments: string[]
     }
   | { kind: 'error'; text: string }
 
@@ -86,6 +88,7 @@ export function useLineReview({
             detail: frame.detail,
             margin: frame.margin,
             accepted: frame.accepted,
+            departments: frame.departments ?? [],
           })
           break
         case 'question':

@@ -13,6 +13,7 @@ which is the finding a single manufacturer-wide recommendation cannot express.
 from __future__ import annotations
 
 from continuity import change
+from continuity.engine.models import Verdict
 from continuity.matrix import evaluate_matrix
 from tools.eol_differential import AMS1117, LD1117, LINES, NCP1117, TLV1117, make_board
 
@@ -212,7 +213,7 @@ def test_a_request_serialises_whole():
     assert set(body) == {
         "line_id", "line_name", "revision", "baseline_mpn", "notice_mpn", "notice_id",
         "proposal", "proposal_detail", "alternatives", "evidence", "not_assessed",
-        "no_evidence", "cost", "approvals_required",
+        "no_evidence", "cost", "approvals_required", "departments",
     }
     assert body["not_assessed"], "the coverage boundaries survive serialisation"
     assert body["cost"]["one_time_basis"]
@@ -295,3 +296,77 @@ def test_a_request_with_no_proposal_does_not_invoice_for_a_part_that_does_not_ex
     assert request.cost.one_time == 0.0
     assert request.cost.one_time_basis == "no candidate to cost"
     assert request.cost.recurring_annual is None
+
+
+def test_the_request_says_what_each_desk_found():
+    """Scenario B's *role-specific rendering of a shared finding*, on the document.
+
+    One result, grouped by the desk that owns each part of it. The engine already checked
+    every department's constraints on every candidate; until 10 September nothing said so,
+    and every change request named engineering alone.
+    """
+    [request] = [r for r in requests() if r.line_id == "B"]
+
+    by_role = {d.role: d for d in request.departments}
+    assert "procurement" in by_role, "availability is procurement's rule and it ran"
+    assert "production" in by_role, "footprint is production's rule and it ran"
+    assert "engineering" in by_role
+
+    # Order is fixed, so four blocks cannot reorder between two screens.
+    assert [d.role for d in request.departments] == [
+        role for role in ("engineering", "procurement", "production", "quality")
+        if role in by_role
+    ]
+
+    # Every headline is a sentence a rule wrote, never one this module composed.
+    said = {v.detail for v in request.evidence} | {v.margin for v in request.evidence}
+    for desk in request.departments:
+        assert desk.headline, f"{desk.role} said nothing"
+        assert desk.satisfied or desk.failed, f"{desk.role} counted nothing"
+
+
+def test_a_desk_that_looked_at_nothing_is_not_on_the_request():
+    """`not_assessed` is a coverage boundary the engine declares on every board, not a
+    department's involvement in this change. Counting it would put a desk on a document for
+    a question nobody asked."""
+    [request] = [r for r in requests() if r.line_id == "B"]
+
+    assert request.not_assessed, "the three declared boundaries are still reported"
+    for desk in request.departments:
+        assert desk.satisfied + desk.failed > 0
+
+
+def test_each_desks_headline_is_about_the_part_being_changed():
+    """Every rule runs on every slot, so a desk's first satisfied verdict on this board is
+    as likely to be about the output capacitor as about the regulator.
+
+    Measured on the seeded world before this was fixed: procurement's line on a request to
+    replace a regulator read *"CL31A226KAHNNNE: 1,020,639 in stock at JLCPCB"*, which is a
+    true sentence about the wrong part on a document somebody signs. The capacitor sorts
+    first because `availability` walks the slots in order.
+    """
+    verdicts = [
+        Verdict(rule="availability", status="satisfied", subject="c1", involved=("c1",),
+                detail="CL31A226KAHNNNE: 1,020,639 in stock at JLCPCB."),
+        Verdict(rule="availability", status="satisfied", subject="u1", involved=("u1",),
+                detail="NCP1117ST33T3G: 24,555 in stock at JLCPCB."),
+    ]
+
+    [desk] = change._departments_for(verdicts, "u1")
+
+    assert desk.role == "procurement"
+    assert "NCP1117" in desk.headline, "the desk is talking about the part being replaced"
+    assert desk.satisfied == 2, "and it still counted both"
+
+
+def test_a_headline_falls_back_when_the_desk_said_nothing_about_that_slot():
+    """A desk whose rules never touched the changed slot still gets a sentence rather than
+    an empty one, because a blank line reads as a desk that did not look."""
+    verdicts = [
+        Verdict(rule="availability", status="satisfied", subject="c1", involved=("c1",),
+                detail="CL31A226KAHNNNE: 1,020,639 in stock at JLCPCB."),
+    ]
+
+    [desk] = change._departments_for(verdicts, "u1")
+
+    assert desk.headline == "CL31A226KAHNNNE: 1,020,639 in stock at JLCPCB."

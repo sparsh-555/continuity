@@ -29,7 +29,7 @@ from typing import Any, Mapping, Sequence
 
 from .engine.models import Verdict
 from .matrix import Cell, Matrix
-from .roles import DEFAULT_DECISION_ROLES, decision_roles
+from .roles import DEFAULT_DECISION_ROLES, by_department, decision_roles
 
 QUALIFIED_PART_COST = 1_281.0
 """Typical cost of resolving an end-of-life with a part already on the approved list.
@@ -116,6 +116,15 @@ class ChangeRequest:
     cost: Cost
     approvals_required: tuple[str, ...]
 
+    departments: tuple["DepartmentResult", ...] = ()
+    """What each desk found, over the same verdicts the evidence above is drawn from.
+
+    Scenario B: *"each role sees the same verdict in its own terms. One finding, three
+    renderings — a view layer over one shared result, never three engines."* This is that
+    roll-up for the document somebody signs. A desk with nothing to say is absent rather
+    than empty.
+    """
+
     @property
     def viable(self) -> bool:
         return self.proposal is not None
@@ -148,6 +157,7 @@ class ChangeRequest:
             "no_evidence": list(self.no_evidence),
             "cost": self.cost.to_json(),
             "approvals_required": list(self.approvals_required),
+            "departments": [d.to_json() for d in self.departments],
         }
 
 
@@ -287,6 +297,74 @@ def for_line(
             qualified=chosen is not None and chosen.candidate.mpn.upper() in approved,
         ),
         approvals_required=_approvals_for(chosen, verdicts),
+        departments=_departments_for(verdicts, matrix.slot),
+    )
+
+
+@dataclass(frozen=True)
+class DepartmentResult:
+    """One desk's own view of this change."""
+
+    role: str
+    satisfied: int
+    failed: int
+    headline: str
+    """The rule's own sentence, never a composed one.
+
+    A failure if there is one, because that is what the desk has to answer. Otherwise the
+    verdict carrying a margin, because a number is what makes a pass worth reading. Every
+    string here was written by the rule that produced it, which is the same discipline the
+    trace already holds.
+    """
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "role": self.role,
+            "satisfied": self.satisfied,
+            "failed": self.failed,
+            "headline": self.headline,
+        }
+
+
+def _desk_headline(group: Sequence[Verdict], slot: str | None) -> str:
+    """Named for its desk, because `_headline` above already means the proposal's own line.
+
+    **The part being changed comes first.** Every rule runs on every slot, so procurement's
+    first satisfied `availability` on this board is as likely to be about the output
+    capacitor as about the regulator — and *"PROCUREMENT · CL31A226KAHNNNE, 1,020,639 in
+    stock"* on a request to replace a regulator reads as a document about the wrong part.
+    Measured on the seeded world before this existed.
+
+    Within the slot, a failure first because that is what the desk has to answer, then a
+    verdict carrying a margin because a number is what makes a pass worth reading.
+    """
+    def pick(candidates: Sequence[Verdict]) -> Verdict | None:
+        failed = next((v for v in candidates if v.status == "failed"), None)
+        if failed is not None:
+            return failed
+        return next((v for v in candidates if v.margin), None) or (
+            candidates[0] if candidates else None
+        )
+
+    chosen = pick([v for v in group if slot and v.subject == slot]) or pick(group)
+    if chosen is None:
+        return ""
+    if chosen.margin and chosen.status != "failed":
+        return f"{chosen.margin} — {chosen.detail}" if chosen.detail else chosen.margin
+    return chosen.detail
+
+
+def _departments_for(
+    verdicts: Sequence[Verdict], slot: str | None
+) -> tuple[DepartmentResult, ...]:
+    return tuple(
+        DepartmentResult(
+            role=role,
+            satisfied=sum(1 for v in group if v.status == "satisfied"),
+            failed=sum(1 for v in group if v.status == "failed"),
+            headline=_desk_headline(group, slot),
+        )
+        for role, group in by_department(verdicts)
     )
 
 

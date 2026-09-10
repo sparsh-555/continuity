@@ -9,6 +9,7 @@ import {
   type MatrixResponse,
 } from '../lib/api'
 import type { EventStatus } from '../lib/types'
+import { departmentLabel } from '../review/Departments'
 import { Page } from '../shell/Page'
 
 /** The five coverage labels as a reader should see them, in the order they are read.
@@ -64,11 +65,15 @@ function CellBadge({ cell, onOpen }: { cell: MatrixCell; onOpen: () => void }) {
             : 'no margin reported'
           : cell.checks.find((check) => check.status === 'failed')?.rule.replace(/_/g, ' ')}
       </div>
-      {cell.departments.length > 0 ? (
-        <div className="font-data-tabular text-[10px] text-on-surface-variant mt-1 truncate">
-          {cell.departments.join(' · ')}
-        </div>
-      ) : null}
+      {/* Who owns this cell. A failing cell names the desks that can answer it; a passing
+          one says nothing is outstanding, which is a different and equally useful sentence
+          — it used to print nothing at all, so a green cell looked like a cell nobody had
+          examined. */}
+      <div className="font-data-tabular text-[10px] text-on-surface-variant mt-1 truncate">
+        {cell.departments.length > 0
+          ? cell.departments.map(departmentLabel).join(' · ')
+          : 'no desk outstanding'}
+      </div>
     </button>
   )
 }
@@ -343,7 +348,7 @@ export default function MatrixRoute() {
                 ? `Clears every product line: ${matrix.viable_everywhere.join(', ')}.`
                 : 'No candidate clears every product line.'}
               {matrix.departments.length > 0
-                ? ` Decisions here belong to ${matrix.departments.join(' and ')}.`
+                ? ` Decisions here belong to ${matrix.departments.map(departmentLabel).join(' and ')}.`
                 : ''}
             </p>
           </div>

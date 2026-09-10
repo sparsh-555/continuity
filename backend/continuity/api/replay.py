@@ -29,20 +29,26 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from ..roles import roles_for_rule
+
 
 def _said(text: str) -> dict[str, Any]:
     return {"type": "reasoning", "text": text, "slot": None}
 
 
 def _check(verdict: Mapping[str, Any]) -> dict[str, Any]:
+    rule = verdict.get("rule", "")
     return {
         "type": "check",
-        "rule": verdict.get("rule", ""),
+        "rule": rule,
         "scope": verdict.get("scope"),
         "status": verdict.get("status", "not_assessed"),
         "detail": verdict.get("detail", ""),
         "margin": verdict.get("margin"),
         "accepted": bool(verdict.get("accepted", False)),
+        # A lookup rather than a stored field, so a decision recorded before departments
+        # existed replays with them and cannot disagree with the live stream.
+        "departments": list(roles_for_rule(rule)),
     }
 
 

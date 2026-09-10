@@ -20,6 +20,7 @@ from dataclasses import asdict, is_dataclass
 from typing import Any, AsyncIterator, Iterable
 
 from ..engine.models import Alternative, Edge, PartSpec, Slot, Verdict
+from ..roles import roles_for_rule
 
 HEARTBEAT = ": heartbeat\n\n"
 """Comment frame. Keeps proxies from closing an idle stream; the client ignores it."""
@@ -137,7 +138,13 @@ class EventStream:
         return self._event("candidate", slot=slot, part=_part(part))
 
     def check(self, verdict: Verdict) -> dict[str, Any]:
-        """One rule result. Keyed by (rule, slot, scope) — see the contract on `scope`."""
+        """One rule result. Keyed by (rule, slot, scope) — see the contract on `scope`.
+
+        `departments` is derived here rather than at the call site so that the live stream
+        and the replayed one cannot disagree about who owns a rule. It is a lookup against
+        `roles.ROLES_BY_RULE`, so nothing new is stored and a decision recorded before this
+        field existed replays with it.
+        """
         return self._event(
             "check",
             slot=verdict.subject,
@@ -147,6 +154,7 @@ class EventStream:
             detail=verdict.detail,
             margin=verdict.margin,
             accepted=verdict.accepted,
+            departments=list(roles_for_rule(verdict.rule)),
         )
 
     def conflict(

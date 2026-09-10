@@ -11,6 +11,8 @@ and a rule that returned a job title would be the first thing in it that did.
 
 from __future__ import annotations
 
+from typing import Any, Iterable
+
 
 ROLES_BY_RULE: dict[str, tuple[str, ...]] = {
     # Whether a part can be bought, and on what terms, is a buying judgement.
@@ -94,6 +96,60 @@ precisely the failure this exists to prevent, and engineering is the safe direct
 wrong in. The map is tested for completeness so this should never fire — it is the floor
 under a mistake, not a mechanism.
 """
+
+
+DEPARTMENT_ORDER: tuple[str, ...] = ("engineering", "procurement", "production", "quality")
+"""The order every screen renders departments in.
+
+Fixed and shared so that four blocks never reorder between two surfaces. It matches the order
+Scenario B names them in, with quality last because it is the fourth desk rather than one of
+the three the topic asks about.
+"""
+
+_LOOKED = ("satisfied", "failed", "evidence_missing")
+"""Statuses that mean a department actually examined this change.
+
+`not_assessed` is a coverage boundary the engine declares on every board, and
+`not_applicable` is a rule that had nothing to look at. Neither is a department's involvement
+in *this* change, and counting them would put a desk on a change request for a question
+nobody asked.
+"""
+
+
+def roles_for_rule(rule: str) -> tuple[str, ...]:
+    """Which desks own a rule, by name rather than by verdict."""
+    return ROLES_BY_RULE.get(rule, DEFAULT_DECISION_ROLES)
+
+
+def by_department(verdicts: Iterable[Any]) -> list[tuple[str, list[Any]]]:
+    """Every verdict under each desk that owns it, in `DEPARTMENT_ORDER`.
+
+    **One finding, several renderings, over one shared result.** Scenario B settled this on
+    4 September and it went unbuilt: *"each role sees the same verdict in its own terms. One
+    finding, three renderings — a view layer over one shared result, never three engines."*
+    This is the view layer, and it is one function so that a rule cannot appear under
+    procurement on one screen and engineering on another.
+
+    A rule with two owners appears under **both**, which is correct rather than a tagging
+    mistake to fix: `part_qualification` is engineering's judgement and quality's record, and
+    a reader at either desk needs to see it. RESEARCH-BRIEF-2 asked whether one finding can
+    legitimately have several owners; it can, and this is where that shows.
+
+    Desks that looked at nothing are dropped rather than rendered empty, because an empty
+    block is a sentence about what was not checked and those do not belong on these screens.
+    """
+    grouped: dict[str, list[Any]] = {}
+    for verdict in verdicts:
+        if getattr(verdict, "status", None) not in _LOOKED:
+            continue
+        for role in roles_for_rule(getattr(verdict, "rule", "")):
+            grouped.setdefault(role, []).append(verdict)
+    return [(role, grouped[role]) for role in DEPARTMENT_ORDER if role in grouped]
+
+
+def desks_that_must_sign(verdicts: Iterable[Any]) -> tuple[str, ...]:
+    """Every department that actually looked at this change, in `DEPARTMENT_ORDER`."""
+    return tuple(role for role, _ in by_department(verdicts))
 
 
 def decision_roles(conflict) -> tuple[str, ...]:

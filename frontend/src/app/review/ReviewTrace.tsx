@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import { ReasoningLine } from '../design/ReasoningLine'
 import type { LineCheck, LineRequest } from '../lib/api'
 import type { EventStatus } from '../lib/types'
+import { DepartmentBlock, groupByDepartment } from './Departments'
 import type { LineReview, TraceItem } from './useLineReview'
 
 /** How a check reads once it has an answer.
@@ -40,6 +41,29 @@ function label(item: TraceItem): { icon: string; tone: string; text: string; det
     text: `${item.rule.replace(/_/g, ' ')}${item.scope ? ` · ${item.scope}` : ''}`,
     detail: `${item.detail}${item.margin ? ` · ${item.margin} to spare` : ''}`,
   }
+}
+
+/** The trace, cut into runs of narration and runs of verdicts.
+ *
+ *  A contiguous run of checks is rendered as department blocks; everything else keeps the
+ *  order it was said in. Splitting rather than sorting is what keeps the narration honest:
+ *  the run really did say those things in that order. */
+type Segment =
+  | { kind: 'said'; items: TraceItem[] }
+  | { kind: 'checks'; items: Array<Extract<TraceItem, { kind: 'check' }>> }
+
+function segments(trace: readonly TraceItem[]): Segment[] {
+  const out: Segment[] = []
+  for (const item of trace) {
+    const kind = item.kind === 'check' ? 'checks' : 'said'
+    const tail = out[out.length - 1]
+    if (tail && tail.kind === kind) {
+      ;(tail.items as TraceItem[]).push(item)
+    } else {
+      out.push({ kind, items: [item] } as Segment)
+    }
+  }
+  return out
 }
 
 function Verdict({ review }: { review: LineReview }) {
@@ -104,6 +128,7 @@ export function ReviewTrace({
   onOpenRequest: (request: LineRequest) => void
 }) {
   const tail = useRef<HTMLDivElement | null>(null)
+  const cut = useMemo(() => segments(review.trace), [review.trace])
 
   useEffect(() => {
     if (review.trace.length > 0) {
@@ -174,20 +199,36 @@ export function ReviewTrace({
           </>
         ) : null}
 
-        {review.trace.map((item, index) => {
-          const { icon, tone, text, detail } = label(item)
-          const last = index === review.trace.length - 1 && review.status === 'running'
-          return (
-            <ReasoningLine
-              detail={detail}
-              icon={last ? 'progress_activity' : icon}
-              iconClassName={last ? 'text-primary-container' : tone}
-              key={index}
-              spinner={last}
-              text={text}
-            />
-          )
-        })}
+        {/* Narration in the order it was said, and the verdicts under the desk that owns
+            them. The run emits every check in one burst after the candidate loop, so a
+            contiguous run of them is one moment rather than a sequence, and grouping it
+            loses no ordering a reader could perceive. Everything else stays chronological,
+            because it is a story about what happened. */}
+        {cut.map((segment, index) =>
+          segment.kind === 'checks' ? (
+            groupByDepartment(segment.items).map(([role, checks]) => (
+              <DepartmentBlock checks={checks} key={`${index}:${role}`} role={role} />
+            ))
+          ) : (
+            segment.items.map((item, position) => {
+              const { icon, tone, text, detail } = label(item)
+              const last =
+                index === cut.length - 1 &&
+                position === segment.items.length - 1 &&
+                review.status === 'running'
+              return (
+                <ReasoningLine
+                  detail={detail}
+                  icon={last ? 'progress_activity' : icon}
+                  iconClassName={last ? 'text-primary-container' : tone}
+                  key={`${index}:${position}`}
+                  spinner={last}
+                  text={text}
+                />
+              )
+            })
+          ),
+        )}
 
         {review.question ? (
           <div className="flex flex-col flex-shrink-0 border border-outline-variant bg-[#16181D] rounded mt-sm overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
