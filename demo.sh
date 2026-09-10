@@ -2,15 +2,22 @@
 #
 # Start Continuity's demo world from cold, in one command.
 #
-#   ./demo.sh              check, seed if the world is missing, run
-#   ./demo.sh --reset      replace the world and run
+#   ./demo.sh              rebuild the world, check, run
+#   ./demo.sh --keep       keep the world the last run left behind
 #   ./demo.sh --check      the checks only, change nothing
 #   ./demo.sh --stop       stop whatever this script started
 #   ./demo.sh --live       go to the distributor instead of replaying recordings
 #
-# Everything RUNNER.md §0 and §1 ask you to type, in the order it asks, with the
-# reasons kept next to the failures. It is not a replacement for that document —
-# the run-through in §3 is the demo — it is the part before it that never varies.
+# Everything OPERATING.md §1 and §2 ask you to type, in the order it asks, with
+# the reasons kept next to the failures. It is not a replacement for that document,
+# it is the part before RUNNER.md's run-through that never varies.
+#
+# **The world is rebuilt every time.** A world left over from an earlier run still
+# holds that run's change notice and the decisions it raised, so the walk-through
+# opens with the mail already read and step 4 has nothing left to announce. The
+# rebuild takes about three seconds and ends with the mailbox read position moved
+# past everything already in the inbox. `--keep` is for going back to a run-through
+# that is still in progress.
 #
 # **The database is always named on the command line.** `backend/.env` points
 # DATABASE_URL at production Neon, so a local run that forgets to say otherwise
@@ -28,9 +35,9 @@ UI_PORT=5173
 PY="$ROOT/.venv/bin/python"
 
 MODE=run
-RESET=0
+RESET=1
 # **Replay by default.** Every distributor call the demo makes is recorded in
-# `backend/fixtures/`, 604 of them committed, and replaying takes a review from
+# `backend/fixtures/`, 617 of them committed, and replaying takes a review from
 # over two minutes against a live JLCPCB to under a second — same frames, same
 # verdicts, same margins, because only the distributor's answers come off disk
 # and the engine, the rules, KiCad and the model all still run. `--live` goes to
@@ -43,10 +50,11 @@ while [ $# -gt 0 ]; do
     --check)    MODE=check ;;
     --stop)     MODE=stop ;;
     --reset)    RESET=1 ;;
+    --keep)     RESET=0 ;;
     --live)     FIXTURES=0 ;;
     --fixtures) FIXTURES=1 ;;
     --no-mail)  WITH_MAIL=0 ;;
-    -h|--help)  sed -n '3,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)  sed -n '3,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)          echo "unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -171,6 +179,15 @@ fi
 
 # ── the world ────────────────────────────────────────────────────────────────
 
+# Both ports, before anything is written rather than after. Rebuilding the world is
+# the first thing this script does that cannot be undone, and finding out afterwards
+# that a run is already up would mean losing a world to a message about a port.
+for port in "$API_PORT" "$UI_PORT"; do
+  if lsof -ti tcp:"$port" >/dev/null 2>&1; then
+    die "port $port is in use — ./demo.sh --stop, or close whatever holds it"
+  fi
+done
+
 echo
 echo "The world"
 
@@ -182,19 +199,14 @@ if [ "$RESET" = 1 ] || [ "${seeded:-0}" -eq 0 ]; then
   [ "${seeded:-0}" -gt 0 ] && args+=(--reset)
   (cd "$ROOT/backend" && PYTHONPATH=. "$PY" tools/seed_world.py "${args[@]}") | sed 's/^/  /'
 else
-  ok "$seeded product lines already seeded — ./demo.sh --reset to replace them"
+  ok "$seeded product lines kept — whatever the last run left, notices and decisions included"
+  note "./demo.sh with no arguments rebuilds it"
 fi
 
 # ── running ──────────────────────────────────────────────────────────────────
 
 echo
 echo "Running"
-
-for port in "$API_PORT" "$UI_PORT"; do
-  if lsof -ti tcp:"$port" >/dev/null 2>&1; then
-    die "port $port is in use — ./demo.sh --stop, or close whatever holds it"
-  fi
-done
 
 api_env=(
   "DATABASE_URL=$DB"
@@ -243,8 +255,8 @@ wait_for() {
 wait_for api "http://localhost:$API_PORT/lines" "$RUN_DIR/api.log"
 wait_for ui  "http://localhost:$UI_PORT/"       "$RUN_DIR/ui.log"
 
-# That the API is on the seeded database, asked rather than inferred. RUNNER used to say
-# to look for `persistence: postgres` in the startup lines; nothing configures logging, so
+# That the API is on the seeded database, asked rather than inferred. The runner used to
+# say to look for `persistence: postgres` in the startup lines; nothing configures logging, so
 # `log.info` never reaches the console and that line has never appeared. Signing in is the
 # thing the log line was standing in for anyway: no accounts, no postgres.
 if curl -s -o /dev/null --max-time 5 -X POST "http://localhost:$API_PORT/auth/login" \
@@ -272,7 +284,7 @@ echo
 if [ "$FIXTURES" = 1 ]; then
   note "distributor calls are replayed from backend/fixtures — disclose this, never hide it"
 fi
-note "walkthrough: docs/world-finals/RUNNER.md §3"
+note "walkthrough: docs/world-finals/RUNNER.md   what to say: DEMO-DAY.md"
 note "logs: .demo/api.log  .demo/ui.log"
 note "ctrl-c stops both"
 echo
