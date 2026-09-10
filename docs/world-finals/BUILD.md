@@ -1163,7 +1163,7 @@ distributor made unreachable: all five lines, 22 checks each, nothing unresolved
 a notice renders the retired slot in conflict and the rest valid, and a line checks clean with
 no distributor answering at all.
 
-## 28 · The notice announces itself
+## 28 · The notice announces itself — **done 10 Sep**
 
 **Files** `shell/`, `routes/lines.tsx`
 
@@ -1188,6 +1188,11 @@ refetch off the same tick, is cheaper than a second transport. See
 
 **Test** a notice stored while `/lines` is open changes the affected rows and raises the
 notification without a navigation.
+
+**Verified.** Playwright opened `/lines` and an affected product line, delivered
+`PCN-2026-114` after both pages established their initial notice baseline, and observed the
+dismissible `AMS1117-3.3 affects 3 product lines.` notification on both. The list row changed
+to `1 notice`; the open product changed from `End of life (0)` to `(1)`, without navigation.
 
 ## 29 · `/notices` becomes `/changes`, and stops being a page for uploading — **done 9 Sep**
 

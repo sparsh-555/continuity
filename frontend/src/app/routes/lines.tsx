@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 
 import { Modal } from '../design/Modal'
 import { useNewLine } from '../hooks/useNewLine'
+import { useNoticeArrivals } from '../hooks/useNoticeArrivals'
 import {
   ApiError,
   deleteLine,
@@ -130,6 +131,7 @@ function shortageLabelFromLatestThread(latestThread: LineThread | null): string 
 export default function LinesRoute() {
   const navigate = useNavigate()
   const { createNewLine, creating } = useNewLine()
+  const { arrival } = useNoticeArrivals()
 
   const [lines, setLines] = useState<Line[]>([])
   const [threadsByLine, setThreadsByLine] = useState<Record<string, LineThread[]>>({})
@@ -215,7 +217,7 @@ export default function LinesRoute() {
     return () => {
       active = false
     }
-  }, [reloadCount])
+  }, [arrival, reloadCount])
 
   /** Attach a KiCad project to a line, and say what came out of it.
    *

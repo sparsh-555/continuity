@@ -9,6 +9,7 @@ import { RequestCard } from '../review/RequestCard'
 import { ReviewTrace } from '../review/ReviewTrace'
 import { SidePanel } from '../review/SidePanel'
 import { useLineReview } from '../review/useLineReview'
+import { useNoticeArrivals } from '../hooks/useNoticeArrivals'
 import { Wordmark } from '../shell/Wordmark'
 import {
   ApiError,
@@ -86,6 +87,7 @@ type Drawer =
  */
 export default function LineRoute() {
   const { lineId } = useParams<{ lineId: string }>()
+  const { arrival } = useNoticeArrivals()
 
   const [overview, setOverview] = useState<LineOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -110,7 +112,7 @@ export default function LineRoute() {
 
   useEffect(() => {
     void load()
-  }, [load])
+  }, [arrival, load])
 
   // The engine, after the page is on screen. This resolves parts against a distributor and
   // takes a few seconds, so it must not sit in front of the render.
@@ -126,7 +128,7 @@ export default function LineRoute() {
   useEffect(() => {
     setCheck(null)
     void run()
-  }, [run])
+  }, [arrival, run])
 
   // A change was applied, so the bill, the notices and the verdicts on this page are all
   // about a board that no longer exists. Both are reloaded rather than patched: the notice
