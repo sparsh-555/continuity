@@ -610,7 +610,7 @@ def test_approving_writes_the_successful_precedent_that_was_never_written():
                 gateway = pending["Gateway"]
                 await http.post(f"/decisions/{gateway['id']}", json={"approve": True})
                 return await store.worked_anywhere(
-                    me["org_id"], f"eol|{AMS1117.mpn}|u1"
+                    me["org_id"], f"eol|{AMS1117.mpn}"
                 )
 
     worked = run(go())

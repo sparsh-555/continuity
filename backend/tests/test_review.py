@@ -399,6 +399,23 @@ def test_the_manufacturers_recommendation_is_tried_first():
     assert candidates[2].origin == review.NAMED_ORIGIN
 
 
+def test_a_worked_precedent_is_tried_after_the_notice_and_before_the_approved_list():
+    """A success on another product is the cheapest known answer to this retirement."""
+    candidates = found(
+        notice_replacement=NCP1117.mpn,
+        worked={LD1117.mpn: "Gateway"},
+        approved=[LD1117.mpn, TLV1117.mpn],
+    )
+
+    assert [candidate.part.mpn for candidate in candidates] == [
+        NCP1117.mpn,
+        LD1117.mpn,
+        TLV1117.mpn,
+    ]
+    assert candidates[1].origin == "resolved this on the Gateway"
+    assert [candidate.part.mpn for candidate in candidates].count(LD1117.mpn) == 1
+
+
 def test_the_part_being_retired_is_not_a_candidate_to_replace_itself():
     assert AMS1117.mpn not in [
         c.part.mpn for c in found(approved=[AMS1117.mpn, TLV1117.mpn])
