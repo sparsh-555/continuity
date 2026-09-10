@@ -1933,11 +1933,11 @@ def _rail_with_capacitor(regulator: PartSpec, capacitor: PartSpec | None):
     return replace(board, slots=slots, rails=rails)
 
 
-def _capacitor(uf: float, dielectric: str = "X5R") -> PartSpec:
+def _capacitor(uf: float, dielectric: str = "X5R", **overrides) -> PartSpec:
     return PartSpec(
         mpn="CL31A226KAHNNNE", manufacturer="Samsung", description="MLCC",
         category="Multilayer Ceramic Capacitors MLCC - SMD/SMT",
-        capacitance_uf=uf, dielectric=dielectric, vmax=25.0,
+        capacitance_uf=uf, dielectric=dielectric, vmax=25.0, **overrides,
     )
 
 
@@ -2002,3 +2002,74 @@ def test_no_modelled_capacitor_is_not_a_missing_capacitor():
 
     assert verdict.status == "evidence_missing"
     assert "no capacitor is modelled" in verdict.detail
+
+
+# ── R11b · output_capacitor_stability ────────────────────────────────────────
+
+
+def test_published_output_capacitor_esr_outside_the_stability_window_fails():
+    board = _rail_with_capacitor(
+        parts.ap2112k(
+            cout_min_uf=4.7,
+            esr_stable_from_ohms=0.033,
+            esr_stable_to_ohms=2.2,
+            esr_source_line="Cout ≥ 4.7 µF; ESR 33 mΩ to 2.2 Ω",
+        ),
+        _capacitor(22.0, esr_ohms=3.0),
+    )
+
+    verdict = only(rules.output_capacitor_stability(board), "output_capacitor_stability", "regulator", RAIL)
+
+    assert verdict.status == "failed"
+    assert "3 Ω" in verdict.detail
+    assert "33 mΩ–2.2 Ω" in verdict.detail
+
+
+def test_required_output_capacitor_missing_from_the_rail_fails_stability():
+    board = _rail_with_capacitor(parts.ap2112k(cout_min_uf=4.7), None)
+
+    verdict = only(rules.output_capacitor_stability(board), "output_capacitor_stability", "regulator", RAIL)
+
+    assert verdict.status == "failed"
+    assert "no capacitor is modelled" in verdict.detail
+
+
+# ── R11c · EMC and signal integrity ─────────────────────────────────────────
+
+
+def test_emc_fails_a_switching_substitute_for_a_linear_baseline():
+    board = usb_board(
+        regulator=parts.ap2112k(topology="buck"), loads={"mcu": parts.esp32s3()}
+    )
+    board = replace(
+        board,
+        slots={
+            **board.slots,
+            "regulator": replace(board.slots["regulator"], baseline=parts.ap2112k(topology="ldo")),
+        },
+    )
+
+    verdict = only(rules.emc(board), "emc", "regulator")
+
+    assert verdict.status == "failed"
+    assert "switching" in verdict.detail
+    assert "linear" in verdict.detail
+
+
+def test_signal_integrity_stacks_published_output_errors_against_the_load_window():
+    passing = usb_board(
+        regulator=parts.ap2112k(vout_accuracy_pct=1.0, load_regulation_pct=1.0),
+        loads={"mcu": parts.esp32s3()},
+    )
+    failing = usb_board(
+        regulator=parts.ap2112k(vout_accuracy_pct=10.0, load_regulation_pct=10.0),
+        loads={"mcu": parts.esp32s3()},
+    )
+
+    clear = only(rules.signal_integrity(passing), "signal_integrity", "mcu", RAIL)
+    clipped = only(rules.signal_integrity(failing), "signal_integrity", "mcu", RAIL)
+
+    assert clear.status == "satisfied"
+    assert clear.margin == "234 mV"
+    assert clipped.status == "failed"
+    assert "2.64 V–3.96 V" in clipped.detail
