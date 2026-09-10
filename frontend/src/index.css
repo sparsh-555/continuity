@@ -103,6 +103,11 @@
     @apply stroke-[#4ade80] opacity-100;
   }
 
+  .node-accepted {
+    @apply stroke-[#fbbf24] opacity-100;
+    stroke-dasharray: 3 2;
+  }
+
   .node-searching {
     @apply stroke-tertiary-container opacity-80;
     animation: searching-pulse 1.2s ease-in-out infinite;

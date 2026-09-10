@@ -39,6 +39,7 @@ from .findings import Finding
 from ..engine.models import ApprovedLists
 from ..parts.dossier import DOSSIER_FIELDS
 from ..profile import OperatingProfile
+from ..roles import roles_for_rule
 
 SCHEMA = Path(__file__).with_name("schema.sql")
 
@@ -1079,6 +1080,7 @@ class Store:
         `source` records how it arrived — a mailbox, or the endpoint the demo posts to —
         because "where did this come from" is the first question anybody asks of a change
         that a machine started.
+
         """
         notice_id = new_id()
         async with self.pool.connection() as conn:
@@ -1659,3 +1661,35 @@ class Store:
                 (line_id, org_id),
             )
             return await cursor.fetchall()
+
+    async def accepted_waivers_for_line(
+        self, line_id: str, org_id: str
+    ) -> list[dict[str, Any]]:
+        """Accepted EOL gates that apply to the line as it stands now.
+
+        A signature on a pending or declined decision is not a waiver. Only the desk that
+        owns the failed rule can create one, even though every desk signs the released
+        change itself. The rule/candidate/revision tuple stays intact for revalidation.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT d.gate_rule AS rule, a.subject, a.mpn, a.revision, a.roles
+                  FROM decisions d
+                  JOIN approvals a ON a.decision_id = d.id AND a.org_id = d.org_id
+                 WHERE d.line_id = %s AND d.org_id = %s
+                   AND d.state = 'approved' AND d.gate_rule IS NOT NULL
+                   AND a.rule = d.gate_rule
+              ORDER BY a.created_at
+                """,
+                (line_id, org_id),
+            )
+            rows = [dict(row) for row in await cursor.fetchall()]
+        waivers = []
+        for row in rows:
+            owning_roles = sorted(
+                set(row["roles"] or ()).intersection(roles_for_rule(row["rule"]))
+            )
+            if owning_roles:
+                waivers.append({**row, "roles": owning_roles})
+        return waivers

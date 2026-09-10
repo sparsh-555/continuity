@@ -240,6 +240,78 @@ def test_a_clear_candidate_carries_its_margin():
     assert "to spare" in review.narrate(made)
 
 
+def test_an_accepted_gate_stays_a_failed_gate_in_the_narration_and_proposal():
+    made = review.attempt(gateway(approved=QUALIFIED), "u1", TLV1117)
+    availability = next(verdict for verdict in made.verdicts if verdict.rule == "availability")
+    accepted = replace(availability, status="failed", accepted=True)
+    accepted_attempt = replace(
+        made,
+        verdicts=tuple(accepted if verdict is availability else verdict for verdict in made.verdicts),
+    )
+
+    assert accepted_attempt.clear
+    assert accepted_attempt.accepted == (accepted,)
+    assert "failed and accepted" in review.narrate(accepted_attempt)
+    assert "failed and accepted" in review.choose([accepted_attempt]).detail
+
+
+SIGNED = {
+    "rule": "availability",
+    "subject": "u1",
+    "mpn": TLV1117.mpn,
+    "revision": "Rev D",
+    "roles": ["procurement"],
+}
+"""What procurement actually signed: this rule, this slot, this candidate, this revision."""
+
+
+def a_scarce_attempt(**changed):
+    """The Gateway with a part nobody can buy, and one waiver that may or may not fit it."""
+    return review.attempt(
+        gateway(approved=QUALIFIED),
+        "u1",
+        replace(TLV1117, stock=5),
+        waivers=[{**SIGNED, **changed}],
+        revision="Rev D",
+    )
+
+
+def test_a_waiver_is_scoped_to_the_rule_slot_candidate_revision_and_owning_desk():
+    """The matching itself, which is the whole of the protection.
+
+    A waiver that matched loosely would be a standing permission to ignore a rule rather
+    than a record of one decision somebody took. Each of these five is a different way of
+    being the wrong waiver, and every one of them must leave the failure blocking.
+    """
+    accepted = a_scarce_attempt()
+    assert accepted.clear, "the run has nothing left to fix"
+    assert [verdict.rule for verdict in accepted.accepted] == ["availability"], (
+        "and the failure is still there to read"
+    )
+
+    for reason, changed in (
+        ("a revision the board has since left", {"revision": "Rev C"}),
+        ("a different candidate", {"mpn": NCP1117.mpn}),
+        ("a different slot", {"subject": "c1"}),
+        ("a different rule", {"rule": "thermal_dissipation"}),
+        ("a desk that does not own the rule", {"roles": ["engineering"]}),
+    ):
+        made = a_scarce_attempt(**changed)
+        assert not made.accepted, f"{reason} is not this waiver"
+        assert [verdict.rule for verdict in made.gates] == ["availability"], (
+            f"{reason}: procurement is still the desk being asked"
+        )
+
+
+def test_a_board_with_no_waiver_at_all_is_untouched():
+    """`accepted_verdicts` returns early on an empty list, and the early return is the
+    path every ordinary review takes."""
+    made = review.attempt(gateway(approved=QUALIFIED), "u1", replace(TLV1117, stock=5))
+
+    assert not made.accepted
+    assert made.gated
+
+
 @pytest.mark.parametrize("candidate", [NCP1117, LD1117, TLV1117])
 def test_the_part_reported_is_the_part_evaluated(candidate):
     """Read back off the board rather than copied from the argument, as the matrix does."""

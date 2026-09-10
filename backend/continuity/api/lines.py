@@ -28,6 +28,7 @@ from ..engine import rules
 from ..linegraph import graph_from
 from ..parts import normalize
 from ..profile import OperatingProfile
+from .. import review as review_service
 
 log = logging.getLogger(__name__)
 
@@ -259,15 +260,26 @@ async def _check_line(store: Any, line_id: str, org_id: str) -> dict[str, Any]:
     if board is None:
         raise HTTPException(409, why_not or "this product line cannot be checked")
 
-    verdicts = rules.evaluate(board)
+    waivers = await store.accepted_waivers_for_line(line_id, org_id)
+    verdicts = review_service.accepted_verdicts(
+        rules.evaluate(board),
+        waivers=waivers,
+        parts={
+            slot_id: slot.part.mpn if slot.part is not None else None
+            for slot_id, slot in board.slots.items()
+        },
+        revision=line.revision,
+    )
     per_slot: dict[str, dict[str, Any]] = {}
     for slot_id in board.slots:
         mine = [v for v in verdicts if v.subject == slot_id]
         failed = [v for v in rules.blocking(mine)]
+        accepted = [v for v in mine if v.status == "failed" and v.accepted]
         per_slot[slot_id] = {
-            "status": "conflict" if failed else "pass",
+            "status": "conflict" if failed else "accepted" if accepted else "pass",
             "checked": len(mine),
-            "detail": failed[0].detail if failed else None,
+            "detail": (failed or accepted)[0].detail if failed or accepted else None,
+            "accepted": sorted({v.rule for v in accepted}),
         }
 
     return _remember_check(

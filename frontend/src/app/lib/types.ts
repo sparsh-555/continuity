@@ -54,7 +54,7 @@ export interface GraphSlot {
   id: string
   label: string
   tier: 'core' | 'power' | 'peripherals' | 'passives'
-  status: 'pending' | 'searching' | 'pass' | 'conflict' | 'unchecked'
+  status: 'pending' | 'searching' | 'pass' | 'accepted' | 'conflict' | 'unchecked'
   part: {
     mpn: string
     manufacturer?: string | null

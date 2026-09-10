@@ -37,8 +37,8 @@ function label(item: TraceItem): { icon: string; tone: string; text: string; det
   const mark = CHECK_MARK[item.status]
   return {
     icon: mark.icon,
-    tone: mark.tone,
-    text: `${item.rule.replace(/_/g, ' ')}${item.scope ? ` · ${item.scope}` : ''}`,
+    tone: item.accepted ? 'text-tertiary-container' : mark.tone,
+    text: `${item.accepted ? 'FAILED · ACCEPTED · ' : ''}${item.rule.replace(/_/g, ' ')}${item.scope ? ` · ${item.scope}` : ''}`,
     detail: `${item.detail}${item.margin ? ` · ${item.margin} to spare` : ''}`,
   }
 }
@@ -115,6 +115,27 @@ function Verdict({ review }: { review: LineReview }) {
  * same reason the banner above the page was: an end-of-life notice is this board's conflict,
  * and a conflict opens in the drawer on the right. See `NoticePanel`.
  */
+export function slotsWith(check: LineCheck | null, status: 'conflict' | 'accepted') {
+  return Object.entries(check?.slots ?? {}).filter(([, slot]) => slot.status === status)
+}
+
+/**
+ * Whether the board's resting statement is shown above the trace.
+ *
+ * Nothing has been said about this board yet — no live run and no stored one replayed —
+ * means the check is the only account there is. Once a trace exists it is normally the
+ * better account of the same board and this stands down for it.
+ *
+ * **An accepted failure is the exception.** The trace *predates* the signature: it recorded
+ * the moment the rule failed, and no later frame can be added to it without rewriting what
+ * the run actually said. Read on its own it leaves a red rule on screen with no resolution
+ * anywhere on the page. This sentence is what resolves it, and it is about the board as it
+ * stands now rather than about the run.
+ */
+export function showsRestingStatement(traceLength: number, acceptedCount: number): boolean {
+  return traceLength === 0 || acceptedCount > 0
+}
+
 export function ReviewTrace({
   review,
   check,
@@ -140,13 +161,9 @@ export function ReviewTrace({
   // the change request is exactly what a finished one should offer. What must not show it is
   // a run in flight.
   const idle = review.status !== 'running'
-  // Nothing has been said about this board yet — no live run and no stored one replayed.
-  // The check is the resting statement in that case and is displaced by a trace, which is
-  // the better account of the same board.
-  const empty = review.trace.length === 0
-  const failing = Object.entries(check?.slots ?? {}).filter(
-    ([, slot]) => slot.status === 'conflict',
-  )
+  const failing = slotsWith(check, 'conflict')
+  const accepted = slotsWith(check, 'accepted')
+  const resting = showsRestingStatement(review.trace.length, accepted.length)
 
   return (
     <aside className="w-1/4 min-w-[280px] max-w-[400px] flex-shrink-0 flex flex-col min-h-0 panel-border rounded-lg overflow-hidden bg-surface-container-low">
@@ -169,7 +186,7 @@ export function ReviewTrace({
             Note what is deliberately *not* here: what could not be checked. Coverage
             honesty belongs in the change request, where somebody is deciding whether to
             sign. See BUILD.md's second governing rule. */}
-        {empty && check ? (
+        {resting && check ? (
           <>
             {/* Scoped, because *nothing failed* beside a part the graph has painted red
                 reads as a contradiction. It is not one: a notice is a manufacturer saying a
@@ -179,23 +196,36 @@ export function ReviewTrace({
             <h3 className="font-data-tabular text-[10px] text-on-surface-variant/70 px-sm pt-1 uppercase">
               The engine, on the parts fitted today
             </h3>
-            {failing.length > 0 ? (
-              failing.map(([refdes, slot]) => (
-                <ReasoningLine
-                  detail={slot.detail ?? undefined}
-                  icon="cancel"
-                  iconClassName="text-error"
-                  key={refdes}
-                  text={`${refdes.toUpperCase()} fails a check on this product line`}
-                />
-              ))
-            ) : (
+            {failing.map(([refdes, slot]) => (
+              <ReasoningLine
+                detail={slot.detail ?? undefined}
+                icon="cancel"
+                iconClassName="text-error"
+                key={refdes}
+                text={`${refdes.toUpperCase()} fails a check on this product line`}
+              />
+            ))}
+            {/* Beside an outstanding failure rather than instead of it. A board can carry
+                both, and an accepted one that disappeared whenever something else failed
+                would be a signature the screen stopped mentioning. */}
+            {accepted.map(([refdes, slot]) => (
+              <ReasoningLine
+                detail={slot.detail ?? undefined}
+                icon="warning"
+                iconClassName="text-tertiary-container"
+                key={refdes}
+                text={`${refdes.toUpperCase()} failed and accepted: ${slot.accepted
+                  .join(', ')
+                  .replace(/_/g, ' ')}`}
+              />
+            ))}
+            {failing.length === 0 && accepted.length === 0 ? (
               <ReasoningLine
                 icon="check_circle"
                 iconClassName="text-[#4ade80]"
                 text={`${check.checked} checks, nothing failed`}
               />
-            )}
+            ) : null}
           </>
         ) : null}
 

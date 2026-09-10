@@ -1,4 +1,4 @@
-type NodeStatus = 'pending' | 'searching' | 'pass' | 'conflict' | 'unchecked'
+type NodeStatus = 'pending' | 'searching' | 'pass' | 'accepted' | 'conflict' | 'unchecked'
 
 type ConflictVariant = 'entry' | 'repeat' | 'warmup'
 
@@ -44,6 +44,10 @@ function nodeClassName(status: NodeStatus, conflictVariant?: ConflictVariant) {
     return 'node node-pass'
   }
 
+  if (status === 'accepted') {
+    return 'node node-accepted'
+  }
+
   if (status === 'searching') {
     return 'node node-searching'
   }
@@ -58,6 +62,10 @@ function statusDot(status: NodeStatus) {
 
   if (status === 'pass') {
     return { fill: '#4ade80', className: '' }
+  }
+
+  if (status === 'accepted') {
+    return { fill: '#fbbf24', className: '' }
   }
 
   if (status === 'searching') {
@@ -92,7 +100,7 @@ export function ComponentNode({
   onSelect,
 }: ComponentNodeProps) {
   const dot = statusDot(status)
-  const showMpn = Boolean(mpn) && (status === 'pass' || status === 'conflict')
+  const showMpn = Boolean(mpn) && (status === 'pass' || status === 'accepted' || status === 'conflict')
   const badge = stockBadge ? truncate(stockBadge, 14) : null
   const badgeWidth = badge ? stockBadgeWidth(badge) : 0
   const subtitleY = showMpn ? 44 : 30
@@ -100,7 +108,7 @@ export function ComponentNode({
   return (
     <g className={reveal ? 'graph-node-reveal' : undefined}>
       <g
-        aria-label={`${title}${mpn ? ` ${mpn}` : ''}`}
+        aria-label={`${title}${mpn ? ` ${mpn}` : ''}${status === 'accepted' ? ' — accepted failure' : ''}`}
         className="cursor-pointer group"
         onClick={onSelect}
         onKeyDown={(event) => {

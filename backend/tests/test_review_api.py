@@ -15,6 +15,7 @@ import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
+from dataclasses import replace
 
 import httpx
 import pytest
@@ -39,9 +40,22 @@ DB_URL = os.environ.get("CONTINUITY_TEST_DB")
 
 pytestmark = pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
 
+SPARE_CAPACITOR = replace(
+    OUTPUT_CAPACITOR,
+    mpn="GRM31CR61E226ME15L",
+    manufacturer="Murata",
+    stock=812_004,
+    unit_price=0.1899,
+    product_url="https://jlcpcb.com/partdetail/C1990",
+)
+"""A second 22 µF 25 V X5R 1206 part, so a later notice about the capacitor has somewhere
+to go. Electrically the same as the incumbent on purpose: what that test is about is the
+regulator's already-accepted shortfall, and a capacitor that failed a check of its own
+would decide the outcome instead."""
+
 CATALOGUE = {
     part.mpn: part
-    for part in (AMS1117, NCP1117, LD1117, TLV1117, OUTPUT_CAPACITOR,
+    for part in (AMS1117, NCP1117, LD1117, TLV1117, OUTPUT_CAPACITOR, SPARE_CAPACITOR,
                  *(line.load_part for line in LINES))
 }
 
@@ -62,6 +76,19 @@ class _Notice:
     replacement_mpn = NCP1117.mpn
     replacement_line = f"Recommended replacement: {NCP1117.mpn}."
     reason = "Wafer fabrication line closure."
+
+
+class _CapacitorNotice:
+    """A second, later notice on the same three boards, about a different slot."""
+
+    mpn = OUTPUT_CAPACITOR.mpn
+    mpn_line = f"Affected part: {OUTPUT_CAPACITOR.mpn} (1206)"
+    manufacturer = OUTPUT_CAPACITOR.manufacturer
+    effective_date = "2027-09-30"
+    effective_date_line = "Last time buy: 2027-09-30"
+    replacement_mpn = SPARE_CAPACITOR.mpn
+    replacement_line = f"Recommended replacement: {SPARE_CAPACITOR.mpn}."
+    reason = "Dielectric line consolidation."
 
 
 def run(coro):
@@ -481,6 +508,95 @@ def test_approving_records_who_signed_it_and_why():
     assert approvals[0]["user_email"] == "run@example.com"
     assert approvals[0]["rationale"] == "Approved on the 2025 audit."
     assert approvals[0]["revision"] == "Rev D"
+
+
+def test_an_accepted_gate_is_kept_as_an_accepted_failure_on_the_released_revision():
+    """A decision is not a one-time bypass: later validation keeps the failure visible.
+
+    Gateway's stock gate is deliberately answerable by procurement. Once the board has
+    accepted it and applied the candidate, checking the released revision again must say
+    *accepted failure*, never quietly repaint it as a pass and never reopen the gate.
+    """
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                assert gateway["gate_rule"] == "availability", "precondition: an answerable failure"
+                answered = await http.post(
+                    f"/decisions/{gateway['id']}",
+                    json={"approve": True, "rationale": "Bridge-buy covers this release."},
+                )
+                checked = await http.post(f"/lines/{gateway['line_id']}/check")
+                waivers = await store.accepted_waivers_for_line(gateway["line_id"], me["org_id"])
+                current = await store.line_for_user(gateway["line_id"], me["org_id"])
+                return gateway, answered, checked, waivers, current
+
+    gateway, answered, checked, waivers, current = run(go())
+
+    assert answered.json()["state"] == "approved"
+    assert current is not None and current.revision == "Rev D"
+    assert waivers == [{
+        "rule": "availability", "subject": "u1", "mpn": gateway["proposal"],
+        "revision": "Rev D", "roles": ["procurement"],
+    }], "the rule, the slot, the candidate, the revision and the desk that owns it"
+    assert checked.status_code == 200, checked.text
+    slot = checked.json()["slots"]["u1"]
+    assert slot["status"] == "accepted", "neither a conflict nor a pass"
+    assert slot["accepted"] == ["availability"]
+    assert "5,000 minimum" in slot["detail"], "the arithmetic survives the signature"
+
+
+def test_an_accepted_gate_does_not_reopen_when_a_later_change_touches_the_board():
+    """What the waiver is *for*, and the only path that reaches `review.attempt`.
+
+    Procurement accepted the Gateway's stock shortfall on TLV1117 and the board shipped
+    with it. A second notice then retires the output capacitor, and every candidate for
+    that slot is re-checked against the whole board — which still holds the regulator
+    somebody already signed for. Without the waiver, u1's stock failure blocks a change
+    about a different part, and procurement is asked to accept the same shortfall twice.
+    """
+
+    async def go():
+        async with a_store() as store:
+            company = a_company(store, qualified=[*QUALIFIED, SPARE_CAPACITOR.mpn])
+            async with company as (http, me, notice_id):
+                pending = await a_pending_decision(store, http, notice_id, me["org_id"])
+                gateway = pending["Gateway"]
+                assert gateway["gate_rule"] == "availability", "precondition: an answerable failure"
+                await http.post(
+                    f"/decisions/{gateway['id']}",
+                    json={"approve": True, "rationale": "Bridge-buy covers this release."},
+                )
+                later = await store.save_notice(
+                    me["org_id"], me["id"], _CapacitorNotice(), source="test"
+                )
+                after = await a_pending_decision(
+                    store, http, later, me["org_id"], candidates=[SPARE_CAPACITOR.mpn]
+                )
+                return gateway, after["Gateway"]
+
+    gateway, after = run(go())
+
+    assert after["proposal"] == SPARE_CAPACITOR.mpn
+    assert after["slot_id"] == "c1", "the later change is about the capacitor"
+    assert after["gate_rule"] is None, (
+        "the regulator's shortfall was accepted once and is not procurement's decision again"
+    )
+    availability = [
+        verdict
+        for attempt in after["document"]["attempts"]
+        if attempt["mpn"] == SPARE_CAPACITOR.mpn
+        for verdict in attempt["verdicts"]
+        if verdict["rule"] == "availability" and verdict["subject"] == "u1"
+    ]
+    assert availability, "the whole board is still re-checked, u1 included"
+    assert all(verdict["status"] == "failed" for verdict in availability), (
+        "an accepted failure is still a failure, and still reported"
+    )
+    assert all(verdict["accepted"] for verdict in availability)
+    assert gateway["proposal"] == TLV1117.mpn, "and it is the part the waiver names"
 
 
 def test_approving_writes_the_successful_precedent_that_was_never_written():

@@ -26,8 +26,8 @@ checks availability, production confirms assembly, and the tool routes rather th
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Mapping, Sequence
+from dataclasses import dataclass, replace
+from typing import Any, Mapping, Sequence
 
 from .engine import rules
 from .engine.models import Board, PartSpec, Verdict
@@ -70,6 +70,15 @@ class Attempt:
     @property
     def clear(self) -> bool:
         return not self.blocking
+
+    @property
+    def accepted(self) -> tuple[Verdict, ...]:
+        """Failures a responsible desk accepted; eligible, but never a pass."""
+        return tuple(
+            verdict
+            for verdict in self.verdicts
+            if verdict.status == "failed" and verdict.accepted
+        )
 
     @property
     def gated(self) -> bool:
@@ -137,7 +146,52 @@ class Outcome:
         return self.proposal is not None
 
 
-def attempt(board: Board, slot_id: str, candidate: PartSpec) -> Attempt:
+def accepted_verdicts(
+    verdicts: Sequence[Verdict],
+    *,
+    waivers: Sequence[Mapping[str, Any]],
+    parts: Mapping[str, str | None],
+    revision: str | None,
+) -> tuple[Verdict, ...]:
+    """Keep an accepted EOL failure visible, but stop routing it as unfinished work.
+
+    A waiver is only for the failing rule the owning desk accepted, on the candidate it
+    saw, under the released revision it signed. It is deliberately an attribute of a
+    failed verdict, never a new pass label or a deletion of the evidence.
+    """
+    if not waivers:
+        return tuple(verdicts)
+
+    def accepted(verdict: Verdict) -> bool:
+        if verdict.status != "failed":
+            return False
+        owners = set(roles_for_rule(verdict.rule))
+        candidate_mpn = parts.get(verdict.subject)
+        return any(
+            waiver.get("rule") == verdict.rule
+            and waiver.get("subject") == verdict.subject
+            and isinstance(candidate_mpn, str)
+            and isinstance(waiver.get("mpn"), str)
+            and waiver["mpn"].strip().upper() == candidate_mpn.strip().upper()
+            and waiver.get("revision") == revision
+            and owners.intersection(waiver.get("roles") or ())
+            for waiver in waivers
+        )
+
+    return tuple(
+        replace(verdict, accepted=True) if accepted(verdict) else verdict
+        for verdict in verdicts
+    )
+
+
+def attempt(
+    board: Board,
+    slot_id: str,
+    candidate: PartSpec,
+    *,
+    waivers: Sequence[Mapping[str, Any]] = (),
+    revision: str | None = None,
+) -> Attempt:
     """Place the candidate and re-check the whole board.
 
     The whole board, not the slot: a regulator moves the rail it makes, and a substitution
@@ -148,7 +202,16 @@ def attempt(board: Board, slot_id: str, candidate: PartSpec) -> Attempt:
     placed = substituted.slots[slot_id]
     # Read the part back off the board rather than trusting what was handed in, exactly as
     # the matrix does: the attempt reports what was actually evaluated.
-    return Attempt(candidate=placed.part, verdicts=tuple(rules.evaluate(substituted)))
+    parts = {
+        subject: slot.part.mpn if slot.part is not None else None
+        for subject, slot in substituted.slots.items()
+    }
+    return Attempt(
+        candidate=placed.part,
+        verdicts=accepted_verdicts(
+            rules.evaluate(substituted), waivers=waivers, parts=parts, revision=revision
+        ),
+    )
 
 
 def choose(attempts: Sequence[Attempt], *, excluded: Mapping[str, str] | None = None) -> Proposal | None:
@@ -167,6 +230,12 @@ def choose(attempts: Sequence[Attempt], *, excluded: Mapping[str, str] | None = 
     for candidate in usable:
         if candidate.clear:
             margin = f", with {candidate.margin} to spare" if candidate.margin else ""
+            accepted = candidate.accepted
+            detail = (
+                f"{accepted[0].rule.replace('_', ' ')} failed and accepted — {accepted[0].detail}"
+                if accepted
+                else f"Clears every check on this board{margin}."
+            )
             return Proposal(
                 mpn=candidate.mpn,
                 # Every department that examined this change, not engineering by default.
@@ -178,7 +247,7 @@ def choose(attempts: Sequence[Attempt], *, excluded: Mapping[str, str] | None = 
                 # engineering here meant a desk was consulted only when the answer was a
                 # compromise, and never when it was good.
                 roles=desks_that_must_sign(candidate.verdicts),
-                detail=f"Clears every check on this board{margin}.",
+                detail=detail,
             )
 
     for candidate in usable:
@@ -205,6 +274,12 @@ def narrate(attempt_made: Attempt) -> str:
     `detail` is written by the rule that produced it and carries its arithmetic, so quoting
     it is both the shortest and the most defensible thing to say.
     """
+    if attempt_made.accepted:
+        verdict = attempt_made.accepted[0]
+        return (
+            f"{attempt_made.mpn} has {verdict.rule.replace('_', ' ')} failed and accepted "
+            f"— {verdict.detail}"
+        )
     if attempt_made.clear:
         margin = f" — {attempt_made.margin} to spare" if attempt_made.margin else ""
         return f"{attempt_made.mpn} clears every check on this board{margin}."

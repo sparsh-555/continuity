@@ -350,7 +350,12 @@ async def _run_line(
         return
 
     rejected = await store.rejected_on(user.org_id, line_id)
-    revision = line.get("revision")
+    # `lines_exposed_to` is the notice's reachability snapshot. The waiver is instead
+    # scoped to the revision the product line has *now*, which may have advanced when the
+    # preceding decision applied its substitution.
+    current_line = await store.line_for_user(line_id, user.org_id)
+    revision = current_line.revision if current_line is not None else line.get("revision")
+    waivers = await store.accepted_waivers_for_line(line_id, user.org_id)
     # The board as it stands today, so the request can say what is fitted and what its
     # evidence looks like. Substituting a part for itself sets no baseline, which is what
     # makes this the incumbent row rather than a proposed change.
@@ -360,7 +365,9 @@ async def _run_line(
     for candidate in candidates:
         emit(line_id, stream.candidate(slot_id, candidate.part))
         say(f"Trying {candidate.part.mpn} — {candidate.origin}.", slot_id)
-        made = review.attempt(board, slot_id, candidate.part)
+        made = review.attempt(
+            board, slot_id, candidate.part, waivers=waivers, revision=revision
+        )
         attempts.append(made)
         say(review.narrate(made), slot_id)
         # Let the other product lines have the loop between candidates. The engine is fast
@@ -408,7 +415,10 @@ async def _run_line(
                     "verdicts": [
                         {
                             "rule": verdict.rule,
+                            "subject": verdict.subject,
+                            "scope": verdict.scope,
                             "status": verdict.status,
+                            "accepted": verdict.accepted,
                             "detail": verdict.detail,
                             "margin": verdict.margin,
                         }

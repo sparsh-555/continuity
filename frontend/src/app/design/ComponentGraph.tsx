@@ -177,6 +177,15 @@ export function ComponentGraph({
             <span className="w-2 h-2 rounded-pill bg-error"></span>
             <span className="font-data-tabular text-[9px] text-on-surface">Conflict</span>
           </div>
+          {/* Only when a part on this board is in that state. A legend row for a colour
+              nothing on screen is wearing asks the reader to hold a distinction the picture
+              never makes. */}
+          {slots.some((slot) => slot.status === 'accepted') ? (
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-pill bg-[#fbbf24]"></span>
+              <span className="font-data-tabular text-[9px] text-on-surface">Accepted</span>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-pill bg-outline-variant"></span>
             <span className="font-data-tabular text-[9px] text-on-surface">Pending</span>

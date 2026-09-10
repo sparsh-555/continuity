@@ -680,7 +680,13 @@ export function checkLine(lineId: string) {
 }
 
 export type LineCheck = {
-  slots: Record<string, { status: 'pass' | 'conflict'; checked: number; detail: string | null }>
+  slots: Record<string, {
+    status: 'pass' | 'accepted' | 'conflict'
+    checked: number
+    detail: string | null
+    /** Failed rules a responsible desk accepted on this candidate and revision. */
+    accepted: string[]
+  }>
   checked: number
   /** Rules that do not apply to this board, and rules whose inputs nobody has supplied.
    *  Green means nothing failed, not that everything was checkable. */
