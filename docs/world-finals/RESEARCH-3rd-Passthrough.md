@@ -760,6 +760,141 @@ None of this needs a new KiCad invocation. Both SVGs are already in the response
 
 ---
 
+## R11 Showing four desks, and demoing them with one presenter
+
+**His question:** how do we show the department breakdown properly, and does it need multiple
+sign-ins?
+
+### The answer was already written, on 4 September
+
+[SCENARIO-B.md](SCENARIO-B.md) settled it and nobody built it:
+
+> **Each role sees the same verdict in its own terms. One finding, three renderings — a view
+> layer over one shared result, never three engines.**
+
+The external pattern literature says the same thing in its own words: *"design requester,
+approver, admin, and observer views with the same canonical state but role-appropriate
+actions."* So the breakdown is **not** four computations, four panels or four pages. It is one
+result, grouped by the desk that owns each part of it, rendered wherever that result already
+appears — the trace, the lane, the change request, the matrix cell. That is item 33.
+
+The same document also answers *how many desks*: a change control board's composition *"should
+mirror the change's blast radius: engineering, quality, manufacturing and procurement at
+minimum."* Four, which is what he chose, and manufacturing is the topic's production.
+
+One question from RESEARCH-BRIEF-2 §5 was never answered and can be closed now: *"can one
+finding legitimately have several owners? Round one said our one-department-per-cell tagging is
+an oversimplification."* Yes, and the code already models it — `part_qualification` is
+addressed to engineering **and** quality. It is not an oversimplification to remove; it is a
+case the rendering has to handle, so a rule with two owners appears under both.
+
+### Does it need multiple sign-ins?
+
+**Yes, real ones, and no, not by logging out.** Those are two different questions and the
+literature separates them cleanly.
+
+The WordPress *View as Role* module states the distinction better than anything else found:
+a **view-as** simulation is *"visual only — it doesn't grant or remove actual permissions"*
+and *"any actions you take are still done as you"*, whereas **login-as** *"actually switches
+accounts"* and *"can perform actions as that user"*. Its own comparison table ends: *"use View
+as Role when you want to check what a role can see. Use Login As User when you need to act as
+a specific user."*
+
+Continuity needs to **act**. A desk signing a change request is the entire beat, so a
+simulation is not an option: it would be a drawn affordance that cannot be used, which is the
+rule we already hold.
+
+What that does not mean is signing out on stage. The pattern every reference implementation
+uses is a **principal switcher in the header holding several genuine sessions**:
+
+- `treasury-rfq-demo` walks a thirteen-step multi-party trade with *"switch principals using
+  the dropdown in the top-right of the header"*, and is explicit that each view fetches
+  *"independently with its own credentials, no god-view shortcuts."* A direct API call from
+  the wrong principal *"returns 403 ACL_DENY — and the denial itself is logged."*
+- The IAM Gatekeepers PAM walkthrough uses **role pills in the top-right**: *"switch roles
+  using the pills in the top-right header to see how the same data looks from each
+  perspective."*
+- `RolesTab` solves it the heavy way, one isolated browser session per role, *"without
+  constantly signing in and out."*
+
+For us that is: keep a session per seeded account, switch with one control, always show the
+current desk, and leave the 403 exactly where it is. Item 37.
+
+### The frame worth stealing
+
+`treasury-rfq-demo` also has a **multi-pane toggle**: the same workflow, four principals at
+once, each pane fetching with its own credentials. Its own note on why it matters is the
+sentence to take:
+
+> *"The empty Crestline pane is the most concrete evidence that scoping is real, not
+> cosmetic."*
+
+Applied here: one change request, four panes — design, procurement, production, quality — each
+showing that desk's own verdicts and its own button, and a desk with nothing to answer showing
+nothing to answer. That is the cross-team response in one frame, it is impossible to fake, and
+it makes the point without anybody switching anything. It also answers
+[R3](#r3-the-changes-page-is-doing-three-jobs): this is what the right-hand side of a
+master-detail `/changes` should hold.
+
+Their presenter overlay is worth noting too — jump to a beat, hard reset, toggle the panes —
+because `./demo.sh` already rebuilds the world in three seconds and that is the same idea at
+the shell rather than in the app.
+
+### How the approvals should actually work
+
+The approval-pattern literature gives the vocabulary, and it changes one thing in the plan.
+
+**Parallel, all-must-approve. Not sequential.** The published comparison is direct:
+first-response *"reduces waiting, but the first valid response becomes decisive. It is unsafe
+when two independent controls or separation of duties are required."* That is exactly
+`part_qualification`, which `roles.py` addresses to two desks with the words *"it needs both"*,
+and which `answer_decision` resolves with `allowed.intersection(user.roles)` — first response.
+All-must-approve *"keeps the request in review until every current reviewer approves."*
+
+Sequential review is the other option and it is the wrong one here, for a reason specific to
+this pitch: sequential *"expresses ordered authority clearly, but every stage adds latency"* —
+and the round trips are the thing this product claims to remove. The chain in *Chained
+Collaboration* is the chain of **functions**, and the whole argument is that Continuity checks
+all of them at once. The approval should read the same way.
+
+Four more things from the same sources that the build should honour:
+
+- **Authorisation is per transition, not per login.** *"Every state change should verify three
+  things: the actor has permission for this transition, the transition is valid from the
+  current state, and all prerequisite conditions are satisfied."* `answer_decision` does the
+  first two; the third arrives with item 35.
+- **An approver inbox is a named pattern**, not an invention: *"a `/approvals` page listing all
+  pending tasks for current user"*, each carrying full context, the prior approvals in the
+  workflow, and the decision controls. Item 36.
+- **Escalation must be non-decisional.** *"It may notify, delegate, or flag the request, but
+  only the authorised decision transition changes approval state."* Worth remembering when the
+  outbound approval request is finally built.
+- **Do not encode approval progress in colour or position alone.** *"Do not rely on color,
+  initials, icons, or timeline position alone to communicate which approvals are missing or
+  complete."* Two of four signed has to be readable as words.
+
+### The one thing the research says we should not do
+
+WORKBUDDY.md already reached the conclusion the external patterns support, for a different
+reason: *"putting a desktop app, a mailbox and a Slack workspace into the critical path of a
+live demo risks the larger number to chase the smaller one."* Cross-desk delivery over an
+outside channel is the real-world answer and the wrong demo-day answer. Build the in-app inbox
+and the switcher; leave the channel to DEFERRED.
+
+### Sources
+
+- [SCENARIO-B.md](SCENARIO-B.md) — our own 4 Sep research: one finding several renderings, the CCB's composition, and the standard that a released design is approved before implementation.
+- [Approval workflow UX Pattern, UX Patterns Guide](https://uxpatternsguide.com/patterns/approval-workflow/) — route semantics, the state list, role-appropriate views over one canonical state, and the accessibility rule about not encoding progress in colour alone.
+- [Approval Workflow Guide, Playcode](https://playcode.io/blog/approval-workflow-guide) — the first-response versus all-must-approve versus sequential comparison, and escalation being non-decisional.
+- [Approval workflow blueprint, Vladimir Siedykh](https://vladimirsiedykh.com/blog/approval-workflow-blueprint-routing-audit-permissions) — authorisation as a per-transition contract; explicit, scoped, recorded overrides.
+- [treasury-rfq-demo](https://github.com/abhinavg6/treasury-rfq-demo) — principal switcher, per-principal credentials with no god view, the multi-pane frame, and the empty pane as proof.
+- [View Admin as Role, Switchboard](https://docs.wpswitchboard.com/modules/user-management/view-admin-as-role/) — the view-as versus login-as distinction, stated as a comparison table.
+- [IAM Gatekeepers PAM demo](https://identitygatekeepers.com/pam-demo/) — role pills in the header, and a two-of-three multi-party approval walkthrough.
+- [Approval workflows and multi-step routing](https://www.vibeweek.ai/grow/approval-workflows-multi-step-routing-chat) — parallel groups with a required count, and the approver inbox surface.
+
+
+---
+
 ## What was not researched
 
 **Finding 1**, the board pane saying *Drawing the board…* while it loads a stored render, is a
