@@ -24,7 +24,6 @@ const COVERAGE: Array<{ key: EventStatus; label: string; tone: string }> = [
   { key: 'satisfied', label: 'satisfied', tone: 'text-[#4ade80]' },
   { key: 'failed', label: 'failed', tone: 'text-error' },
   { key: 'evidence_missing', label: 'no evidence', tone: 'text-tertiary-container' },
-  { key: 'not_assessed', label: 'not assessed', tone: 'text-on-surface-variant' },
   { key: 'not_applicable', label: 'n/a', tone: 'text-on-surface-variant' },
 ]
 

@@ -652,9 +652,7 @@ def test_a_notice_yields_one_change_request_per_affected_line(model, monkeypatch
     assert set(by_line) == {"Sensor node", "Gateway", "Cabinet controller"}
 
     for request in requests:
-        assert request["not_assessed"] == [
-            "emc", "output_capacitor_stability", "signal_integrity"
-        ], f"{request['line_name']} does not say what it left unchecked"
+        assert "not_assessed" not in request, f"{request['line_name']} contains a retired coverage status"
         assert request["baseline_mpn"] == AMS1117.mpn
         assert request["revision"] == "C"
         assert request["notice_mpn"] == AMS1117.mpn

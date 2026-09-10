@@ -53,7 +53,6 @@ const CHECK_LABEL: Record<string, string> = {
   satisfied: 'SATISFIED',
   failed: 'FAILED',
   not_applicable: 'N/A',
-  not_assessed: 'NOT ASSESSED',
   evidence_missing: 'NO EVIDENCE',
 }
 

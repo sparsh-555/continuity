@@ -136,10 +136,9 @@ def test_every_cell_reports_all_five_labels_including_the_zeroes():
     counts = demo_matrix().cell("B", AMS1117.mpn).counts
 
     assert set(counts) == {
-        "satisfied", "failed", "not_applicable", "not_assessed", "evidence_missing",
+        "satisfied", "failed", "not_applicable", "evidence_missing",
     }
     assert counts["satisfied"] > 0
-    assert counts["not_assessed"] == 3, "the engine's declared coverage boundaries"
     assert sum(counts.values()) == len(demo_matrix().cell("B", AMS1117.mpn).verdicts)
 
 

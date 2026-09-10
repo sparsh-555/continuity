@@ -124,8 +124,7 @@ def test_the_check_says_what_it_could_not_assess():
 
     body = asyncio.run(go())
 
-    assert "not_assessed" in body and "evidence_missing" in body
-    assert isinstance(body["not_assessed"], list)
+    assert "not_assessed" not in body and "evidence_missing" in body
 
 
 @database

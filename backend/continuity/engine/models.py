@@ -20,7 +20,7 @@ from .format import listing
 Tier = Literal["core", "power", "peripherals", "passives"]
 """Render order left-to-right is POWER · CORE · PERIPHERALS · PASSIVES, not this order."""
 
-CheckStatus = Literal["satisfied", "failed", "not_applicable", "not_assessed", "evidence_missing"]
+CheckStatus = Literal["satisfied", "failed", "not_applicable", "evidence_missing"]
 SlotStatus = Literal["pending", "searching", "pass", "conflict"]
 EdgeKind = Literal["power", "data"]
 EdgeStatus = Literal["pending", "pass", "conflict", "unchecked"]
@@ -47,12 +47,12 @@ RULE_NAMES = (
     "footprint",
     "footprint_compatibility",
     "capacitor_requirements",
-    "temperature_rating",
-    "energy_budget",
-    "rail_coverage",
     "output_capacitor_stability",
     "emc",
     "signal_integrity",
+    "temperature_rating",
+    "energy_budget",
+    "rail_coverage",
 )
 
 
@@ -162,15 +162,6 @@ cook. Stated exactly like θJA and an inferred supply: assumed, and said out lou
 
 ASSUMED_EFFICIENCY_SOURCE = "Continuity assumption — no efficiency published"
 
-# Source: the engine's declared coverage boundary, rather than an absent result.
-NOT_ASSESSED = (
-    ("output_capacitor_stability", "Proving a regulator is stable with a given output "
-     "capacitor needs simulation. Explicit violations of a published requirement are "
-     "checkable and are a separate rule; stability itself is not."),
-    ("emc", "Radiated and conducted emissions are a measurement, not a datasheet field."),
-    ("signal_integrity", "Needs board geometry and a stackup, which a BOM does not carry."),
-)
-
 AMBIENT_DEFAULT_C = 25
 """Bench ambient used when a brief supplies no local operating temperature.
 
@@ -276,6 +267,18 @@ class PartSpec:
 
     cout_source_line: str | None = None
     """The sentence the capacitor requirement was read from, for the evidence row."""
+
+    esr_stable_from_ohms: float | None = None
+    esr_stable_to_ohms: float | None = None
+    esr_source_line: str | None = None
+    """Published output-capacitor ESR window required for stable regulation."""
+
+    esr_ohms: float | None = None
+    """Published ESR of a fitted capacitor, when its manufacturer states one."""
+
+    vout_accuracy_pct: float | None = None
+    load_regulation_pct: float | None = None
+    """Worst published output accuracy and load-regulation deviations, in percent."""
 
     t_j_max: float | None = None
     """Maximum junction temperature, where a part states one apart from its grade.

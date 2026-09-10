@@ -80,14 +80,12 @@ function captionFor(checks: Map<string, CheckEvent>) {
     measurableMargins[0],
   )
   const unchecked = results.filter((check) => check.status === 'evidence_missing').length
-  const unassessed = results.filter((check) => check.status === 'not_assessed').length
 
   const summary = [
     satisfied.length
       ? `${satisfied.length} satisfied${tightestMargin ? `, tightest margin ${tightestMargin.margin}` : ''}`
       : '',
     unchecked ? `${unchecked} could not be checked` : '',
-    unassessed ? `${unassessed} not assessed` : '',
     accepted.length ? `${accepted.length} failed and accepted` : '',
   ].filter(Boolean)
 
@@ -107,12 +105,6 @@ function captionFor(checks: Map<string, CheckEvent>) {
  *
  *  Naming them once, when the run ends, is the opposite of the bug this replaced — every
  *  sourcing line captioned "3 not assessed" as though each part were responsible. */
-const RULE_LABEL: Record<string, string> = {
-  // Underscore-stripping reads well for every rule but the acronyms, and "emc" in a
-  // sentence about what the engine did not check reads as a typo rather than a subject.
-  emc: 'EMC',
-}
-
 function boardCoverage(reasoning: ReasoningItem[]): string | null {
   const checks = new Map<string, CheckEvent>()
   for (const item of reasoning) {
@@ -121,13 +113,9 @@ function boardCoverage(reasoning: ReasoningItem[]): string | null {
     }
   }
 
-  const named = [...checks.values()]
-    .filter((check) => check.status === 'not_assessed')
-    .map((check) => RULE_LABEL[check.rule] ?? check.rule.replace(/_/g, ' '))
   const inapplicable = [...checks.values()].filter((check) => check.status === 'not_applicable').length
 
   const parts = [
-    named.length ? `Not assessed: ${named.join(', ')}.` : '',
     inapplicable ? `${inapplicable} rule${inapplicable === 1 ? '' : 's'} did not apply to this board.` : '',
   ].filter(Boolean)
 

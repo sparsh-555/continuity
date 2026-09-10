@@ -73,7 +73,6 @@ const CHECK_MARK: Record<EventStatus, { icon: string; tone: string }> = {
   satisfied: { icon: 'check_circle', tone: 'text-[#4ade80]' },
   failed: { icon: 'cancel', tone: 'text-error' },
   evidence_missing: { icon: 'help', tone: 'text-tertiary-container' },
-  not_assessed: { icon: 'remove', tone: 'text-on-surface-variant' },
   not_applicable: { icon: 'remove', tone: 'text-on-surface-variant' },
 }
 
@@ -84,7 +83,6 @@ export function checkLabel(check: Pick<LaneCheck, 'status' | 'accepted'>): strin
     satisfied: 'SATISFIED',
     failed: 'FAILED',
     evidence_missing: 'EVIDENCE MISSING',
-    not_assessed: 'NOT ASSESSED',
     not_applicable: 'NOT APPLICABLE',
   }[check.status]
 }

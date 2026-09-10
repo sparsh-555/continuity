@@ -381,8 +381,6 @@ export type ChangeRequest = {
     detail: string
     margin: string | null
   }>
-  /** Rules the engine declares it does not answer. */
-  not_assessed: string[]
   /** Rules it tried to answer and could not — a different admission, kept apart. */
   no_evidence: string[]
   cost: ChangeRequestCost
@@ -690,7 +688,6 @@ export type LineCheck = {
   checked: number
   /** Rules that do not apply to this board, and rules whose inputs nobody has supplied.
    *  Green means nothing failed, not that everything was checkable. */
-  not_assessed: string[]
   evidence_missing: string[]
   /** Fitted parts no distributor listing was found for. They have no verdict, and a slot
    *  with no verdict renders exactly like one nobody got to, so they are named. */

@@ -190,9 +190,8 @@ def test_every_cell_carries_all_five_coverage_counts_and_the_margin():
 
     for cell in body["cells"]:
         assert set(cell["counts"]) == {
-            "satisfied", "failed", "not_applicable", "not_assessed", "evidence_missing",
+            "satisfied", "failed", "not_applicable", "evidence_missing",
         }
-        assert cell["counts"]["not_assessed"] == 3
 
     gateway = next(
         c for c in body["cells"] if c["line_id"] == ids["B"] and c["mpn"] == LD1117.mpn

@@ -891,6 +891,43 @@ def test_a_finished_review_can_be_replayed_from_what_it_recorded():
     assert not any(line == f"Trying {AMS1117.mpn}." for line in said)
 
 
+def test_retired_not_assessed_status_is_absent_from_trace_and_document():
+    """R5, decided 11 September.
+
+    A collapsed lane shows its last frame, and RULES evaluates `not_assessed` last — so a
+    run that streamed those verdicts led every board with the engine declining three
+    questions it never asks. The person signing keeps the honest denominator; the trace
+    shows the working. Both places the trace is spoken — the live emission and the rebuilt
+    replay — filter, so the two cannot disagree; `change.for_line` still collects the rules
+    from the stored attempts, so the document is untouched.
+    """
+
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, me, notice_id):
+                frames = await frames_of(http, notice_id)
+                gateway = next(
+                    row
+                    for row in await store.decisions_for_notice(notice_id, me["org_id"])
+                    if row["line_name"] == "Gateway"
+                )
+                replayed = (await http.get(f"/lines/{gateway['line_id']}/reviews")).json()
+                requests = (await http.get(f"/notices/{notice_id}/review")).json()
+                return frames, replayed, requests
+
+    frames, replayed, requests = run(go())
+
+    live_checks = [frame for frame in frames if frame["type"] == "check"]
+    assert live_checks, "the filter must not silence the winner's verdicts"
+    assert all(check["status"] != "not_assessed" for check in live_checks)
+
+    replay_checks = [frame for frame in replayed[0]["frames"] if frame["type"] == "check"]
+    assert replay_checks, "the replay still carries the winner's verdicts"
+    assert all(check["status"] != "not_assessed" for check in replay_checks)
+
+    assert all("not_assessed" not in request for request in requests)
+
+
 def test_a_line_that_has_never_been_reviewed_replays_nothing():
     async def go():
         async with a_store() as store:

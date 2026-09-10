@@ -292,7 +292,6 @@ async def _check_line(store: Any, line_id: str, org_id: str) -> dict[str, Any]:
             "unresolved": unresolved,
             # Green means nothing failed, not that everything was checkable. Naming the two
             # separately is the whole reason there are five coverage labels rather than three.
-            "not_assessed": sorted({v.rule for v in verdicts if v.status == "not_assessed"}),
             "evidence_missing": sorted(
                 {v.rule for v in verdicts if v.status == "evidence_missing"}
             ),

@@ -15,9 +15,16 @@ it exposed, and the header counts are re-counted by counting.
 
 ## Decisions taken with Sparsh, 11 Sep
 
-1. **The three not-assessed rules stay in the change request and come off the trace.** The
-   signer keeps the honest denominator; no run leads with what the engine declined. The
-   matrix keeps every verdict — it is the full working, opened deliberately.
+1. **The three never-checked rules are built, not disclosed.** (Supersedes the morning
+   decision, which kept the admissions and moved them off the trace.) `emc`,
+   `output_capacitor_stability` and `signal_integrity` become real engine checks; the
+   `not_assessed` concept is deleted everywhere. **The new rules must not take over the
+   demo's existing narrative beats** — all three are green on the demo world with
+   datasheet-quoted arithmetic, and the 159 °C / TLV1117 / NCP-on-the-cool-lines story is
+   preserved exactly. AMS's tantalum sentence reads as a characterization, not a
+   requirement (satisfied on value); the rules sit after `capacitor_requirements` in
+   evaluation order; the Samsung capacitor publishes no ESR anywhere (searched 11 Sep), so
+   the stability comparison is violation-only on what each manufacturer does publish.
 2. **The board consequence is stored, asynchronously.** The review fires each line's KiCad
    consequence when its proposal is chosen; it lands on the stored document seconds later
    while the question waits on desks. Cards render the picture from storage, no button, and
@@ -73,36 +80,65 @@ started with no override resolves to the local database; `demo.sh` behaviour unc
 already names the database everywhere). No commit can carry the local file — the DEFERRED
 row closes on the example and the doc, and the row says so.
 
-## P2 · The two coverage admissions, separated (R5)
+## P2 · The three never-checked rules are built (R5, superseded 11 Sep evening)
 
 **Row** (live 🟡 + the ⚪ beneath it): the three not-assessed rules are paragraph-length on
 the trace and lead the collapsed lane; `Could not be checked: voltage overlap` reads
-identical to them; both are the wrong colour-pairing on the request.
+identical to them.
 
-### 2a · Off the trace, on the document
+**The decision that changed this item.** The morning plan kept the admissions and moved
+them around. Sparsh overruled it: *either the three rules check something real or every
+mention goes — no "we didn't check this" anywhere, and the new rules must not take over the
+demo's existing narrative beats.* So the rules get built, and the demo's story — NCP1117
+proposed on the cool lines, rejected at 159 °C on the Gateway, TLV1117 the Gateway's answer
+— is preserved exactly. All three rules are **green on the demo world** with
+datasheet-quoted arithmetic and margins; their teeth are real and unit-tested.
 
-`engine/rules.py` keeps returning the three on every board — the denominator is real and
-stays. The filter belongs at the two places the trace is *spoken*, so the live run and the
-rebuilt one cannot disagree:
+### 2a · `output_capacitor_stability` — the published stability condition, per regulator
 
-- `api/review.py`'s emission loop (`emit(stream.check(verdict))` for the winner) skips
-  verdicts whose `status == "not_assessed"`. That status is produced by `not_assessed()`
-  alone, so nothing else is silenced.
-- `api/replay.frames_from` skips the same verdicts when rebuilding from
-  `decisions.document`. The document is untouched — `change.for_line` still collects
-  `not_assessed` from the stored attempts.
+Sits beside `capacitor_requirements` in RULES (after it, so a multi-failure candidate still
+leads with thermal — the Gateway keeps 159 °C). Violation-only, the same discipline its
+sibling follows: a failure needs published numbers on both sides. The Samsung
+CL31A226KAHNNNE publishes **no ESR anywhere** (Samsung's spec, Samsung's product page,
+LCSC, DigiKey, Mouser and the aggregators all checked on 11 Sep; the only ESR-adjacent
+figure is DF ≤ 0.1 at 120 Hz, which cannot be compared against a loop-frequency window
+without the frequency mismatch this codebase refuses), so the comparison rests on what each
+manufacturer does publish:
 
-The design-run trace already names them once at the end (resolved 7 Sep) and is left alone.
-**Collapsed lanes** then show the last real verdict — on the Gateway that is
-`FAILED · availability`, which is the sentence the demo wants leading that lane.
+| Part | Published condition | Source | Verdict on the demo board |
+|---|---|---|---|
+| TLV1117LV33DCYR | "internally compensated to be stable with 0-Ω ESR"; >0.5 µF effective | TI SBVS160C §8.2.2.1 | satisfied — inside by design; 22 µF against the 0.5 µF effective minimum |
+| NCP1117ST33T3G | Cout ≥ 4.7 µF, ESR within 33 mΩ (typ)–2.2 Ω required; ceramic permitted within the limits | onsemi NCP1117/D, Output Capacitor | satisfied — 22 µF fitted, 17.3 µF above the minimum; ceramic permitted; the ESR window is quoted in the verdict |
+| LD1117S33TR | "Only a very common 10 µF minimum capacitor is needed for stability" | ST LD1117 front page | satisfied — 22 µF against the 10 µF minimum |
+| AMS1117-3.3 | "22 µF solid tantalum will ensure stability for all operating conditions" — a characterization, not a requirement | AMS DS1117 | satisfied on the published value — 22 µF fitted |
 
-### 2b · The two admissions stop looking identical
+Failure branches (unit-tested with constructed parts): a capacitor that **publishes** an ESR
+outside a published window fails with both numbers quoted; a rail below a published
+stability minimum fails; a regulator whose datasheet states Cout is mandatory, with no
+output capacitor fitted on the rail, fails. New fields: `esr_stable_from_ohms`,
+`esr_stable_to_ohms`, `esr_source_line` on regulators; `esr_ohms` on capacitors (None on
+both demo caps — the field exists so the comparison runs where manufacturers publish it).
 
-`RequestCard.tsx` renders `not_assessed` and `no_evidence` in the same tone today. The
-boundary (`OUTSIDE THE ENGINE'S SCOPE`) and the gap (`COULD NOT BE CHECKED`) get different
-headers, and the gap names its rule, because only the gap is ever somebody's job to fix.
+### 2b · `emc` — does the substitution change the board's emissions character?
 
-### 2c · The voltage minimums, sourced
+Compares the candidate's regulation (linear/switching, from each part's published topology,
+already in the model) against the part it replaces (`slot.baseline`, which `substitute()`
+already records). Both linear → satisfied with the physics stated; a switching substitute
+for a linear part (or the reverse) → failed. Every candidate in the demo is an LDO, so this
+is green everywhere — a real check with a real failure branch, not a label.
+
+### 2c · `signal_integrity` — the rail's worst published deviation vs the loads' windows
+
+Per rail with a regulator source: stack the regulator's published output accuracy and load
+regulation, and check the rail stays inside every load's published supply window
+(ESP32-C3 and WROOM-32E 3.0–3.6 V; STM32F103 2.0–3.6 V — all already sourced). Real mV
+margins in every satisfied verdict; a stack that exits a window fails. TI's 1.5% and ST's
+±1% are verified from the front pages; the remaining accuracy/load-regulation figures get
+read from the four datasheets' electrical characteristics with the same discipline as the
+vmin readings. New fields: `vout_accuracy_pct`, `load_regulation_pct`, each with its source
+line.
+
+### 2d · The voltage minimums, sourced (unchanged from the morning plan)
 
 `tools/eol_differential.py` gains `vmin` on five parts, `PARTS.md` documents each reading,
 and the seed writes them as verified facts (it already does, via `EVERY_PART`):
@@ -120,10 +156,18 @@ reasoning, not a number pretending to be quoted. Expected effect, to be verified
 rebuilt world: `no_evidence` is empty on all three requests and the amber
 *publishes no minimum* lines are gone from every cell.
 
-**Tests**: one for the emission filter (a run's check frames carry no `not_assessed`), one
-for `frames_from` agreeing, one per behaviour of the RequestCard distinction, and the
-existing suite re-run — several tests assert today's amber and must be updated to assert
-green with the evidence line naming the derivation.
+**Tests**: engine tests per rule and per failure branch; the trace test asserts the three
+rules' real verdicts stream for the winner and that no `not_assessed` status exists at all;
+`test_seed`'s denominator assertion flips to asserting the three rules return real
+verdicts; the suite re-run. `not_assessed` machinery is deleted everywhere it appears —
+`models.NOT_ASSESSED`, `rules.not_assessed`, the `CheckStatus` literal, `change.py`'s
+field, `api/lines.py:295`, `matrix.py`'s counts, `matrix.tsx`'s label, `api.ts`'s two
+types, RequestCard's not-assessed block, the design-run one-line mention, the morning's
+trace filters in `api/review.py` and `api/replay.py` (superseded — nothing left to
+filter), and `eol_differential.py`'s `COVERAGE_LABELS`. The `no_evidence` admission
+disappears from the demo world through the vmin facts below; the field stays in the model
+for live parts whose manufacturers publish nothing, where it is a fact about the data
+rather than about the engine.
 
 ## P3 · Annual volume on the operating profile
 

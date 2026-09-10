@@ -248,7 +248,9 @@ def test_the_board_goes_green():
     # rather than a defect, and naming it is the whole point of having five labels instead
     # of three. Anything else arriving here is a real regression.
     unchecked = sorted({v.rule for v in verdicts if v.status == "evidence_missing"})
-    assert unchecked == ["capacitor_requirements"]
+    assert unchecked == [
+        "capacitor_requirements", "output_capacitor_stability", "signal_integrity",
+    ]
 
 
 def test_one_loop_handles_a_sourcing_failure_and_an_electrical_one_identically():

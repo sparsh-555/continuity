@@ -94,7 +94,7 @@ class Cell:
         """
         counted: dict[CheckStatus, int] = {
             "satisfied": 0, "failed": 0, "not_applicable": 0,
-            "not_assessed": 0, "evidence_missing": 0,
+            "evidence_missing": 0,
         }
         for verdict in self.verdicts:
             counted[verdict.status] += 1

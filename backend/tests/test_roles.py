@@ -51,11 +51,11 @@ def test_every_rule_the_engine_can_emit_names_a_role():
     """
     import re
 
-    from continuity.engine.models import NOT_ASSESSED
+    from continuity.engine.models import RULE_NAMES
 
     source = (pathlib.Path(rules.__file__)).read_text()
     declared = set(re.findall(r'rule="([a-z_]+)"', source))
-    declared |= {name for name, _ in NOT_ASSESSED}
+    declared |= set(RULE_NAMES)
 
     assert len(declared) >= 12, "the scan stopped finding rules; fix the scan, not the map"
     missing = sorted(declared - set(roles_module.ROLES_BY_RULE))

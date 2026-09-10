@@ -25,7 +25,6 @@ from .models import (
     ASSUMED_EFFICIENCY,
     ASSUMED_EFFICIENCY_SOURCE,
     DOSSIER_SOURCE,
-    NOT_ASSESSED,
     Board,
     Evidence,
     PartSpec,
@@ -1383,9 +1382,122 @@ def _check_output_capacitors(board: Board, rail: Rail) -> Verdict:
     return verdict(
         "satisfied",
         f"{rail.id} carries {fmt.microfarads(total)}, meeting {regulator.mpn}'s stated "
-        f"{_requirement_text(regulator)}. Stability itself is not assessed.",
+        f"{_requirement_text(regulator)}.",
         (requirement, *fitted),
     )
+
+
+# ── R11b · output_capacitor_stability ────────────────────────────────────────
+
+
+def output_capacitor_stability(board: Board) -> list[Verdict]:
+    """Check each regulator's published output-capacitor stability conditions.
+
+    A failure requires an explicit regulator condition and an incompatible stated
+    capacitor value. ESR is never inferred from another capacitor characteristic.
+    """
+    verdicts: list[Verdict] = []
+    for rail in board.rails.values():
+        if rail.source and board.placed(rail.source):
+            verdicts.append(_check_output_stability(board, rail))
+    return verdicts or [_not_applicable(
+        "output_capacitor_stability", board,
+        "No rail on this board is fed by a regulator, so there is no output stability condition to check.",
+    )]
+
+
+def _check_output_stability(board: Board, rail: Rail) -> Verdict:
+    subject = rail.source
+    regulator = board.part(subject)  # type: ignore[arg-type]
+    capacitors = [(slot_id, part) for slot_id in rail.members if (part := board.part(slot_id)) is not None and part.capacitance_uf is not None]
+    involved = (subject, *(slot_id for slot_id, _ in capacitors))
+
+    def verdict(status: str, detail: str, evidence: tuple[Evidence, ...] = ()) -> Verdict:
+        return Verdict("output_capacitor_stability", status, detail, subject, involved, evidence, scope=rail.id)  # type: ignore[arg-type]
+
+    if regulator.cout_min_uf is None and regulator.esr_stable_from_ohms is None and regulator.esr_stable_to_ohms is None:
+        return verdict("evidence_missing", f"{regulator.mpn} publishes no output-capacitor stability condition for {rail.id}.")
+
+    requirement = Evidence(
+        subject, "output capacitor stability", regulator.esr_source_line or regulator.cout_source_line or "published condition",
+        regulator.esr_source_line or regulator.cout_source_line or regulator.datasheet,
+    )
+    if not capacitors:
+        return verdict("failed", f"{regulator.mpn} states an output-capacitor stability condition on {rail.id}, but no capacitor is modelled there.", (requirement,))
+
+    total = sum(part.capacitance_uf or 0.0 for _, part in capacitors)
+    if regulator.cout_min_uf is not None and total < regulator.cout_min_uf:
+        return verdict("failed", f"{rail.id} carries {fmt.microfarads(total)} where {regulator.mpn} needs at least {fmt.microfarads(regulator.cout_min_uf)} for stability.", (requirement,))
+
+    lower, upper = regulator.esr_stable_from_ohms, regulator.esr_stable_to_ohms
+    for slot_id, capacitor in capacitors:
+        esr = capacitor.esr_ohms
+        if esr is not None and ((lower is not None and esr < lower) or (upper is not None and esr > upper)):
+            return verdict("failed", f"{capacitor.mpn} publishes {fmt.ohms(esr)} ESR; {regulator.mpn} requires {_esr_window(lower, upper)} on {rail.id}.", (requirement, *capacitor.cite(slot_id, "esr_ohms")))
+
+    if lower is not None or upper is not None:
+        return verdict("satisfied", f"{rail.id} carries {fmt.microfarads(total)}, meeting {regulator.mpn}'s published stability condition; no fitted capacitor publishes ESR outside {_esr_window(lower, upper)}.", (requirement,))
+    return verdict("satisfied", f"{rail.id} carries {fmt.microfarads(total)}, meeting {regulator.mpn}'s published stability minimum of {fmt.microfarads(regulator.cout_min_uf)}.", (requirement,))  # type: ignore[arg-type]
+
+
+def _esr_window(lower: float | None, upper: float | None) -> str:
+    if lower is None:
+        return f"at most {fmt.ohms(upper)}"  # type: ignore[arg-type]
+    if upper is None:
+        return f"at least {fmt.ohms(lower)}"
+    return f"{fmt.ohms(lower)}–{fmt.ohms(upper)}"
+
+
+# ── R11c · EMC and signal integrity ─────────────────────────────────────────
+
+
+def emc(board: Board) -> list[Verdict]:
+    """Reject a substitution that changes the regulator's emissions character."""
+    verdicts: list[Verdict] = []
+    for slot_id, slot in board.slots.items():
+        if slot.part is None or slot.baseline is None:
+            continue
+        before, after = slot.baseline.regulation, slot.part.regulation
+        if before is None or after is None:
+            verdicts.append(Verdict("emc", "evidence_missing", f"The regulation type of {slot.baseline.mpn if before is None else slot.part.mpn} is not published, so its emissions character could not be compared.", slot_id, (slot_id,)))
+        elif before != after:
+            verdicts.append(Verdict("emc", "failed", f"{slot.part.mpn} is {after}; it changes {slot.baseline.mpn}'s {before} regulation and its emissions character.", slot_id, (slot_id,)))
+        else:
+            verdicts.append(Verdict("emc", "satisfied", f"{slot.part.mpn} and {slot.baseline.mpn} are both {after} regulators; the substitution keeps the board's emissions character.", slot_id, (slot_id,)))
+    return verdicts or [_not_applicable("emc", board, "No placed part on this board is a substitution, so no emissions character changes.")]
+
+
+def signal_integrity(board: Board) -> list[Verdict]:
+    """Check regulator output error against every load's published supply window."""
+    verdicts: list[Verdict] = []
+    for rail in board.rails.values():
+        if not rail.source or not board.placed(rail.source):
+            continue
+        regulator = board.part(rail.source)
+        assert regulator is not None
+        for slot_id in rail.members:
+            load = board.part(slot_id)
+            if load is None or load.capacitance_uf is not None:
+                continue
+            verdicts.append(_check_signal_integrity(rail, regulator, rail.source, slot_id, load))
+    return verdicts or [_not_applicable("signal_integrity", board, "No regulated rail has a modelled load supply window to check.")]
+
+
+def _check_signal_integrity(rail: Rail, regulator: PartSpec, regulator_slot: str, load_slot: str, load: PartSpec) -> Verdict:
+    evidence = regulator.cite(regulator_slot, "vout_accuracy_pct", "load_regulation_pct") + load.cite(load_slot, "vmin", "vmax")
+    involved = (regulator_slot, load_slot)
+    if regulator.vout_accuracy_pct is None or regulator.load_regulation_pct is None:
+        missing = fmt.listing([name for name, value in (("vout_accuracy_pct", regulator.vout_accuracy_pct), ("load_regulation_pct", regulator.load_regulation_pct)) if value is None])
+        return Verdict("signal_integrity", "evidence_missing", f"{regulator.mpn} publishes no {missing}, so {rail.id}'s worst output deviation could not be checked.", load_slot, involved, evidence, scope=rail.id)
+    if load.vmin is None or load.vmax is None:
+        return Verdict("signal_integrity", "evidence_missing", f"{load.mpn} publishes no complete supply window, so {rail.id}'s output deviation could not be checked.", load_slot, involved, evidence, scope=rail.id)
+    deviation = rail.voltage * (regulator.vout_accuracy_pct + regulator.load_regulation_pct) / 100
+    low, high = rail.voltage - deviation, rail.voltage + deviation
+    detail = f"{regulator.mpn}'s worst {rail.id} output is {fmt.volts(low)}–{fmt.volts(high)} from {fmt.num(regulator.vout_accuracy_pct)}% accuracy plus {fmt.num(regulator.load_regulation_pct)}% load regulation."
+    if low < load.vmin or high > load.vmax:
+        return Verdict("signal_integrity", "failed", f"{detail} It exceeds {load.mpn}'s {fmt.volts(load.vmin)}–{fmt.volts(load.vmax)} supply window.", load_slot, involved, evidence, scope=rail.id)
+    margin = min(low - load.vmin, load.vmax - high)
+    return Verdict("signal_integrity", "satisfied", f"{detail} It stays within {load.mpn}'s {fmt.volts(load.vmin)}–{fmt.volts(load.vmax)} supply window.", load_slot, involved, evidence, margin=fmt.millivolts(margin), scope=rail.id)
 
 
 def _requirement_text(part: PartSpec) -> str:
@@ -1732,27 +1844,6 @@ def _energy_subject(board: Board) -> str:
     return max(placed, key=lambda pair: pair[1].draw or 0.0)[0]
 
 
-def not_assessed(board: Board) -> list[Verdict]:
-    """Declare checks the BOM engine deliberately cannot perform for every board.
-
-    These are coverage boundaries rather than missing inputs. Returning them on every
-    evaluation gives an approver an honest denominator without making a board look as if
-    its geometry, emissions, or regulator stability had been inspected.
-
-    **Scoped to the board, not to a slot.** These first carried `next(iter(board.slots))`
-    as their subject, which blamed whichever part happened to be placed first for the
-    fact that nobody had run an EMC scan. It also reached the screen: every slot's
-    caption inherited the three entries, so a line reading "Searching JLCPCB for an
-    ESP32 module" was captioned "3 not assessed". A coverage boundary belongs to the
-    board, and `BOARD_SUBJECT` is deliberately not a slot id so nothing attributes it
-    to a component.
-    """
-    return [
-        Verdict(rule=rule, status="not_assessed", detail=reason, subject=BOARD_SUBJECT, scope="board")
-        for rule, reason in NOT_ASSESSED
-    ]
-
-
 RULES = (
     voltage_overlap,
     interface_role_match,
@@ -1765,11 +1856,12 @@ RULES = (
     footprint,
     footprint_compatibility,
     capacitor_requirements,
+    output_capacitor_stability,
+    emc,
+    signal_integrity,
     temperature_rating,
     energy_budget,
-    # Last: it reports on the *absence* of the checks above rather than on the board.
     rail_coverage,
-    not_assessed,
 )
 
 

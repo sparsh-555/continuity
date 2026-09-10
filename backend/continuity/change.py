@@ -106,9 +106,6 @@ class ChangeRequest:
     alternatives: tuple[Alternative, ...]
     evidence: tuple[Verdict, ...]
 
-    not_assessed: tuple[str, ...]
-    """Rules the engine declares it does not answer — stability, EMC, signal integrity."""
-
     no_evidence: tuple[str, ...]
     """Rules it tried to answer and could not, which is a different admission and belongs
     beside the first rather than folded into it."""
@@ -162,7 +159,6 @@ class ChangeRequest:
                 }
                 for v in self.evidence
             ],
-            "not_assessed": list(self.not_assessed),
             "no_evidence": list(self.no_evidence),
             "cost": self.cost.to_json(),
             "approvals_required": list(self.approvals_required),
@@ -302,9 +298,6 @@ def for_line(
         # would bury the three that decided it.
         evidence=tuple(
             v for v in verdicts if v.status == "failed" or (v.status == "satisfied" and v.margin)
-        ),
-        not_assessed=tuple(
-            sorted({v.rule for v in verdicts if v.status == "not_assessed"})
         ),
         no_evidence=tuple(
             sorted({v.rule for v in verdicts if v.status == "evidence_missing"})

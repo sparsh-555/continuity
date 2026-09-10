@@ -10,7 +10,7 @@ import pytest
 from dataclasses import replace
 
 from continuity.engine import draw as rail_current, packages, rules
-from continuity.engine.models import AMBIENT_DEFAULT_SOURCE, NOT_ASSESSED, Evidence, PartSpec, Requirements
+from continuity.engine.models import AMBIENT_DEFAULT_SOURCE, Evidence, PartSpec, Requirements
 from tests import parts
 from tests.boards import slot, usb_board
 
@@ -1056,10 +1056,7 @@ def test_every_verdict_names_a_rule_the_contract_declares():
 def test_rule_names_and_functions_agree():
     from continuity.engine.models import RULE_NAMES
 
-    # The three explicitly unassessed checks share one rule-shaped producer because
-    # their reasons are data, rather than three functions with identical control flow.
-    assert tuple(rule.__name__ for rule in rules.RULES[:-1]) == RULE_NAMES[:-3]
-    assert rules.RULES[-1] is rules.not_assessed
+    assert tuple(rule.__name__ for rule in rules.RULES) == RULE_NAMES
 
 
 def test_subject_is_always_among_the_involved_slots():
@@ -1833,13 +1830,16 @@ def test_evidence_missing_and_satisfied_have_separate_coverage_counts():
     assert counts["evidence_missing"] == 1
 
 
-def test_every_board_declares_the_checks_continuity_does_not_assess():
+def test_every_board_runs_the_three_formerly_unassessed_checks():
     board = usb_board(regulator=parts.ap2112k(), loads={"mcu": parts.esp32s3()})
 
-    verdicts = [v for v in rules.evaluate(board) if v.status == "not_assessed"]
+    verdicts = [
+        v for v in rules.evaluate(board)
+        if v.rule in {"output_capacitor_stability", "emc", "signal_integrity"}
+    ]
 
-    assert {(v.rule, v.detail) for v in verdicts} == set(NOT_ASSESSED)
-    assert all(v.detail for v in verdicts)
+    assert {v.rule for v in verdicts} == {"output_capacitor_stability", "emc", "signal_integrity"}
+    assert all(v.status != "not_assessed" for v in verdicts)
 
 
 def test_chip_select_shortfall_is_failed():
@@ -1977,13 +1977,13 @@ def test_a_dielectric_the_datasheet_merely_recommends_is_not_a_conflict():
     assert verdict.status == "satisfied"
 
 
-def test_a_satisfied_capacitor_check_still_disclaims_stability():
+def test_a_satisfied_capacitor_requirement_only_claims_its_published_condition():
     board = _rail_with_capacitor(parts.ap2112k(cout_min_uf=1.0), _capacitor(22.0))
 
     verdict = only(rules.capacitor_requirements(board), "capacitor_requirements", "regulator", RAIL)
 
     assert verdict.status == "satisfied"
-    assert "Stability itself is not assessed" in verdict.detail
+    assert "meeting" in verdict.detail
 
 
 def test_an_unpublished_requirement_is_not_a_pass():

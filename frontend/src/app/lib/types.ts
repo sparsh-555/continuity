@@ -141,7 +141,7 @@ export type RepairAction =
   | 'relax_requirement'
   | 'escalate'
 
-/** The five coverage labels the engine publishes today.
+/** The four coverage labels the engine publishes today.
  *
  *  Threads recorded before these landed hold `pass`/`warn`/`fail` in `run_events`, but
  *  `events.with_current_labels` translates them at the read, so nothing reaching this
@@ -151,7 +151,6 @@ export type EventStatus =
   | 'satisfied'
   | 'failed'
   | 'not_applicable'
-  | 'not_assessed'
   | 'evidence_missing'
 
 export type EdgePatch = { id: string } & Partial<Omit<Edge, 'id'>>

@@ -42,7 +42,7 @@ def _check(verdict: Mapping[str, Any]) -> dict[str, Any]:
         "type": "check",
         "rule": rule,
         "scope": verdict.get("scope"),
-        "status": verdict.get("status", "not_assessed"),
+        "status": verdict.get("status", "evidence_missing"),
         "detail": verdict.get("detail", ""),
         "margin": verdict.get("margin"),
         "accepted": bool(verdict.get("accepted", False)),

@@ -301,7 +301,7 @@ def test_every_unresolved_row_is_a_well_formed_completed_stream(monkeypatch):
     assert result[-2:][0]["type"] == "bom"
     assert result[-1]["type"] == "done"
     statuses = {event["status"] for event in result if event["type"] == "check"}
-    assert statuses <= {"evidence_missing", "not_applicable", "not_assessed"}
+    assert statuses <= {"evidence_missing", "not_applicable"}
     assert "evidence_missing" in statuses
 
 

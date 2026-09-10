@@ -43,6 +43,16 @@ def ohms_per_watt(value: float) -> str:
     return f"{num(value, 0)} °C/W"
 
 
+def ohms(value: float) -> str:
+    if abs(value) < 1:
+        return f"{num(value * 1000)} mΩ"
+    return f"{num(value, 2)} Ω"
+
+
+def millivolts(value: float) -> str:
+    return f"{num(value * 1000)} mV"
+
+
 def count(value: int) -> str:
     return f"{value:,}"
 

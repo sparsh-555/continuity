@@ -116,15 +116,7 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
         </section>
       ) : null}
 
-      {/* The two admissions, kept apart. "We do not answer this" and "we tried and had
-          nothing to read" are different sentences, and a document that omitted either would
-          read as a clean bill of health for questions nobody asked. */}
       <section className="space-y-1 border-t border-outline-variant pt-md">
-        {request.not_assessed.length > 0 ? (
-          <p className="font-data-tabular text-[10px] text-tertiary-container">
-            Not assessed: {request.not_assessed.map((r) => r.replace(/_/g, ' ')).join(', ')}.
-          </p>
-        ) : null}
         {request.no_evidence.length > 0 ? (
           <p className="font-data-tabular text-[10px] text-tertiary-container">
             Could not be checked: {request.no_evidence.map((r) => r.replace(/_/g, ' ')).join(', ')}.

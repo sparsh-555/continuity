@@ -91,6 +91,8 @@ confirmed by the word's **x-coordinate**, not by the value merely appearing on t
 - Output capacitor: *"The AMS1117 requires an output capacitor for device stability. Its value of
   22 µF tantalum covers all cases…"*, and *"22 µF solid tantalum on the output will ensure
   stability."*
+- No minimum VIN is published; the seeded 4.4 V minimum is explicitly derived from 3.3 V
+  output plus the 1.1 V dropout at 800 mA.
 
 ### TLV1117LV33DCYR — Texas Instruments, SBVS160C (Rev. Jan 2023)
 
@@ -104,6 +106,8 @@ confirmed by the word's **x-coordinate**, not by the value merely appearing on t
   X5R- and X7R-type ceramic capacitors… Unlike traditional linear regulators that need a
   minimum ESR for stability, the TLV1117LV is specified to be stable with no ESR… Effective
   output capacitance… must be greater than 0.5 µF."*
+- Electrical characteristics: output accuracy ±1.5%; load regulation is 35 mV maximum across
+  0–1 A (Table 6.5).
 
 ### LD1117S33TR — STMicroelectronics, LD1117xx, **DocID2572 Rev 38**
 
@@ -121,6 +125,9 @@ confirmed by the word's **x-coordinate**, not by the value merely appearing on t
 - *"TOP Operating junction temperature range — for standard version 0 to +150 °C"*; the
   electrical characteristics are specified over *"TJ = 0 to 125 °C"*.
 - Output capacitor: CO = 10 µF in the characterisation conditions.
+- Table 6 gives 3.235–3.365 V across 0–800 mA; the front page quotes ±1% trim and the table
+  gives 30 mV maximum load regulation. The seeded 4.4 V input minimum is 3.3 V plus 1.1 V
+  dropout at 800 mA, explicitly a derivation.
 
 **Two traps here, and item 5 has to survive both.** A θJA extractor that only checks that a
 number and a quote appear on the page would attach TO-220's 50 °C/W to a SOT-223 part and report
@@ -138,7 +145,10 @@ value to the column *and* record the document revision it came from.
 - Absolute maximum input 20 V; output current limit 1000–2200 mA.
 - Figure 21 plots SOT-223 thermal resistance against PCB copper area, but it is a graph — no
   number from it is quotable.
-- Capacitors: Cin = 10 µF, Cout = 10 µF in the characterisation conditions.
+- Cout is mandatory for stability: 4.7 µF minimum, with 33 mΩ (typical) to 2.2 Ω ESR; ceramic,
+  tantalum, and aluminium electrolytic are permitted inside that window. The 3.3 V output row
+  is 3.235–3.365 V over its operating ambient range; maximum load regulation is 10 mV. The
+  seeded 4.5 V input minimum is 3.3 V plus 1.2 V dropout at 800 mA, explicitly a derivation.
 
 ---
 

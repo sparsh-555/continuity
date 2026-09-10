@@ -364,7 +364,7 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
     for name, request in requests.items():
         assert request["baseline_mpn"] == AMS1117.mpn
         assert request["revision"] == seed_world.REVISION
-        assert request["not_assessed"], f"{name} does not say what it left unchecked"
+        assert "not_assessed" not in request, f"{name} contains a retired coverage status"
         assert request["cost"]["recurring_annual"] is not None, "a volume was stated"
 
     # The manufacturer recommends NCP1117. It is qualified, and it cooks the gateway.

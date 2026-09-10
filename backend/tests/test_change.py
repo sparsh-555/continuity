@@ -35,25 +35,21 @@ def requests(**shared):
 # ── BUILD's test ──────────────────────────────────────────────────────────────
 
 
-def test_three_lines_produce_three_requests_each_naming_its_unassessed_checks():
+def test_three_lines_produce_three_requests_with_real_formerly_unassessed_checks():
     produced = requests()
 
     assert len(produced) == 3
     assert [r.line_id for r in produced] == ["A", "B", "C"]
     for request in produced:
-        assert request.not_assessed == (
-            "emc", "output_capacitor_stability", "signal_integrity",
-        ), f"{request.line_name} does not say what it left unchecked"
+        assert not request.no_evidence, f"{request.line_name} has all P2 facts"
 
 
-def test_what_could_not_be_checked_is_kept_apart_from_what_is_not_checked_at_all():
+def test_the_demo_has_no_missing_electrical_evidence():
     """Two different admissions. "We do not do this" and "we tried and had nothing to read"
     are not the same sentence, and folding them together loses the actionable one."""
     [request] = [r for r in requests() if r.line_id == "B"]
 
-    assert "emc" in request.not_assessed
-    assert "emc" not in request.no_evidence
-    assert request.no_evidence, "the demo boards do have checks that found nothing to read"
+    assert not request.no_evidence
 
 
 # ── what the document carries ─────────────────────────────────────────────────
@@ -219,10 +215,9 @@ def test_a_request_serialises_whole():
 
     assert set(body) == {
         "line_id", "line_name", "revision", "baseline_mpn", "notice_mpn", "notice_id",
-        "proposal", "proposal_detail", "alternatives", "evidence", "not_assessed",
+        "proposal", "proposal_detail", "alternatives", "evidence",
         "no_evidence", "cost", "approvals_required", "departments", "checked",
     }
-    assert body["not_assessed"], "the coverage boundaries survive serialisation"
     assert body["cost"]["one_time_basis"]
 
 
@@ -332,13 +327,12 @@ def test_the_request_says_what_each_desk_found():
         assert desk.satisfied or desk.failed, f"{desk.role} counted nothing"
 
 
-def test_a_desk_that_looked_at_nothing_is_not_on_the_request():
+def test_a_desk_is_not_added_without_a_finding():
     """`not_assessed` is a coverage boundary the engine declares on every board, not a
     department's involvement in this change. Counting it would put a desk on a document for
     a question nobody asked."""
     [request] = [r for r in requests() if r.line_id == "B"]
 
-    assert request.not_assessed, "the three declared boundaries are still reported"
     for desk in request.departments:
         assert desk.satisfied + desk.failed > 0
 

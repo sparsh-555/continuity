@@ -35,7 +35,6 @@ const CHECK_MARK: Record<EventStatus, { icon: string; tone: string }> = {
   satisfied: { icon: 'check_circle', tone: 'text-[#4ade80]' },
   failed: { icon: 'cancel', tone: 'text-error' },
   evidence_missing: { icon: 'help', tone: 'text-tertiary-container' },
-  not_assessed: { icon: 'remove', tone: 'text-on-surface-variant' },
   not_applicable: { icon: 'remove', tone: 'text-on-surface-variant' },
 }
 
@@ -60,7 +59,7 @@ export function groupByDepartment<T extends { departments: string[]; status: Eve
 ): Array<[string, T[]]> {
   const grouped = new Map<string, T[]>()
   for (const check of checks) {
-    if (check.status === 'not_assessed' || check.status === 'not_applicable') continue
+    if (check.status === 'not_applicable') continue
     for (const role of check.departments.length > 0 ? check.departments : ['engineering']) {
       const held = grouped.get(role)
       if (held) held.push(check)

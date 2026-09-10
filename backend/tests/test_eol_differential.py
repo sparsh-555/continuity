@@ -130,7 +130,7 @@ def test_every_theta_ja_in_the_matrix_comes_from_a_datasheet():
 def test_the_sourced_fixture_exposes_the_two_board_specific_candidate_failures():
     """The engine distinguishes a voltage-limited and a thermally-limited replacement."""
     assert [verdict(make_board(line, TLV1117), "voltage_overlap", "vin").status for line in LINES] == [
-        "evidence_missing", "evidence_missing", "failed"
+        "satisfied", "satisfied", "failed"
     ]
     assert [verdict(make_board(line, NCP1117), "thermal_dissipation").status for line in LINES] == [
         "satisfied", "failed", "satisfied"

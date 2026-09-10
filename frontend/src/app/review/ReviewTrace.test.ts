@@ -7,7 +7,6 @@ const check = (slots: LineCheck['slots']): LineCheck => ({
   slots,
   checked: 22,
   unresolved: [],
-  not_assessed: [],
   evidence_missing: [],
 })
 
