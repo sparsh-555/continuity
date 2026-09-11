@@ -209,22 +209,6 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
         </p>
       ) : null}
 
-      {/* **An estimate, with its arithmetic and its sources.** No published method turns
-          counts into hours, so this is two published constants applied to what the run
-          counted. Shown rather than summarised because a reader can argue with a constant
-          and cannot argue with a number that arrives on its own. */}
-      {request.saving ? (
-        <section className="space-y-1 border-t border-outline-variant pt-md">
-          <p className="m-0 font-data-tabular text-[11px] tracking-[0.08em] text-on-surface-variant uppercase">
-            What the missing round trips are worth
-          </p>
-          <p className="m-0 font-data-tabular text-[13px] text-on-surface leading-relaxed">
-            About {request.saving.desk_hours} hours of desk time and about{' '}
-            {request.saving.queue_days} days of queueing: {request.saving.desks} desks,{' '}
-            {request.saving.crossings} handoffs, none of which this change had to cross.
-          </p>
-        </section>
-      ) : null}
 
       {/* An engineering change order carries an inventory disposition, and this one only when
           there is something to dispose of — a line short of what it builds. */}
@@ -239,12 +223,12 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
         fabricated before then.
       </p>
 
-      {/* **What this board's change costs, and what it avoids here.** The money is this
-          board's own: the recurring figure is the substitute's price difference at this
-          product's own annual volume, so no two boards carry the same number. What it avoids
-          is this board's own too, and that is the half a cost strip cannot say: a substitute
-          that fits the design that exists is a different resolution from one that does not,
-          and the published figures for the two are an order of magnitude apart. */}
+      {/* **The money, and nothing about what it avoids.** The recurring figure is this board's
+          own, because it is the substitute's price difference at this product's own annual
+          volume. What the change avoids, and the round trips it does not cross, are spoken
+          rather than printed: this is a document somebody signs, and an estimate sitting
+          among the line items is the one thing it must not become. The constants and their
+          sources are in `change.py`, and the arithmetic is in DEMO-DAY.md. */}
       {request.proposal ? (
         <section className="space-y-sm border-t border-outline-variant pt-md">
           <div className="flex flex-wrap gap-lg">
@@ -274,18 +258,6 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
             </div>
           </div>
 
-          {request.avoidance ? (
-            <div className="space-y-0.5">
-              <p className="m-0 font-data-tabular text-[11px] text-on-surface-variant">
-                WHAT IT AVOIDS HERE
-              </p>
-              <p className="m-0 font-data-tabular text-[13px] text-on-surface leading-relaxed">
-                {request.avoidance.layout_work
-                  ? `Not a drop-in: ${request.line_name} needs layout work before this can ship, which is the board revision the metric below prices.`
-                  : `Nothing. The substitute lands on the pads that are already there, so this is ${request.avoidance.resolution} rather than ${request.avoidance.resolution_if_it_had_not_fitted}.`}
-              </p>
-            </div>
-          ) : null}
         </section>
       ) : null}
 

@@ -400,7 +400,7 @@ export default function ChangesRoute() {
 
         {/* ── The document ───────────────────────────────────────────────────────── */}
         <div className="h-full overflow-y-auto pr-sm">
-          <RequestPanel request={openRequest} requests={requests} />
+          <RequestPanel request={openRequest} />
         </div>
       </div>
 

@@ -1,5 +1,4 @@
 import { RequestCard } from './RequestCard'
-import { RoundTrips } from './RoundTrips'
 import type { ChangeRequest } from '../lib/api'
 
 /**
@@ -10,40 +9,26 @@ import type { ChangeRequest } from '../lib/api'
  * first and a reader comparing two of them lost the trace they came from. Here it is a column
  * that swaps when a row is opened, and the run stays on screen beside it.
  *
- * **With nothing opened it says what the whole change was worth.** That figure is the
- * change's, not a board's: the same four desks sign all three products, so the crossings this
- * change did not have to make are the same number on every one of them. It is printed once,
- * here, and the pane says why rather than leaving a reader to notice the repetition.
+ * **With nothing opened there is nothing here, and that is the decision rather than an
+ * oversight.** This pane used to carry the round trips a change did not have to cross, drawn
+ * as two timelines. The figure was the change's rather than any board's, because the same four
+ * desks sign all three products, so it repeated verbatim whichever board was open, and it is
+ * the one number on this page that is an estimate rather than a measurement. It is spoken
+ * instead: the constants, their sources and the arithmetic are in DEMO-DAY.md and in
+ * `change.py` beside them, which is where a question about them is answered from.
  */
-export function RequestPanel({
-  request,
-  requests,
-}: {
-  /** The board on screen, or null for the change as a whole. */
-  request: ChangeRequest | null
-  /** Every request in this review, for the change-level figure when nothing is opened. */
-  requests: readonly ChangeRequest[]
-}) {
-  const saving = requests.find((row) => row.saving)?.saving ?? null
-
+export function RequestPanel({ request }: { request: ChangeRequest | null }) {
   if (!request) {
     return (
       <div className="space-y-md">
         <p className="m-0 font-data-tabular text-[12px] tracking-[0.08em] text-on-surface-variant uppercase">
-          The change
+          The change request
         </p>
-        {saving ? (
-          <RoundTrips saving={saving} />
-        ) : (
-          <p className="m-0 font-data-tabular text-[13px] text-on-surface-variant leading-relaxed">
-            Open a product line to read its change request.
-          </p>
-        )}
-        <p className="m-0 font-data-tabular text-[12px] text-on-surface-variant/70 leading-relaxed">
-          The round trips are the change&rsquo;s rather than any one board&rsquo;s: the same
-          desks sign all {requests.length} of these products, so none of them crosses a handoff
-          the others do not. What differs by board is its own cost and whether the substitute
-          fits the design that exists, and both are on that board&rsquo;s own change request.
+        <p className="m-0 font-data-tabular text-[13px] text-on-surface-variant leading-relaxed">
+          Open a product line to read its change request. It carries the proposal, every
+          candidate that was rejected with the checks that rejected it, what each of the four
+          desks found, the evidence the decision rests on, what could not be checked, and the
+          board as KiCad places the substitute on it.
         </p>
       </div>
     )

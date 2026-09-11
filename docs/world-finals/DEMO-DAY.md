@@ -395,12 +395,38 @@ the humans is four signatures on evidence already gathered, and the change reque
 how much was checked to produce it.
 
 **Where does the saving come from?** Two published constants applied to counts this run holds,
-and it is worth saying them rather than a total. One engineering-change iteration is about five
-hours of desk time (Loch & Terwiesch, 1999), and a handoff between people stalls about 0.9 days
-(Herbsleb et al., 2001); four desks means three handoffs, which is where *about 5.2 hours and
-about 2.7 days* comes from. **It is an estimate and the document says so in the same sentence** —
-nobody instrumented the old process, so there is no measured figure to quote and **no 48 hours to
-claim**: that clock belongs to the problem statement, not to us.
+and **this document is now the only place those numbers live.** They were printed on the change
+request and drawn as two timelines above the lanes, and they came off every surface on 11
+September: the figure is an estimate, the change request is a document somebody signs, and an
+estimate sitting among the line items is the one thing it must not become. So say them, and say
+the arithmetic, because there is nothing on screen to point at.
+
+> One engineering-change iteration is about 5.2 hours of desk time (Loch & Terwiesch, 1999). One
+> handoff between people stalls about 0.9 days (Herbsleb et al., 2001), and four desks means
+> three of them, so about 2.7 days. In the same unit that is **5.2 hours of work against 64.8
+> hours of waiting**, which is the finding: the work is an eighth of the wait.
+
+**And if they want the money rather than the time.** Every one of those three substitutes is a
+normal substitute in the DoD's own taxonomy, against a board revision, and the two are an order
+of magnitude apart: **$34,000 and 25 weeks against $1,118,000 and 42 weeks** (ARINC for the US
+Department of Commerce, *DMSMS NRE Cost Metric Update*, 2011, FY2011 dollars). Say in the same
+breath that those are defence obsolescence programmes applied to a commercial board. A
+commercial source agrees on the shape if not the precision: the Accuris and Fuld survey of 439
+industry professionals puts a forced PCB redesign at $135,000 to $930,000 all in, with
+engineering rework alone at $15,000 to $80,000 per change event.
+
+**It is an estimate, and that is the whole of the honesty here.** Nobody instrumented the old
+process, so there is no measured figure to quote and **no 48 hours to claim**: that clock
+belongs to the problem statement, not to us. The constants and their sources are in `change.py`
+beside `ECO_TOUCH_HOURS` and `SUBSTITUTE_USD`, so they cannot drift from what was once shown.
+
+**If a judge asks whether a replacement is ever not a drop-in.** Yes, and the product prices it,
+but this world does not demonstrate it: all three boards put their regulator in SOT-223 and
+every substitute offered is SOT-223, so `footprint_compatibility` passes everywhere. The
+catalogue search asks the distributor for the same package on purpose, which is the product's
+own claim, and the researched part that would fire it (`ME6211C33M5G-N`, half the price, viable
+on the Sensor node and a board revision there) is written down in DEFERRED with what it would
+cost to bring in. Answer it as a known gap, not as a feature.
 
 **What is not built?** Answer plainly from DEFERRED, which is written down rather than
 discovered. The one that is still red: a mailed notice raises no notification, so `/changes`

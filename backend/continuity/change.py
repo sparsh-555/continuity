@@ -79,6 +79,11 @@ class Alternative:
         return self.rejected_because is None
 
 
+HOURS_PER_DAY = 24.0
+"""The queueing constant is published in days and the desk time in hours, so one of them has to
+move for the two to be read together. Kept here rather than in whatever renders it, because the
+conversion is part of the arithmetic and not part of a view."""
+
 ECO_TOUCH_HOURS = 5.2
 """An engineering-change iteration's touch time, from Loch & Terwiesch (1999).
 
@@ -129,8 +134,13 @@ def avoidance_for(board: Mapping[str, Any] | None) -> dict[str, Any] | None:
     whose pads are not already there is a board revision, and the two are an order of magnitude
     apart in the published figures.
 
-    `None` where no board was placed, which is a world with no KiCad or a run still working.
-    The pane renders nothing rather than a class it did not compute.
+    **Nothing renders this any more, and it is kept on purpose.** The block it fed was removed
+    from the change request on 11 September, because an estimate among the line items is what
+    that document must not become. What is left is the classification and the two published
+    figures, so that the spoken answer and the payload cannot drift from each other.
+
+    `None` where no board was placed, which is a world with no KiCad or a run still working,
+    rather than a class nobody computed.
     """
     if not board:
         return None
@@ -138,11 +148,9 @@ def avoidance_for(board: Mapping[str, Any] | None) -> dict[str, Any] | None:
     return {
         "layout_work": layout_work,
         "resolution": "a board revision" if layout_work else "a normal substitute",
-        # Named rather than implied: the sentence on the document reads "this is X rather
-        # than Y", and Y is the class this board did not land in.
+        # Named rather than implied: the sentence reads "this is X rather than Y", and Y is
+        # the class this board did not land in.
         "resolution_if_it_had_not_fitted": "a board revision",
-        # Named rather than implied: the sentence on the document reads "this is X rather
-        # than Y", and Y is the class this board did not land in.
         "class_usd": SUBSTITUTE_USD,
         "class_weeks": SUBSTITUTE_WEEKS,
         "redesign_usd": REDESIGN_USD,
@@ -164,10 +172,14 @@ class Saving:
     **No published method turns counts into hours, so this does not pretend to be one.** What
     is published is constants, and these two are applied to numbers this run actually holds:
     the desks that examined the change, and the crossings a sequential process would have
-    needed to move it between them. The arithmetic is on the document and the constants are
-    here with their sources, so a reader can argue with the estimate rather than with the
-    conclusion — and an estimate that survives *where did that come from* is worth more than
-    a measured-looking number that does not.
+    needed to move it between them.
+
+    **This is the home of the number, not a screen.** It was rendered on the change request and
+    again as two timelines above the lanes, and it is off every surface now. The figure is an
+    estimate, the change request is a document somebody signs, and an estimate sitting among the
+    line items is the one thing it must not become. What is left is the arithmetic, computed
+    once here so that the spoken answer and the payload cannot drift from each other, and
+    `basis`, which is the sentence to say when somebody asks where it came from.
 
     It is an estimate. Nobody instrumented the old process, and nothing here has been
     measured against it.
@@ -177,6 +189,18 @@ class Saving:
     queue_days: float
     desks: int
     crossings: int
+
+    @property
+    def queue_hours(self) -> float:
+        """The queueing in the same unit as the desk time, for reading them against each other.
+
+        **Two clocks, and they must not be added into one.** Herbsleb's 0.9 days is calendar
+        time between people; Loch and Terwiesch's 5.2 hours is work on the change. 5.2 hours
+        against 64.8 hours is the honest comparison and it is the finding. Reporting their sum
+        as "8.8 working days" would divide calendar time by an eight-hour day, which is a unit
+        error dressed as a total, and this came within one edit of doing exactly that.
+        """
+        return round(self.queue_days * HOURS_PER_DAY, 1)
 
     @property
     def basis(self) -> str:

@@ -499,3 +499,34 @@ def test_the_avoidance_names_the_class_this_board_landed_in():
     # And a world with no KiCad is nothing at all, rather than a class nobody computed.
     assert change.avoidance_for(None) is None
     assert change.avoidance_for({}) is None
+
+
+def test_the_two_clocks_are_kept_apart():
+    """5.2 hours of work and 2.7 days of queueing are not one number.
+
+    Loch and Terwiesch's 5.2 hours is work done on the change; Herbsleb's 0.9 days is calendar
+    time between people. Adding them and dividing by an eight-hour day gives "8.8 working
+    days", which divides calendar time by a work day. That was in this module for one edit, and
+    the property is what stops it coming back: the queueing is stated in hours so the two can
+    be read against each other, and nothing produces a combined figure in days.
+    """
+    four_desks = change.Saving(
+        desk_hours=change.ECO_TOUCH_HOURS,
+        queue_days=3 * change.HANDOFF_STALL_DAYS,
+        desks=4,
+        crossings=3,
+    )
+
+    assert four_desks.queue_days == 2.7
+    assert four_desks.queue_hours == 64.8
+    assert four_desks.desk_hours == 5.2
+    # The finding, and it is a ratio rather than a total: the work is a twelfth of the wait.
+    assert four_desks.desk_hours < four_desks.queue_hours / 10
+    assert not hasattr(four_desks, "elapsed_working_days")
+
+
+def test_a_change_that_crossed_nothing_states_no_queueing():
+    alone = change.Saving(desk_hours=change.ECO_TOUCH_HOURS, queue_days=0.0, desks=1, crossings=0)
+
+    assert alone.queue_hours == 0.0
+    assert "0 handoffs" in alone.basis
