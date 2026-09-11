@@ -65,8 +65,20 @@ const LEGEND_ROWS: Record<GraphSlot['status'], { label: string; fill: string }> 
   conflict: { label: 'Conflict', fill: '#ffb4ab' },
 }
 
+/**
+ * Rows for the states actually present, and nothing at all for a state this version cannot
+ * name.
+ *
+ * **A recording carries the vocabulary of the day it was made.** The landing page draws a
+ * stored walkthrough, and that recording still contains `not_assessed` — a state the engine
+ * deleted when the three rules it covered became real checks. The row for it is `undefined`,
+ * and `undefined` reaching the render threw on destructuring and replaced the first screen
+ * a visitor sees with an error boundary. A legend entry nobody can draw is not worth a blank
+ * page, and leaving it out is also the truthful thing: this version has no such state.
+ */
 export function legendRows(statuses: readonly GraphSlot['status'][]) {
-  return [...new Set(statuses)].map((status) => LEGEND_ROWS[status])
+  const known = LEGEND_ROWS as Record<string, { label: string; fill: string }>
+  return [...new Set(statuses)].flatMap((status) => known[status] ?? [])
 }
 
 function nodeMpn(slot: GraphSlot) {
