@@ -213,6 +213,10 @@ what he is asking for, and *do not draw an affordance that cannot be used* is wh
 becoming a dashboard of empty panes. Worth agreeing on the target layout before any of it is
 written.
 
+**Built 11 September.** The paragraphs above describe the code as it was when this was
+researched, and the two that follow are now history rather than findings: `/changes` is master
+and detail, and one lane opens at a time. See the closed row in [DEFERRED.md](DEFERRED.md).
+
 ### Sources
 
 - [Tiled Agent Layout, agentpatterns.ai](https://agentpatterns.ai/workflows/tiled-agent-layout/) — the four-to-five pane ceiling, false supervision, attention thrashing.

@@ -168,7 +168,7 @@ stay live and switching is one click.
 - [ ] **The bill still reads AMS1117-3.3** after one, two and three signatures. Check it on `/lines` → Sensor node if you want to be sure.
 - [ ] The fourth signature applies it: *Applied · U1 is NCP1117ST33T3G · Rev D*.
 - [ ] The same desk pressing again is refused, and the refusal names who it is waiting for.
-- [ ] Under the lanes, the change requests appear, one per affected product line, each naming every department that must sign and what each of them found.
+- [ ] **Each lane ends with its change request** — one per affected product line, naming every department that must sign and what each of them found. It is the lane's last layer rather than a stack under all three, so the request for the board you have just read is the one directly below it.
 - [ ] Each change request ends with what was checked before anybody was asked: parts, departments, product lines.
 
 ---
