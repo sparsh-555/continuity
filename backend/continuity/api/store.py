@@ -265,7 +265,12 @@ class Store:
                     "UPDATE users SET org_id = %s, roles = %s WHERE id = %s",
                     (org_id, list(roles), user_id),
                 )
-                for table in ("product_lines", "threads", "findings", "line_parts"):
+                # `line_access` is on this list for the same reason the rest are: a grant
+                # whose `org_id` still names the company they left is a row that says
+                # something untrue. The visibility query matches on `user_id`, so leaving it
+                # behind would not hide anything today — which is exactly the kind of stale
+                # field that gets trusted later.
+                for table in ("product_lines", "threads", "findings", "line_parts", "line_access"):
                     await conn.execute(
                         f"UPDATE {table} SET org_id = %s WHERE user_id = %s", (org_id, user_id)
                     )
@@ -407,27 +412,46 @@ class Store:
     async def create_line(
         self, user_id: str, org_id: str, name: str
     ) -> Line:
-        """Both ids: `user_id` is who made it, `org_id` is who may see it."""
+        """Both ids: `user_id` is who made it, `org_id` is who may see it.
+
+        **Whoever makes a line is on it.** The grant is written in the same transaction as
+        the line, because a product line its own author cannot open is a row that has
+        effectively vanished — and it is the failure this would have had, since visibility
+        is a grant now rather than a property of the company. Sharing it onward is
+        `grant_lines`.
+        """
+        line_id = new_id()
         async with self.pool.connection() as conn:
-            cursor = await conn.cursor(row_factory=dict_row).execute(
-                """
-                INSERT INTO product_lines (id, user_id, org_id, name)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id, user_id, org_id, name, created_at, updated_at, revision, profile
-                """,
-                (new_id(), user_id, org_id, name),
-            )
-            row = await cursor.fetchone()
+            async with conn.transaction():
+                cursor = await conn.cursor(row_factory=dict_row).execute(
+                    """
+                    INSERT INTO product_lines (id, user_id, org_id, name)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id, user_id, org_id, name, created_at, updated_at, revision, profile
+                    """,
+                    (line_id, user_id, org_id, name),
+                )
+                row = await cursor.fetchone()
+                await conn.execute(
+                    "INSERT INTO line_access (line_id, user_id, org_id) VALUES (%s, %s, %s) "
+                    "ON CONFLICT DO NOTHING",
+                    (line_id, user_id, org_id),
+                )
         return Line(**row)
 
-    async def lines_for_user(self, org_id: str) -> list[Line]:
-        """The organisation's lines.
+    async def lines_for_user(self, org_id: str, user_id: str) -> list[Line]:
+        """The lines this person was brought in on.
 
         **`NOT is_walkthrough` outlives the walkthrough itself.** The replayed tour is gone
         — it taught a story the product no longer tells — and nothing writes that column any
         more, but an account created before it went still carries a "Welcome to Continuity"
         row. The filter keeps those hidden; dropping the column would be a migration against
         production data for a change nobody would see.
+
+        **`user_id` is required, and that is the point.** It used to be `org_id` alone, which
+        answers *is this your company's work* and cannot answer *is this yours*. Every caller
+        has to say whose eyes it is asking for, so a caller that forgot cannot quietly widen
+        what somebody sees — it stops at the type error instead.
         """
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
@@ -441,6 +465,52 @@ class Store:
                                             AND lp.populated
                          WHERE n.org_id = product_lines.org_id
                            AND lp.line_id = product_lines.id) AS exposed_count
+                  FROM product_lines
+                 WHERE org_id = %s AND NOT is_walkthrough
+                   AND EXISTS (SELECT 1 FROM line_access a
+                                WHERE a.line_id = product_lines.id AND a.user_id = %s)
+                 ORDER BY updated_at DESC
+                """,
+                (org_id, user_id),
+            )
+            rows = await cursor.fetchall()
+        return [Line(**row) for row in rows]
+
+    async def line_for_user(self, line_id: str, org_id: str, user_id: str) -> Line | None:
+        """One line, if this person was brought in on it. The authorisation boundary.
+
+        `None` covers both "no such line" and "not yours", deliberately: a caller who has not
+        been invited to a project should not be able to tell it apart from one that does not
+        exist, because the difference is a list of somebody else's projects.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT id, user_id, org_id, name, created_at, updated_at, revision, profile,
+                       (SELECT count(*) FROM line_parts lp
+                        WHERE lp.line_id = product_lines.id AND lp.populated) AS part_count
+                  FROM product_lines
+                 WHERE id = %s AND org_id = %s
+                   AND EXISTS (SELECT 1 FROM line_access a
+                                WHERE a.line_id = product_lines.id AND a.user_id = %s)
+                """,
+                (line_id, org_id, user_id),
+            )
+            row = await cursor.fetchone()
+        return None if row is None else Line(**row)
+
+    async def lines_in_org(self, org_id: str) -> list[Line]:
+        """Every line this company ships, whoever holds it.
+
+        For the startup warm and nothing else: it checks every product line so the first
+        person to open one is not the person who waits. No route may use this.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT id, user_id, org_id, name, created_at, updated_at, revision, profile,
+                       (SELECT count(*) FROM line_parts lp
+                        WHERE lp.line_id = product_lines.id AND lp.populated) AS part_count
                   FROM product_lines WHERE org_id = %s AND NOT is_walkthrough
                  ORDER BY updated_at DESC
                 """,
@@ -449,7 +519,15 @@ class Store:
             rows = await cursor.fetchall()
         return [Line(**row) for row in rows]
 
-    async def line_for_user(self, line_id: str, org_id: str) -> Line | None:
+    async def line_in_org(self, line_id: str, org_id: str) -> Line | None:
+        """One line with no access question asked.
+
+        **For the two callers that legitimately mean the whole company**, and for nothing
+        else. The startup warm checks every product line so the first person to open one is
+        not the person who waits; the engine's own cached check is asked about a line whose
+        access was already decided at the route above it. Neither is speaking for a person,
+        which is why neither may use `line_for_user`.
+        """
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
@@ -462,6 +540,50 @@ class Store:
             )
             row = await cursor.fetchone()
         return None if row is None else Line(**row)
+
+    async def grant_lines(self, line_ids: Sequence[str], user_id: str, org_id: str) -> int:
+        """Bring somebody in on these projects. Idempotent, and silent about duplicates.
+
+        Re-inviting a person to a project they already hold is not an error and is not a
+        second row: the invite is a statement about access, and access is a set.
+        """
+        if not line_ids:
+            return 0
+        async with self.pool.connection() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.executemany(
+                    """
+                    INSERT INTO line_access (line_id, user_id, org_id)
+                    VALUES (%s, %s, %s) ON CONFLICT DO NOTHING
+                    """,
+                    [(line_id, user_id, org_id) for line_id in line_ids],
+                )
+                return cursor.rowcount
+
+    async def members_for_org(self, org_id: str) -> list[dict[str, Any]]:
+        """Who is in this company, what they hold, and how much they can reach.
+
+        The count is of lines they were *brought in on*, which is the same number their own
+        product lines list shows. A roster that counted the company's lines instead would
+        print five beside somebody who can open two.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """
+                SELECT u.id, u.email, u.roles, u.created_at,
+                       coalesce(
+                           array_agg(a.line_id ORDER BY a.created_at) FILTER (WHERE a.line_id IS NOT NULL),
+                           '{}'
+                       ) AS line_ids
+                  FROM users u
+                  LEFT JOIN line_access a ON a.user_id = u.id AND a.org_id = u.org_id
+                 WHERE u.org_id = %s
+                 GROUP BY u.id, u.email, u.roles, u.created_at
+                 ORDER BY u.created_at
+                """,
+                (org_id,),
+            )
+            return await cursor.fetchall()
 
     async def save_bom_rows(
         self, line_id: str, user_id: str, org_id: str, rows: Sequence[Mapping[str, Any]]
@@ -507,7 +629,16 @@ class Store:
             )
             return cursor.rowcount > 0
 
-    async def lines_exposed_to(self, org_id: str, mpn: str) -> list[dict[str, Any]]:
+    async def lines_exposed_to(
+        self, org_id: str, mpn: str, user_id: str
+    ) -> list[dict[str, Any]]:
+        """Which of *this person's* lines carry the part.
+
+        **The same grant as the product lines list narrows this**, because a notice that
+        reported three affected products to somebody who can open two would be announcing
+        work they cannot see. The count on the banner and the boards the review checks come
+        from here, so they narrow together.
+        """
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """SELECT p.id AS line_id, p.name, p.revision,
@@ -515,8 +646,10 @@ class Store:
                      FROM line_parts lp
                      JOIN product_lines p ON p.id = lp.line_id AND p.org_id = lp.org_id
                     WHERE lp.org_id = %s AND lp.mpn = %s AND lp.populated
+                      AND EXISTS (SELECT 1 FROM line_access a
+                                   WHERE a.line_id = p.id AND a.user_id = %s)
                  GROUP BY p.id, p.name, p.revision ORDER BY p.name""",
-                (org_id, mpn),
+                (org_id, mpn, user_id),
             )
             return await cursor.fetchall()
 
@@ -535,13 +668,21 @@ class Store:
         line_id = _derived_id(user_id, "scratch-line")
 
         async with self.pool.connection() as conn:
-            await conn.execute(
-                """
-                INSERT INTO product_lines (id, user_id, org_id, name)
-                VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
-                """,
-                (line_id, user_id, org_id, SCRATCH_LINE_NAME),
-            )
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    INSERT INTO product_lines (id, user_id, org_id, name)
+                    VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING
+                    """,
+                    (line_id, user_id, org_id, SCRATCH_LINE_NAME),
+                )
+                # Granted to its owner for the same reason `create_line` does it: a scratch
+                # line nobody can open is the pad a run started without a line writes into.
+                await conn.execute(
+                    "INSERT INTO line_access (line_id, user_id, org_id) VALUES (%s, %s, %s) "
+                    "ON CONFLICT DO NOTHING",
+                    (line_id, user_id, org_id),
+                )
 
         return line_id
 

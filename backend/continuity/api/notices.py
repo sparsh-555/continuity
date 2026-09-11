@@ -93,7 +93,7 @@ async def receive(
     notice_id = await store.save_notice(
         user.org_id, user.id, notice, source=body.filename or "uploaded"
     )
-    exposed = await store.lines_exposed_to(user.org_id, notice.mpn)
+    exposed = await store.lines_exposed_to(user.org_id, notice.mpn, user.id)
 
     return {
         "id": notice_id,
@@ -166,7 +166,7 @@ async def review(
     if notice is None:
         raise HTTPException(404, "no such notice")
 
-    exposed = await store.lines_exposed_to(user.org_id, notice["mpn"])
+    exposed = await store.lines_exposed_to(user.org_id, notice["mpn"], user.id)
     if not exposed:
         raise HTTPException(
             409,
@@ -192,7 +192,7 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
     lines = {}
     boms = {}
     for row in exposed:
-        line = await store.line_for_user(row["line_id"], user.org_id)
+        line = await store.line_for_user(row["line_id"], user.org_id, user.id)
         if line is None or not line.profile:
             continue
         lines[line.id] = line

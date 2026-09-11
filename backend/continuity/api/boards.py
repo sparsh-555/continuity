@@ -78,8 +78,8 @@ def _decoded(bundle: str) -> bytes:
     return raw
 
 
-async def _owned(request: Request, line_id: str, org_id: str):
-    line = await store_of(request).line_for_user(line_id, org_id)
+async def _owned(request: Request, line_id: str, user: User):
+    line = await store_of(request).line_for_user(line_id, user.org_id, user.id)
     if line is None:
         raise HTTPException(404, "no such line")
     return line
@@ -133,7 +133,7 @@ async def put_board(
     request: Request,
     user: User = Depends(current_user),
 ) -> dict[str, Any]:
-    await _owned(request, line_id, user.org_id)
+    await _owned(request, line_id, user)
     store = store_of(request)
     raw = _decoded(body.bundle)
 
@@ -193,7 +193,7 @@ async def put_board(
 async def get_board(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> dict[str, Any]:
-    await _owned(request, line_id, user.org_id)
+    await _owned(request, line_id, user)
     stored = await store_of(request).board_for(line_id, user.org_id)
     if stored is None:
         return {"board": None, "kicad": runner.available()}
@@ -212,7 +212,7 @@ async def get_board(
 async def delete_board(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> None:
-    await _owned(request, line_id, user.org_id)
+    await _owned(request, line_id, user)
     if not await store_of(request).delete_board(line_id, user.org_id):
         raise HTTPException(404, "no board is stored for that line")
 
@@ -221,7 +221,7 @@ async def delete_board(
 async def board_bom(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> dict[str, Any]:
-    await _owned(request, line_id, user.org_id)
+    await _owned(request, line_id, user)
     stored = await store_of(request).board_bundle(line_id, user.org_id)
     if stored is None:
         raise HTTPException(404, "no board is stored for that line")
@@ -437,7 +437,7 @@ async def board_render(
     user: User = Depends(current_user),
 ) -> dict[str, Any]:
     """A picture of this product line's board, with one part located on it."""
-    await _owned(request, line_id, user.org_id)
+    await _owned(request, line_id, user)
     stored = await store_of(request).board_bundle(line_id, user.org_id)
     if stored is None:
         raise HTTPException(404, "no board is stored for that line")
@@ -493,7 +493,7 @@ async def consequence(
 ) -> dict[str, Any]:
     """What this substitute does to this line's board, as KiCad reports it."""
     store = store_of(request)
-    await _owned(request, line_id, user.org_id)
+    await _owned(request, line_id, user)
     # The 404 and the 503 are the two things this caller *can* be told; the shared coroutine
     # answers `None` for both because a background caller has nobody to tell.
     if await store.board_bundle(line_id, user.org_id) is None:
@@ -531,7 +531,7 @@ async def consequence_stream(
     still real statuses, and they are made before the response starts for exactly that reason.
     """
     store = store_of(request)
-    await _owned(request, line_id, user.org_id)
+    await _owned(request, line_id, user)
     if await store.board_bundle(line_id, user.org_id) is None:
         raise HTTPException(404, "no board is stored for that line")
     _needs_kicad()

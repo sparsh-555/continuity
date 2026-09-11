@@ -14,6 +14,7 @@ import {
   type Line,
   type LineThread,
 } from '../lib/api'
+import { InviteDialog, TeamPanel, useMembers } from '../team/Team'
 import { Wordmark } from '../shell/Wordmark'
 
 type StatusBadge = {
@@ -140,6 +141,8 @@ export default function LinesRoute() {
   const [openMenuLineId, setOpenMenuLineId] = useState<string | null>(null)
   const [reloadCount, setReloadCount] = useState(0)
 
+  const { members, refresh: refreshMembers } = useMembers()
+
   const [renameLine, setRenameLine] = useState<Line | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement | null>(null)
@@ -149,6 +152,12 @@ export default function LinesRoute() {
   const boardInputRef = useRef<HTMLInputElement | null>(null)
   const boardLineRef = useRef<Line | null>(null)
   const [boardMessage, setBoardMessage] = useState<string | null>(null)
+  /** Picking projects to share, and the ones ticked. Selection lives here rather than in the
+   *  dialog because the rows are here — the projects are what you point at. */
+  const [picking, setPicking] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteNote, setInviteNote] = useState<string | null>(null)
   const [attaching, setAttaching] = useState(false)
 
   useEffect(() => {
@@ -364,12 +373,39 @@ export default function LinesRoute() {
             </p>
           ) : null}
 
-          <div className="flex items-center justify-between border-b border-outline-variant pb-sm">
+          {/* **Who is on the company, above what they share.** Scenario B is a cross-team
+              response and a judge watching four desks sign one change has to take the
+              sharing on faith without this. It is on the projects page rather than a
+              destination of its own, so the answer to *how do you share these* sits beside
+              the things being shared. */}
+          <TeamPanel members={members} />
+
+          <div className="flex items-center justify-between gap-md border-b border-outline-variant pb-sm">
             <h1 className="font-label-caps text-label-caps tracking-[0.1em] uppercase text-on-surface">
               PRODUCT LINES
             </h1>
-            <button
-              className="bg-primary-container text-on-primary-fixed px-md py-xs rounded-DEFAULT font-label-caps text-label-caps flex items-center gap-xs hover:bg-primary-fixed transition-colors disabled:opacity-70"
+            {/* **The selection is made where the projects are.** Ticking them on the list and
+                naming the person afterwards is the same decision in the order it is
+                actually taken; a dialog that asked for both at once would have the reader
+                holding three names in their head while typing an email. */}
+            <div className="flex items-center gap-sm">
+              <button
+                className={`px-md py-xs rounded-DEFAULT font-label-caps text-label-caps border transition-colors ${
+                  picking
+                    ? 'border-primary-container text-primary-container'
+                    : 'border-outline-variant text-on-surface-variant hover:border-on-surface-variant'
+                }`}
+                onClick={() => {
+                  setPicking((value) => !value)
+                  setPicked(new Set())
+                  setInviteNote(null)
+                }}
+                type="button"
+              >
+                {picking ? 'CANCEL' : 'INVITE TEAMMATES'}
+              </button>
+              <button
+                className="bg-primary-container text-on-primary-fixed px-md py-xs rounded-DEFAULT font-label-caps text-label-caps flex items-center gap-xs hover:bg-primary-fixed transition-colors disabled:opacity-70"
               disabled={creating}
               onClick={() => {
                 createNewLine().catch(() => undefined)
@@ -378,8 +414,33 @@ export default function LinesRoute() {
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
               NEW PRODUCT LINE
-            </button>
+              </button>
+            </div>
           </div>
+
+          {picking ? (
+            <div className="flex flex-wrap items-center justify-between gap-md border border-primary-container rounded px-md py-sm">
+              <p className="m-0 font-data-tabular text-[13px] text-on-surface">
+                {picked.size === 0
+                  ? 'Tick the projects this teammate should be able to open.'
+                  : `${picked.size} of ${lines.length} project${lines.length === 1 ? '' : 's'} selected`}
+              </p>
+              <button
+                className="h-8 px-md bg-primary-container text-on-primary-fixed rounded font-data-tabular text-[12px] hover:bg-primary-fixed transition-colors disabled:opacity-40"
+                disabled={picked.size === 0}
+                onClick={() => setInviteOpen(true)}
+                type="button"
+              >
+                SHARE THESE {picked.size} PROJECT{picked.size === 1 ? '' : 'S'}
+              </button>
+            </div>
+          ) : null}
+
+          {inviteNote ? (
+            <p className="m-0 font-data-tabular text-[12px] text-[#4ade80] leading-relaxed">
+              {inviteNote}
+            </p>
+          ) : null}
 
           <div className="flex flex-col gap-sm">
             {showRows
@@ -390,7 +451,21 @@ export default function LinesRoute() {
                     // list reads calmer without twelve of them stacked down the page.
                     className="bg-surface-container h-[72px] rounded-DEFAULT flex items-center justify-between px-md hover:bg-surface-container-high transition-colors cursor-pointer"
                     key={line.id}
-                    onClick={() => navigate(`/lines/${line.id}`)}
+                    onClick={() => {
+                      // Picking is the mode, so a row is a checkbox while it is on. Opening a
+                      // project from inside the selection would leave the reader wondering
+                      // whether the tick they were reaching for had been recorded.
+                      if (picking) {
+                        setPicked((current) => {
+                          const next = new Set(current)
+                          if (next.has(line.id)) next.delete(line.id)
+                          else next.add(line.id)
+                          return next
+                        })
+                        return
+                      }
+                      navigate(`/lines/${line.id}`)
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
                         navigate(`/lines/${line.id}`)
@@ -399,6 +474,21 @@ export default function LinesRoute() {
                     role="button"
                     tabIndex={0}
                   >
+                    {/* **The tick appears where the row already is.** A separate list of
+                        checkboxes beside the projects would be the same names twice, and the
+                        reader would have to match them up. */}
+                    {picking ? (
+                      <span
+                        aria-hidden
+                        className={`material-symbols-outlined text-[20px] mr-md shrink-0 ${
+                          picked.has(line.id) ? 'text-primary-container' : 'text-on-surface-variant/50'
+                        }`}
+                        style={picked.has(line.id) ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                      >
+                        {picked.has(line.id) ? 'check_box' : 'check_box_outline_blank'}
+                      </span>
+                    ) : null}
+
                     <div className="flex flex-col justify-center min-w-0 flex-1">
                       <span className="font-headline-sm text-headline-sm text-on-surface truncate">
                         {line.name}
@@ -591,6 +681,19 @@ export default function LinesRoute() {
           undone.
         </p>
       </Modal>
+
+      <InviteDialog
+        onClose={() => setInviteOpen(false)}
+        onInvited={(note) => {
+          setInviteOpen(false)
+          setInviteNote(note)
+          setPicking(false)
+          setPicked(new Set())
+          refreshMembers()
+        }}
+        open={inviteOpen}
+        selected={[...picked]}
+      />
     </>
   )
 }

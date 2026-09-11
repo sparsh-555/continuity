@@ -41,7 +41,7 @@ from ..graph import nodes
 from ..graph.build import build
 from ..planner import topology
 from ..parts import datasheet, dossier, normalize
-from . import auth, boards, bom, events, exposure, memory, lines, spa
+from . import auth, boards, bom, events, exposure, memory, lines, orgs as orgs_api, spa
 from . import review as review_api
 from . import matrix as matrix_api
 from . import notices as notices_api
@@ -187,6 +187,7 @@ app.include_router(notices_api.router)
 app.include_router(review_api.router)
 app.include_router(decisions_api.router)
 app.include_router(policy_api.router)
+app.include_router(orgs_api.router)
 
 STREAMS: dict[str, events.EventStream] = {}
 """thread_id → the live counter for a run in flight.
@@ -259,7 +260,7 @@ async def validate_pasted_bom(body: bom.BomRequest, request: Request) -> Streami
             line_id = await store.ensure_scratch_line(user.id, user.org_id)
         elif not line_id:
             raise HTTPException(422, "line_id is required")
-        if await store.line_for_user(line_id, user.org_id) is None:
+        if await store.line_for_user(line_id, user.org_id, user.id) is None:
             raise HTTPException(404, "no such line")
         await store.create_thread(thread_id, line_id, user.id, user.org_id, "BOM validation")
 
@@ -372,7 +373,7 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
             line_id = await store.ensure_scratch_line(user.id, user.org_id)
         elif not line_id:
             raise HTTPException(422, "line_id is required")
-        line = await store.line_for_user(line_id, user.org_id)
+        line = await store.line_for_user(line_id, user.org_id, user.id)
         if line is None:
             raise HTTPException(404, "no such line")
         profile = line.profile

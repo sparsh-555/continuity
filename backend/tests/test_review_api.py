@@ -534,7 +534,7 @@ def test_an_accepted_gate_is_kept_as_an_accepted_failure_on_the_released_revisio
                 )
                 checked = await http.post(f"/lines/{gateway['line_id']}/check")
                 waivers = await store.accepted_waivers_for_line(gateway["line_id"], me["org_id"])
-                current = await store.line_for_user(gateway["line_id"], me["org_id"])
+                current = await store.line_for_user(gateway["line_id"], me["org_id"], me["id"])
                 return gateway, answered, checked, waivers, current
 
     gateway, answered, checked, waivers, current = run(go())

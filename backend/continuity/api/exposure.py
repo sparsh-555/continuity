@@ -14,4 +14,4 @@ router = APIRouter(prefix="/exposure", tags=["exposure"])
 async def exposure(
     request: Request, mpn: str = Query(min_length=1), user: User = Depends(current_user)
 ) -> list[dict[str, Any]]:
-    return await store_of(request).lines_exposed_to(user.org_id, mpn)
+    return await store_of(request).lines_exposed_to(user.org_id, mpn, user.id)

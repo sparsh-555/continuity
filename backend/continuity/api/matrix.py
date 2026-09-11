@@ -187,7 +187,7 @@ async def _facts_for(store: Any, mpn: str) -> list[dict[str, Any]]:
 async def _build(body: MatrixRequest, store: Any, user: User) -> dict[str, Any]:
     lines = []
     for line_id in body.line_ids:
-        line = await store.line_for_user(line_id, user.org_id)
+        line = await store.line_for_user(line_id, user.org_id, user.id)
         if line is None:
             raise HTTPException(404, "no such line")
         if not line.profile:

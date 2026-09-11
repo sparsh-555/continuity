@@ -344,6 +344,17 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
         )
         made.append((created.id, label, regulator.mpn))
 
+    # **Every desk holds every line, and that is what keeps this world being a world.** Since
+    # 11 September a product line is visible because somebody was brought in on it rather than
+    # because it belongs to the company, so a seeded company with no grants would open on five
+    # empty rows. The four desks can each refuse the others' work, which is the whole of
+    # Scenario B, so each of them has to be able to see it.
+    #
+    # A person invited later holds only what they were invited to, which is the difference the
+    # invite screen exists to make.
+    for person in (engineer, *people.values()):
+        await store.grant_lines([line_id for line_id, _, _ in made], person.id, org_id)
+
     return {
         "org_id": org_id,
         "engineer": engineer,

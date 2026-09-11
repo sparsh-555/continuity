@@ -119,7 +119,7 @@ def _thread_view(thread: Thread) -> ThreadView:
 async def list_lines(
     request: Request, user: User = Depends(current_user)
 ) -> list[LineView]:
-    return [_view(p) for p in await store_of(request).lines_for_user(user.org_id)]
+    return [_view(p) for p in await store_of(request).lines_for_user(user.org_id, user.id)]
 
 
 @router.post("", status_code=201)
@@ -133,7 +133,7 @@ async def create_line(
 async def get_line(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> LineView:
-    line = await store_of(request).line_for_user(line_id, user.org_id)
+    line = await store_of(request).line_for_user(line_id, user.org_id, user.id)
     if line is None:
         raise HTTPException(404, "no such line")
     return _view(line)
@@ -225,7 +225,7 @@ async def warm_checks(store: Any) -> None:
 
     work = []
     for org_id in organisations:
-        for line in await store.lines_for_user(org_id):
+        for line in await store.lines_in_org(org_id):
             work.append(one(line.id, org_id))
     if work:
         await asyncio.gather(*work)
@@ -234,7 +234,7 @@ async def warm_checks(store: Any) -> None:
 
 async def _check_line(store: Any, line_id: str, org_id: str) -> dict[str, Any]:
     """The engine over one product line, cached on what it looked at."""
-    line = await store.line_for_user(line_id, org_id)
+    line = await store.line_in_org(line_id, org_id)
     if line is None:
         raise HTTPException(404, "no such line")
 
@@ -341,7 +341,7 @@ async def reviews(
     instantly, and this is a join and an assembly per decision.
     """
     store = store_of(request)
-    line = await store.line_for_user(line_id, user.org_id)
+    line = await store.line_for_user(line_id, user.org_id, user.id)
     if line is None:
         raise HTTPException(404, "no such line")
 
@@ -383,7 +383,7 @@ async def overview(
     the page renders offline and instantly.
     """
     store = store_of(request)
-    line = await store.line_for_user(line_id, user.org_id)
+    line = await store.line_for_user(line_id, user.org_id, user.id)
     if line is None:
         raise HTTPException(404, "no such line")
 
@@ -445,7 +445,7 @@ async def list_threads(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> list[ThreadView]:
     store = store_of(request)
-    if await store.line_for_user(line_id, user.org_id) is None:
+    if await store.line_for_user(line_id, user.org_id, user.id) is None:
         raise HTTPException(404, "no such line")
     return [_thread_view(t) for t in await store.threads_for_line(line_id, user.org_id)]
 
@@ -454,7 +454,7 @@ async def list_threads(
 async def get_bom(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> list[dict[str, Any]]:
-    return await _owned_bom(request, line_id, user.org_id)
+    return await _owned_bom(request, line_id, user)
 
 
 @router.put("/{line_id}/bom")
@@ -462,24 +462,24 @@ async def put_bom(
     line_id: str, body: BomPayload, request: Request, user: User = Depends(current_user)
 ) -> list[dict[str, Any]]:
     store = store_of(request)
-    if await store.line_for_user(line_id, user.org_id) is None:
+    if await store.line_for_user(line_id, user.org_id, user.id) is None:
         raise HTTPException(404, "no such line")
     await store.save_bom_rows(line_id, user.id, user.org_id, [row.model_dump() for row in body.rows])
     return await store.bom_for_line(line_id, user.org_id)
 
 
-async def _owned_bom(request: Request, line_id: str, org_id: str) -> list[dict[str, Any]]:
+async def _owned_bom(request: Request, line_id: str, user: User) -> list[dict[str, Any]]:
     store = store_of(request)
-    if await store.line_for_user(line_id, org_id) is None:
+    if await store.line_for_user(line_id, user.org_id, user.id) is None:
         raise HTTPException(404, "no such line")
-    return await store.bom_for_line(line_id, org_id)
+    return await store.bom_for_line(line_id, user.org_id)
 
 
 @router.get("/{line_id}/profile")
 async def get_profile(
     line_id: str, request: Request, user: User = Depends(current_user)
 ) -> dict[str, Any]:
-    line = await store_of(request).line_for_user(line_id, user.org_id)
+    line = await store_of(request).line_for_user(line_id, user.org_id, user.id)
     if line is None:
         raise HTTPException(404, "no such line")
     return {"profile": line.profile, "revision": line.revision}
@@ -490,7 +490,7 @@ async def put_profile(
     line_id: str, body: ProfilePayload, request: Request, user: User = Depends(current_user)
 ) -> dict[str, Any]:
     store = store_of(request)
-    if await store.line_for_user(line_id, user.org_id) is None:
+    if await store.line_for_user(line_id, user.org_id, user.id) is None:
         raise HTTPException(404, "no such line")
     try:
         profile = OperatingProfile.from_json(body.profile)
@@ -505,9 +505,14 @@ async def rename_line(
     line_id: str, body: NewLine, request: Request, user: User = Depends(current_user)
 ) -> LineView:
     store = store_of(request)
+    # **The access check comes first, because this one writes.** `rename_line` is scoped to
+    # the company and would have renamed a project the caller was never brought in on; the
+    # check it used to do afterwards only decided whether the *response* was a 404.
+    if await store.line_for_user(line_id, user.org_id, user.id) is None:
+        raise HTTPException(404, "no such line")
     if not await store.rename_line(line_id, user.org_id, body.name):
         raise HTTPException(404, "no such line")
-    return _view(await store.line_for_user(line_id, user.org_id))
+    return _view(await store.line_for_user(line_id, user.org_id, user.id))
 
 
 @router.delete("/{line_id}", status_code=204)

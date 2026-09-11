@@ -230,7 +230,7 @@ async def board_for_line(store: Any, line_id: str, org_id: str):
     got to, and a screen showing grey beside green without saying why is the kind of
     unaccounted state a judge asks about first.
     """
-    stored = await store.line_for_user(line_id, org_id)
+    stored = await store.line_in_org(line_id, org_id)
     if stored is None or not stored.profile:
         return None, "no operating profile is stored for this product line", []
     rows = await store.bom_for_line(line_id, org_id)
@@ -393,7 +393,7 @@ async def _run_line(
     # `lines_exposed_to` is the notice's reachability snapshot. The waiver is instead
     # scoped to the revision the product line has *now*, which may have advanced when the
     # preceding decision applied its substitution.
-    current_line = await store.line_for_user(line_id, user.org_id)
+    current_line = await store.line_for_user(line_id, user.org_id, user.id)
     revision = current_line.revision if current_line is not None else line.get("revision")
     annual_volume = (
         OperatingProfile.from_json(current_line.profile).annual_volume
@@ -560,7 +560,7 @@ async def run_review(
     if notice is None:
         raise HTTPException(404, "no such notice")
 
-    exposed = await store.lines_exposed_to(user.org_id, notice["mpn"])
+    exposed = await store.lines_exposed_to(user.org_id, notice["mpn"], user.id)
     if not exposed:
         raise HTTPException(409, "that notice does not reach any product line you ship")
 

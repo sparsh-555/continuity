@@ -65,8 +65,8 @@ def test_the_seed_builds_the_world_the_scenario_needs():
         async with empty() as store:
             world = await seed_world.seed(store)
             lists = await store.approved_lists(world["org_id"])
-            lines = await store.lines_for_user(world["org_id"])
-            exposed = await store.lines_exposed_to(world["org_id"], AMS1117.mpn)
+            lines = await store.lines_for_user(world["org_id"], world["engineer"].id)
+            exposed = await store.lines_exposed_to(world["org_id"], AMS1117.mpn, world["engineer"].id)
             desks = {
                 email: await store.user_by_email(email)
                 for email, _ in seed_world.DESKS
@@ -108,7 +108,7 @@ def test_every_seeded_line_can_be_turned_into_a_board():
         async with empty() as store:
             world = await seed_world.seed(store)
             built = []
-            for line in await store.lines_for_user(world["org_id"]):
+            for line in await store.lines_for_user(world["org_id"], world["engineer"].id):
                 bom = await store.bom_for_line(line.id, world["org_id"])
                 built.append((line.name, line.revision, line.profile is not None, len(bom)))
             return built
@@ -148,9 +148,10 @@ def test_running_the_seed_twice_is_refused_rather_than_doubling_the_world():
             try:
                 await seed_world.seed(store)
             except SystemExit as refusal:
-                return str(refusal), len(await store.lines_for_user(
-                    (await store.user_by_email(seed_world.ENGINEER[0])).org_id
-                ))
+                engineer = await store.user_by_email(seed_world.ENGINEER[0])
+                return str(refusal), len(
+                    await store.lines_for_user(engineer.org_id, engineer.id)
+                )
             return None, None
 
     refusal, lines = run(go())
@@ -570,7 +571,7 @@ def test_one_notice_stops_at_three_different_desks():
             }
             profiles = {}
             for name, line_id in lines.items():
-                line = await store.line_for_user(line_id, world["org_id"])
+                line = await store.line_for_user(line_id, world["org_id"], world["engineer"].id)
                 profiles[name] = getattr(line, "profile", None) or {}
             return profiles
 

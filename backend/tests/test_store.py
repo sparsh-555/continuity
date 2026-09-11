@@ -342,8 +342,8 @@ def test_lines_list_for_their_owner_only():
             await store.create_line(mine.id, mine.org_id, "My board")
             await store.create_line(theirs.id, theirs.org_id, "Their board")
             return (
-                await store.lines_for_user(mine.org_id),
-                await store.lines_for_user(theirs.org_id),
+                await store.lines_for_user(mine.org_id, mine.id),
+                await store.lines_for_user(theirs.org_id, theirs.id),
             )
 
     ours, others = run(go())
@@ -358,8 +358,8 @@ def test_a_line_is_invisible_to_another_user():
             theirs = await a_user(store, "theirs@example.com")
             line = await store.create_line(mine.id, mine.org_id, "My board")
             return (
-                await store.line_for_user(line.id, mine.org_id),
-                await store.line_for_user(line.id, theirs.org_id),
+                await store.line_for_user(line.id, mine.org_id, mine.id),
+                await store.line_for_user(line.id, theirs.org_id, theirs.id),
             )
 
     owned, stolen = run(go())
@@ -383,7 +383,7 @@ def test_exposure_returns_populated_mpn_across_lines_but_not_dnp():
                 lines[4].id, user.id, user.org_id,
                 [{"refdes": "U1", "mpn": "OTHER", "populated": True}],
             )
-            return lines, await store.lines_exposed_to(user.org_id, "TARGET")
+            return lines, await store.lines_exposed_to(user.org_id, "TARGET", user.id)
 
     lines, exposed = run(go())
     assert [row["line_id"] for row in exposed] == [line.id for line in lines[:3]]
@@ -401,8 +401,8 @@ def test_exposure_never_crosses_accounts():
             await store.save_bom_rows(mine_line.id, mine.id, mine.org_id, rows)
             await store.save_bom_rows(theirs_line.id, theirs.id, theirs.org_id, rows)
             return (
-                await store.lines_exposed_to(mine.org_id, "TARGET"),
-                await store.lines_exposed_to(theirs.org_id, "TARGET"),
+                await store.lines_exposed_to(mine.org_id, "TARGET", mine.id),
+                await store.lines_exposed_to(theirs.org_id, "TARGET", theirs.id),
             )
 
     mine, theirs = run(go())
@@ -740,20 +740,20 @@ def test_two_organisations_are_invisible_to_each_other_across_every_listing():
                     [Finding("availability", "u1", mpn, "No stock.", "unresolved")],
                 )
 
-            ours_lines = await store.lines_for_user(ours.org_id)
-            theirs_lines = await store.lines_for_user(theirs.org_id)
+            ours_lines = await store.lines_for_user(ours.org_id, ours.id)
+            theirs_lines = await store.lines_for_user(theirs.org_id, theirs.id)
             return {
                 "ours": [line.name for line in ours_lines],
                 "theirs": [line.name for line in theirs_lines],
                 # Their line, asked for with our organisation.
-                "cross_line": await store.line_for_user(theirs_lines[0].id, ours.org_id),
+                "cross_line": await store.line_for_user(theirs_lines[0].id, ours.org_id, ours.id),
                 "cross_thread": await store.thread_for_user(f"t-{theirs.id}", ours.org_id),
                 "cross_threads": await store.threads_for_line(theirs_lines[0].id, ours.org_id),
                 "cross_bom": await store.bom_for_line(theirs_lines[0].id, ours.org_id),
                 "cross_rename": await store.rename_line(theirs_lines[0].id, ours.org_id, "Mine now"),
                 "cross_delete": await store.delete_line(theirs_lines[0].id, ours.org_id),
                 # The same MPN sits on both boards; exposure must return only ours.
-                "exposure": await store.lines_exposed_to(ours.org_id, "AMS1117-3.3"),
+                "exposure": await store.lines_exposed_to(ours.org_id, "AMS1117-3.3", ours.id),
                 "memory": await store.memory_for_user(ours.org_id, part_limit=100),
             }
 
@@ -771,11 +771,17 @@ def test_two_organisations_are_invisible_to_each_other_across_every_listing():
     assert [line["name"] for line in seen["memory"]["lines"]] == ["Gateway"]
 
 
-def test_two_people_in_one_organisation_see_the_same_work():
-    """The point of the whole change: a colleague can open the run you started.
+def test_joining_a_company_is_not_the_same_as_being_brought_in_on_a_project():
+    """Two rules, and they arrived a month apart.
 
-    Under per-user ownership this returned `None` for the second person, which is why an
-    end-of-life review involving three departments could not be told at all.
+    The first was that a colleague can open the run you started, because under per-user
+    ownership the second person got `None` and an end-of-life review involving three
+    departments could not be told at all. The second, on 11 September, is that *in the
+    company* and *on this project* are different questions: an invitation names the projects
+    it brings somebody in on, and an unticked project is not visible.
+
+    Both are asserted here, in the order they happen, because a fix to one that broke the
+    other would pass a test of either alone.
     """
     async def go():
         async with fresh() as store:
@@ -787,15 +793,21 @@ def test_two_people_in_one_organisation_see_the_same_work():
             line = await store.create_line(engineer.id, engineer.org_id, "Gateway")
             await store.create_thread("shared", line.id, engineer.id, engineer.org_id, "brief")
 
+            joined = [line.name for line in await store.lines_for_user(buyer.org_id, buyer.id)]
+            await store.grant_lines([line.id], buyer.id, buyer.org_id)
+            brought_in = [line.name for line in await store.lines_for_user(buyer.org_id, buyer.id)]
+
             return (
-                [line.name for line in await store.lines_for_user(buyer.org_id)],
+                joined,
+                brought_in,
                 await store.thread_for_user("shared", buyer.org_id),
                 buyer.roles,
             )
 
-    lines, thread, roles = run(go())
+    joined, brought_in, thread, roles = run(go())
 
-    assert lines == ["Gateway"]
+    assert joined == [], "a colleague is not on the project until somebody brings them in"
+    assert brought_in == ["Gateway"]
     assert thread is not None and thread.prompt == "brief"
     # Authorship survives the move: the run is still the engineer's doing.
     assert thread.user_id != thread.org_id
@@ -815,9 +827,9 @@ def test_moving_someone_brings_their_work_with_them():
             moved = await store.user_by_id(person.id)
             return (
                 moved.roles,
-                [line.name for line in await store.lines_for_user(company.id)],
+                [line.name for line in await store.lines_for_user(company.id, person.id)],
                 await store.bom_for_line(line.id, company.id),
-                [line.name for line in await store.lines_for_user(person.org_id)],
+                [line.name for line in await store.lines_for_user(person.org_id, person.id)],
             )
 
     roles, here, bom, left_behind = run(go())
@@ -858,7 +870,7 @@ def test_a_new_account_is_an_organisation_of_one_that_can_reach_its_own_board():
         async with fresh() as store:
             person = await a_user(store, "solo@example.com")
             line = await store.create_line(person.id, person.org_id, "Solo")
-            return person, await store.line_for_user(line.id, person.org_id)
+            return person, await store.line_for_user(line.id, person.org_id, person.id)
 
     person, line = run(go())
 

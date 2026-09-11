@@ -203,6 +203,29 @@ CREATE TABLE IF NOT EXISTS organisations (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id text REFERENCES organisations(id);
 
+-- Added 11 Sep 2026. Which product lines a person was brought in on.
+--
+-- **The sharing boundary was the company and now it is a grant.** Everything in this product
+-- authorises on `org_id`, which answers *is this your company's work* and cannot answer *is
+-- this yours*. That was deliberate while a company was the unit of sharing, and it stopped
+-- being enough the moment a person could be invited to three projects rather than to
+-- everything: an unticked project would have been visible anyway, which is a checkbox that
+-- does nothing.
+--
+-- Additive and back-filled by the seed: every person in the demo world holds every line, so
+-- nothing about the run-through changes. The narrowing only shows on a person invited after
+-- today. `product_lines.user_id` stays and keeps meaning who *created* a line, which is a
+-- different fact from who may open it.
+CREATE TABLE IF NOT EXISTS line_access (
+    line_id    text NOT NULL REFERENCES product_lines(id) ON DELETE CASCADE,
+    user_id    text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    org_id     text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (line_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS line_access_user_idx ON line_access(org_id, user_id);
+
 -- A set, not a single value. People wear more than one hat, and the demo needs one account
 -- that can walk every gate while single-role accounts prove the refusal. The default keeps
 -- every existing account working unchanged: today's only interruption is an engineering

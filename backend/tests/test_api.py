@@ -179,11 +179,11 @@ def test_a_signed_in_run_without_a_line_uses_a_scratch_line(monkeypatch):
             calls.append(("ensure", user_id, org_id))
             return "scratch-line"
 
-        async def line_for_user(self, line_id: str, org_id: str):
-            # Authorises on the *organisation* now, so the double records what it was
-            # actually given — a stand-in that took `user_id` here would keep passing
-            # while the route handed it the wrong id.
-            calls.append(("line", line_id, org_id))
+        async def line_for_user(self, line_id: str, org_id: str, user_id: str):
+            # Authorises on the *person* now, so the double records what it was actually
+            # given — a stand-in that accepted an extra argument and ignored it would keep
+            # passing while the route handed it the wrong id, or no id at all.
+            calls.append(("line", line_id, org_id, user_id))
             # A stand-in for `Line`, and it has to carry both of the fields `/design`
             # reads into the run's initial state: the stored operating conditions, and the
             # revision a waiver is scoped to.
@@ -214,13 +214,15 @@ def test_a_signed_in_run_without_a_line_uses_a_scratch_line(monkeypatch):
     frames = run(stream("/design", {"prompt": DEMO}))
 
     assert frames == [{"thread_id": "thread-1"}]
-    # The scratch line is created for the *person* and carries their organisation; the
-    # lookup that decides whether the route may touch it authorises on the organisation.
+    # The scratch line is created for the *person* and carries their organisation, and the
+    # lookup that decides whether the route may touch it authorises on the person — since
+    # 11 September a line is visible because somebody was brought in on it, not because the
+    # company owns it. Both ids reach that call, and this asserts both.
     # By name rather than by position: what matters is which ids each call was given, and
     # a positional assertion breaks whenever an unrelated lookup is added between them.
     made = {call[0]: call for call in calls}
     assert made["ensure"] == ("ensure", "user-1", "org-1")
-    assert made["line"] == ("line", "scratch-line", "org-1")
+    assert made["line"] == ("line", "scratch-line", "org-1", "user-1")
     assert made["thread"][2:] == ("scratch-line", "user-1", "org-1", DEMO)
     assert made["approved"] == ("approved", "org-1"), "the run is checked against its own lists"
 
