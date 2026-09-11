@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { ApiError, boardConsequence, type BoardConsequence as Consequence } from '../lib/api'
+import { streamBoardConsequence, type BoardStep, type BoardConsequence as Consequence } from '../lib/api'
 import { recallPlacement, rememberPlacement } from './placements'
 
 type CropPhase = 'before' | 'after'
@@ -144,45 +144,65 @@ export function BoardConsequence({
   const wanted = useRef<string | null>(candidate)
   wanted.current = candidate
 
-  const check = useCallback(async () => {
+  /** The operations this placement has finished, as it finishes them. */
+  const [steps, setSteps] = useState<BoardStep[]>([])
+  const running = useRef<(() => void) | null>(null)
+
+  // A stream outlives the component that opened it unless it is closed, and a board being
+  // placed is ten seconds of a worker thread writing into a callback.
+  useEffect(() => () => running.current?.(), [])
+
+  const check = useCallback(() => {
     if (!candidate) return
     const known = recallPlacement(lineId, retiring, candidate)
     if (known) {
       setOutcome(known)
       setMessage(null)
+      setSteps([])
       return
     }
+    running.current?.()
     setBusy(true)
     setMessage(null)
+    setSteps([])
+    // **Said while it happens.** A cold board takes ten seconds, and the pane used to sit on
+    // *PLACING…* for all of it and then put everything on screen at once. The same five
+    // operations the WHAT RAN block lists are sent as each one finishes, so the wait is the
+    // work being reported rather than a spinner over it.
+    //
     // **The picture stays until its replacement lands.** It used to be cleared the moment a
     // placement started, so the pane said nothing at all while KiCad worked — and on a board
     // being placed for a second candidate, the caption and the crops disappeared and came
-    // back. A stale picture with a spinner beside it is a truer screen than an empty one.
-    try {
-      const placed = await boardConsequence(lineId, retiring, candidate)
-      rememberPlacement(lineId, retiring, candidate, placed)
-      // A placement that was superseded while it ran paints nothing: the call that replaced
-      // it owns the pane now, and this one's picture is about a part nobody is looking at.
-      if (wanted.current !== candidate) return
-      setOutcome(placed)
-    } catch (caught) {
-      if (wanted.current !== candidate) return
-      // Each of these is a different true sentence, and collapsing them into "that
-      // failed" would hide the only one the reader can act on.
-      setMessage(
-        caught instanceof ApiError
-          ? caught.status === 404
+    // back. A stale picture with the work beside it is a truer screen than an empty one.
+    running.current = streamBoardConsequence(lineId, retiring, candidate, {
+      onStep: (step) => {
+        if (wanted.current !== candidate) return
+        setSteps((current) => [...current, step])
+      },
+      onDone: (placed) => {
+        rememberPlacement(lineId, retiring, candidate, placed)
+        // A placement that was superseded while it ran paints nothing: the call that
+        // replaced it owns the pane now, and this one's picture is about a part nobody is
+        // looking at.
+        if (wanted.current !== candidate) return
+        setOutcome(placed)
+        setSteps([])
+        setBusy(false)
+      },
+      onError: (message, status) => {
+        if (wanted.current !== candidate) return
+        // Each of these is a different true sentence, and collapsing them into "that
+        // failed" would hide the only one the reader can act on.
+        setMessage(
+          status === 404
             ? 'No KiCad project is attached to this product line, so there is no board to check.'
-            : caught.status === 503
+            : status === 503
               ? 'This instance has no KiCad configured, so a board cannot be checked here.'
-              : (caught.message ?? 'That board could not be checked.')
-          : 'That board could not be checked.',
-      )
-    } finally {
-      // Only the current call clears the spinner, or a superseded one would take away the
-      // **PLACING…** that belongs to the placement actually running.
-      if (wanted.current === candidate) setBusy(false)
-    }
+              : message,
+        )
+        setBusy(false)
+      },
+    })
   }, [candidate, lineId, retiring])
 
   // Guarded on the part rather than on a "have run" flag: `check` changes identity when the
@@ -237,6 +257,30 @@ export function BoardConsequence({
         </p>
       ) : null}
 
+      {/* **What ran, said while it runs.** Drawn from the outcome once there is one and from
+          the stream until then, so the block is the same block and the same five sentences
+          whether it was watched or read afterwards. The last line is the one in progress,
+          which is the whole difference between a wait and a spinner. */}
+      {busy ? (
+        <div className="space-y-0.5">
+          <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant">WHAT RAN</p>
+          {steps.map((step, index) => (
+            <p
+              className={`m-0 font-data-tabular text-[10px] leading-relaxed ${
+                index === steps.length - 1 ? 'text-on-surface' : 'text-on-surface-variant/80'
+              }`}
+              key={`${step.name}:${index}`}
+            >
+              {step.name} ·{' '}
+              {step.ms >= 1000 ? `${(step.ms / 1000).toFixed(1)} s` : `${step.ms} ms`}
+            </p>
+          ))}
+          <p className="m-0 font-data-tabular text-[10px] text-primary-container">
+            working · this is real KiCad, and it takes a few seconds
+          </p>
+        </div>
+      ) : null}
+
       {outcome ? (
         <div className="space-y-sm">
           <p className="font-data-tabular text-[11px] leading-relaxed">
@@ -277,8 +321,9 @@ export function BoardConsequence({
 
           {/* **What ran, and what it cost.** Five operations, timed with a clock inside the
               container rather than narrated: the same pane used to describe this work in one
-              sentence nobody could check. */}
-          {outcome.steps?.length ? (
+              sentence nobody could check. Not while a placement is running — the block above
+              is the live one, and two of them would be the same list twice. */}
+          {!busy && outcome.steps?.length ? (
             <div className="space-y-0.5">
               <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant">WHAT RAN</p>
               {outcome.steps.map((step) => (

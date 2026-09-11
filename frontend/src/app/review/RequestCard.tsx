@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 
+import { BoardConsequence } from '../board/BoardConsequence'
 import { departmentLabel } from './Departments'
 import { checkLabel } from './ReviewLanes'
 import { SignatureRow } from './Signatures'
@@ -197,6 +198,19 @@ export function RequestCard({
           </p>
         ) : null}
       </section>
+
+      {/* **The layout consequence, on the document.** It answers the question a parametric
+          search cannot: a substitute in the same package is a substitution, a different one
+          is a board revision, and that inverts which part is cheap. It was off this card for
+          a day and the reason it is back is that a background KiCad run whose result no
+          screen shows is a cost with no reader. The product line's BOARD pane places the
+          same part on demand; the card carries the one the run already computed. */}
+      <BoardConsequence
+        candidate={request.proposal}
+        lineId={request.line_id}
+        retiring={request.notice_mpn}
+        stored={request.board ?? null}
+      />
 
       {/* What this replaced, in the run's own numbers. The sequence is what costs a
           cross-team response its time, and there was no sequence. */}

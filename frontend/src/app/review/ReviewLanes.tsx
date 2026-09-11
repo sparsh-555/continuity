@@ -22,9 +22,7 @@ import {
   lanesFromReview,
   pacedDelay,
   reduceFrame,
-  replayFrames,
   rollingTrace,
-  seededLanes,
   withSignatures,
   type Lane,
   type LaneState,
@@ -85,56 +83,16 @@ export function frameText(frame: ReviewFrame): string {
 
 /** Which notices this tab has already watched run.
  *
- * **The run was being replayed from the beginning on every visit.** Leaving `/changes` and
- * coming back re-mounted the lanes, the hydration effect found the stored frames again, and
- * the whole review played over from the first line — so a reader who stepped away for the
- * change request came back to a trace starting again at nothing. A run this tab has already
- * seen is shown at its end, with the signatures, rather than performed twice.
+ * **The replay belongs to the run, not to the visit.** It was played whenever the page was
+ * hydrated from stored frames, which meant coming back to `/changes` — or refreshing it, or
+ * opening it in a new tab — performed the whole review again from its first line. A run that
+ * has finished is a finished run: a reader returning to the page wants to see where it ended
+ * and what it concluded, and the animation is for the moment somebody starts one.
  *
- * **In `sessionStorage` rather than in a module, because a refresh is a visit too.** A
- * module-level set survives client-side navigation and dies on F5, which is the wrong line to
- * draw: an accidental refresh four minutes into a walk-through would put the whole review
- * back to its first frame. Session scope is the lifetime the reader means by *come back to
- * the page* — this tab, this sitting — and a new tab is a new sitting and may watch again.
- *
- * Every access is guarded: private windows and blocked site data make `sessionStorage` throw
- * rather than return null, and a review that cannot remember having played should play.
+ * So nothing is remembered and nothing is played on the way in. Hydration paints the stored
+ * trace whole, and the paced drawing happens exactly twice: on START THE REVIEW, and on
+ * RUN IT AGAIN.
  */
-const PLAYED_KEY = 'continuity.review.played'
-
-function readPlayed(): Set<string> {
-  try {
-    const raw = window.sessionStorage.getItem(PLAYED_KEY)
-    return new Set<string>(raw ? (JSON.parse(raw) as string[]) : [])
-  } catch {
-    return new Set<string>()
-  }
-}
-
-function writePlayed(played: Set<string>): void {
-  try {
-    window.sessionStorage.setItem(PLAYED_KEY, JSON.stringify([...played]))
-  } catch {
-    // A tab that cannot remember replays. Losing the memory costs a replay, and throwing
-    // here would cost the page.
-  }
-}
-
-export function markPlayed(noticeId: string): void {
-  const played = readPlayed()
-  if (played.has(noticeId)) return
-  played.add(noticeId)
-  writePlayed(played)
-}
-
-export function hasPlayed(noticeId: string): boolean {
-  return readPlayed().has(noticeId)
-}
-
-/** Between tests. Nothing in the product calls this. */
-export function forgetPlayed(): void {
-  writePlayed(new Set<string>())
-}
 
 /**
  * Every affected product line, re-checked at the same time — one row each.
@@ -152,11 +110,11 @@ export function forgetPlayed(): void {
  * exists to point at. A row expands in place for the product worth going deep on, and
  * expanding one does not collapse the others.
  *
- * **Both paths to this screen now queue through one pace.** Frames arrive from the live
- * stream or from the database and go into the same queue, drawn by the same timer, so a
- * cached run and a running one are the same thing to watch. The live path used to bypass the
- * pace entirely, which is why START THE REVIEW finished before the browser had painted twice
- * while coming back to the page showed the trace arriving.
+ * **A run is drawn at reading pace, and a finished one is painted whole.** Frames off the
+ * live stream go into a queue and are drawn one at a time by one timer, because with the
+ * distributor replayed the whole run arrives in a burst and a burst is not watchable. Frames
+ * read back from the database are not queued at all: the run is over, and a reader who
+ * returns to the page wants where it ended rather than a second performance.
  */
 export function ReviewLanes({
   noticeId,
@@ -258,9 +216,6 @@ export function ReviewLanes({
     rows.current = []
     position.current = 0
     live.current = true
-    // Watched from here on. A reader who starts a run and then goes to look at a product
-    // line comes back to its result, not to it starting again.
-    markPlayed(noticeId)
     setState(emptyLanes)
     setOpen(new Set())
     setError(null)
@@ -288,10 +243,12 @@ export function ReviewLanes({
   /**
    * Coming back to a notice shows the review that ran, not just its conclusions.
    *
-   * The run is assembled from stored frames through the same reducer and the same queue the
-   * live stream uses. It is a read, so it never starts a run and never overwrites one: a
-   * live run or a second `RUN IT AGAIN` replaces the hydration exactly as it replaces a
-   * finished live run.
+   * **The stored frames are painted whole, not played.** The complete trace, its questions,
+   * its verdicts and its signatures, in one pass through the same reducer a live run uses —
+   * so a reader who left the page and came back sees what the run concluded rather than
+   * watching it conclude again. It is a read, so it never starts a run and never overwrites
+   * one: a live run or a `RUN IT AGAIN` replaces the hydration exactly as it replaced what
+   * was there before.
    */
   useEffect(() => {
     let active = true
@@ -299,44 +256,18 @@ export function ReviewLanes({
       .then((stored: NoticeReview[]) => {
         // A run that started while this was in flight owns the screen now.
         if (!active || stored.length === 0 || live.current) return
-
         rows.current = stored
-
-        // **Already watched: shown at its end rather than performed again.** The stored
-        // frames are applied in one pass, signatures and all, so the change request and the
-        // signatures are where the reader left them.
-        if (hasPlayed(noticeId)) {
-          setState(lanesFromReview(stored))
-          return
-        }
-
-        markPlayed(noticeId)
-        setState(seededLanes(stored))
-        enqueue(replayFrames(stored))
+        setState(lanesFromReview(stored))
       })
       .catch(() => {
-        // A replay that cannot be read is not an error worth a banner: the page still has
+        // A review that cannot be read is not an error worth a banner: the page still has
         // its notices and its change requests, and RUN IT AGAIN is still there.
       })
 
     return () => {
       active = false
     }
-  }, [noticeId, enqueue])
-
-  /** Everything that is left, at once — for somebody who does not want to wait. */
-  const skip = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current)
-    const rest = queue.current
-    const stored = rows.current
-    queue.current = []
-    draining.current = false
-    setPlaying(false)
-    setState((current) => {
-      const applied = rest.reduce(reduceFrame, current)
-      return stored.length > 0 ? withSignatures(applied, stored) : applied
-    })
-  }, [])
+  }, [noticeId])
 
   const answer = useCallback(
     async (lane: Lane, approve: boolean) => {
@@ -417,17 +348,10 @@ export function ReviewLanes({
           {lanes.length > 0 ? `${lanes.length} product lines, checked together` : 'The review'}
         </h2>
         <div className="flex items-center gap-sm">
-          {/* Offered whenever frames are still being drawn, which now includes a live run —
-              a reader who has seen enough should not have to wait one out. */}
-          {playing ? (
-            <button
-              className="h-8 px-md border border-outline-variant rounded font-data-tabular text-[12px] text-on-surface-variant hover:bg-surface-variant transition-colors"
-              onClick={skip}
-              type="button"
-            >
-              SKIP TO THE END
-            </button>
-          ) : null}
+          {/* **No SKIP TO THE END.** It was a control that only makes sense to somebody who
+              knows they are watching a playback, which is not a thing to put on the screen
+              in front of a judge. A run that is still drawing can be left — the trace is
+              written down as it goes, so reloading the page shows it complete. */}
           <button
             className="h-8 px-md border border-primary-container rounded font-data-tabular text-[12px] text-primary-container hover:bg-surface-variant transition-colors disabled:opacity-40"
             disabled={streaming}

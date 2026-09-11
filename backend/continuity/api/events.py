@@ -29,6 +29,19 @@ HEARTBEAT_INTERVAL_S = 15.0
 CLIENT_TIMEOUT_S = 30.0
 """What the client treats as dead. Twice the heartbeat, so one dropped frame is survivable."""
 
+SSE_HEADERS = {
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",  # nginx and friends will otherwise buffer the whole stream
+}
+"""The three headers every stream in this application needs, stated once.
+
+It was stated twice before 11 September — once in `app.py` for the design run and once in
+`review.py` for a review — and the second copy is how a fix to one stream stops reaching the
+others. `X-Accel-Buffering` is the one that matters and the one that is easiest to forget: a
+proxy that buffers turns a live trace into a single delivery at the end, which looks exactly
+like a slow server."""
+
 
 LEGACY_CHECK_STATUS = {"pass": "satisfied", "warn": "evidence_missing", "fail": "failed"}
 """The three labels the engine published before the five coverage labels replaced them.

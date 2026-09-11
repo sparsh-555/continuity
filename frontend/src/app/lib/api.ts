@@ -748,6 +748,108 @@ export function boardConsequence(lineId: string, retiring: string, candidate: st
   )
 }
 
+export type BoardStep = { name: string; ms: number }
+
+/** The same consequence, said while it is being worked out.
+ *
+ * **A cold board takes ten seconds.** Reading its placements, placing the part and carrying
+ * its nets, refilling the zones, running DRC twice and rendering two pictures is real work
+ * and none of it can be hurried. What can be fixed is what the pane says during it: the
+ * operations were already timed for the WHAT RAN block, and this is the same list arriving as
+ * it is taken rather than all of it at the end.
+ *
+ * A separate reader from `runReview` for the same reason that one is separate from
+ * `sseClient`: three streams that share a sequence space silently discard each other's
+ * frames. This one owns nothing global, so a caller can start it, abandon it and start
+ * another.
+ */
+export function streamBoardConsequence(
+  lineId: string,
+  retiring: string,
+  candidate: string,
+  handlers: {
+    onStep: (step: BoardStep) => void
+    onDone: (made: BoardConsequence) => void
+    /** `status` is absent once the stream is open: everything after that is a frame rather
+     *  than a status, because the status was sent before the work began. */
+    onError: (message: string, status?: number) => void
+  },
+): () => void {
+  const controller = new AbortController()
+
+  void (async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE}/lines/${encodeURIComponent(lineId)}/board/consequence/stream`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ retiring, candidate }),
+          signal: controller.signal,
+        },
+      )
+
+      if (!response.ok) {
+        // The two refusals that happen before any work starts are still real statuses —
+        // no board stored, no KiCad on this instance — and they are the sentences the pane
+        // has always shown. Anything after this point arrives as a frame, because the
+        // status was sent long before the work finished.
+        let detail: string | undefined
+        try {
+          detail = ((await response.json()) as { detail?: string }).detail
+        } catch {
+          // no body, the status carries the answer
+        }
+        handlers.onError(
+          detail ?? `That board could not be checked (${response.status}).`,
+          response.status,
+        )
+        return
+      }
+
+      const body = response.body
+      if (!body) {
+        handlers.onError('The server returned no stream.')
+        return
+      }
+
+      const reader = body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const blocks = buffer.split('\n\n')
+        buffer = blocks.pop() ?? ''
+        for (const block of blocks) {
+          for (const line of block.split('\n')) {
+            if (!line.startsWith('data: ')) continue
+            try {
+              const frame = JSON.parse(line.slice(6)) as
+                | { type: 'step'; name: string; ms: number }
+                | { type: 'done'; consequence: BoardConsequence }
+                | { type: 'error'; message: string }
+              if (frame.type === 'step') handlers.onStep({ name: frame.name, ms: frame.ms })
+              else if (frame.type === 'done') handlers.onDone(frame.consequence)
+              else handlers.onError(frame.message)
+            } catch {
+              // A malformed frame is not worth killing the run over.
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        handlers.onError(error instanceof Error ? error.message : 'That board could not be checked.')
+      }
+    }
+  })()
+
+  return () => controller.abort()
+}
+
 export function listLines() {
   return request<Line[]>('/lines')
 }

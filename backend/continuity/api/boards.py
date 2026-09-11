@@ -28,11 +28,13 @@ import shutil
 import tempfile
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator, Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from . import events
 from .auth import current_user, store_of
 from .store import User
 from ..kicad import board as board_module
@@ -228,7 +230,12 @@ async def board_bom(
     return {"project": name, "mpn_field": bill.mpn_field, "rows": _bill_rows(bill)}
 
 
-def _consequence(raw: bytes, retiring: str, candidate: str) -> dict[str, Any]:
+def _consequence(
+    raw: bytes,
+    retiring: str,
+    candidate: str,
+    on_step: Callable[[Any], None] | None = None,
+) -> dict[str, Any]:
     """Everything the substitution needs, computed in one scratch directory."""
     kicad = _needs_kicad()
     workdir = Path(tempfile.mkdtemp(prefix="continuity-kicad-"))
@@ -271,6 +278,7 @@ def _consequence(raw: bytes, retiring: str, candidate: str) -> dict[str, Any]:
             footprint=footprint,
             pinout=pinout.pins,
             value=candidate,
+            on_step=on_step,
         )
         return {
             "refdes": placed.refdes,
@@ -447,6 +455,8 @@ async def consequence_for(
     org_id: str,
     retiring: str,
     candidate: str,
+    *,
+    on_step: Callable[[Any], None] | None = None,
 ) -> dict[str, Any] | None:
     """One board's consequence, or `None` where it cannot be had.
 
@@ -455,6 +465,9 @@ async def consequence_for(
     from a background task and cannot report anything to anybody, so it asks first whether
     KiCad is there and swallows everything else. A world with no KiCad gets the button it
     gets today, which is the honest degradation that surface already renders.
+
+    `on_step` is called from the worker thread as each operation finishes, so a caller with a
+    connection open can say what is happening while it happens. See the streaming endpoint.
     """
     if not runner.available():
         return None
@@ -466,7 +479,9 @@ async def consequence_for(
     # only actionable things this endpoint can say. Catching here turned every one of them
     # into a generic "that board could not be substituted" — the swallow belongs to the
     # background caller, which has nobody to tell, and it lives there.
-    return await asyncio.to_thread(_consequence, stored[1], retiring, candidate)
+    return await asyncio.to_thread(
+        _consequence, stored[1], retiring, candidate, on_step
+    )
 
 
 @router.post("/{line_id}/board/consequence")
@@ -488,3 +503,83 @@ async def consequence(
     if made is None:
         raise HTTPException(409, "that board could not be substituted")
     return made
+
+
+@router.post("/{line_id}/board/consequence/stream")
+async def consequence_stream(
+    line_id: str,
+    body: Substitution,
+    request: Request,
+    user: User = Depends(current_user),
+) -> StreamingResponse:
+    """The same answer as the endpoint above, said while it is being worked out.
+
+    **Ten seconds of nothing and then everything is a jump, not a wait.** A cold board takes
+    that long — reading the placements, placing the part and carrying its nets, refilling the
+    zones, running DRC twice, rendering two pictures — and the pane used to sit on *PLACING…*
+    for all of it and then put the whole thing on screen at once. The operations were already
+    timed for the WHAT RAN block; this sends each one as it finishes so the same list is drawn
+    as it is taken.
+
+    **Nothing is invented for the stream.** It is `consequence_for` with a callback, running on
+    the same thread it always ran on, and the frames carry the same `Step` objects that end up
+    on the result. The `done` frame carries the identical payload the non-streaming endpoint
+    returns, so a client that wants to ignore all of this can.
+
+    Errors arrive as frames rather than statuses, because the status is sent before the work
+    begins. The two checks that can refuse *before* it begins — no board stored, no KiCad — are
+    still real statuses, and they are made before the response starts for exactly that reason.
+    """
+    store = store_of(request)
+    await _owned(request, line_id, user.org_id)
+    if await store.board_bundle(line_id, user.org_id) is None:
+        raise HTTPException(404, "no board is stored for that line")
+    _needs_kicad()
+
+    loop = asyncio.get_running_loop()
+    queue: "asyncio.Queue[dict[str, Any] | None]" = asyncio.Queue()
+
+    def on_step(step: Any) -> None:
+        # Called from the worker thread `consequence_for` runs the board work on.
+        loop.call_soon_threadsafe(
+            queue.put_nowait, {"type": "step", "name": step.name, "ms": step.ms}
+        )
+
+    async def work() -> None:
+        try:
+            made = await consequence_for(
+                store, line_id, user.org_id, body.retiring, body.candidate, on_step=on_step
+            )
+            if made is None:
+                queue.put_nowait(
+                    {"type": "error", "message": "that board could not be substituted"}
+                )
+            else:
+                queue.put_nowait({"type": "done", "consequence": made})
+        except HTTPException as error:
+            # The sentences `_consequence` raises are the actionable ones — a part with no
+            # pinout on file, a board that does not carry the retired part — and they are the
+            # reason this cannot be a blanket "that failed".
+            queue.put_nowait({"type": "error", "message": str(error.detail)})
+        except Exception as error:  # noqa: BLE001 — the client is owed a sentence
+            log.exception("board consequence stream failed for %s", line_id)
+            queue.put_nowait({"type": "error", "message": f"{type(error).__name__}: {error}"})
+        finally:
+            queue.put_nowait(None)
+
+    async def drain() -> AsyncIterator[dict[str, Any]]:
+        while True:
+            event = await queue.get()
+            if event is None:
+                return
+            yield event
+
+    async def framed() -> AsyncIterator[str]:
+        task = asyncio.create_task(work())
+        try:
+            async for event in events.with_heartbeats(drain()):
+                yield events.HEARTBEAT if event is None else events.frame(event)
+        finally:
+            task.cancel()
+
+    return StreamingResponse(framed(), media_type="text/event-stream", headers=events.SSE_HEADERS)

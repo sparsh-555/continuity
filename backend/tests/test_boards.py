@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import json
 import os
 import zipfile
 from contextlib import asynccontextmanager
@@ -201,6 +202,26 @@ def test_a_consequence_without_a_board_is_a_404():
     assert run(go()).status_code == 404
 
 
+def test_a_streamed_consequence_refuses_before_it_starts():
+    """**The refusals are statuses, not frames.** The whole reason these two checks happen
+    before the response begins is that a status can still be sent then; once the stream is
+    open the only thing left is a frame, and a client that asked for a board would get a
+    200 it then has to read a sentence out of.
+    """
+    async def go():
+        async with a_store():
+            async with a_line() as (http, line_id):
+                return await http.post(
+                    f"/lines/{line_id}/board/consequence/stream",
+                    json={"retiring": "AMS1117-3.3", "candidate": "NCP1117ST33T3G"},
+                )
+
+    response = run(go())
+
+    assert response.status_code == 404
+    assert "no board is stored" in response.json()["detail"]
+
+
 @pytest.mark.skipif(HAS_KICAD, reason="this is the no-KiCad answer")
 def test_without_kicad_the_capability_is_reported_absent_rather_than_guessed():
     async def go():
@@ -261,6 +282,52 @@ def test_a_bill_somebody_entered_is_not_overwritten_without_being_asked():
 
     assert put.json()["adopted"] is False
     assert [row["mpn"] for row in bom] == ["HAND-ENTERED"]
+
+
+@needs_kicad
+def test_a_board_being_placed_says_what_it_is_doing_as_it_does_it():
+    """Ten seconds of nothing and then everything is a jump, not a wait.
+
+    A cold board takes that long, and the pane sat on *PLACING…* for all of it. The five
+    operations were already timed for the WHAT RAN block; this asserts the same list is sent
+    as each one finishes, and that the list on the streamed frames is **the same list** the
+    finished payload carries rather than a second measurement of the same work.
+    """
+
+    async def go():
+        async with a_store():
+            async with a_line() as (http, line_id):
+                await http.put(f"/lines/{line_id}/board", json=upload(a_bundle()))
+                frames = []
+                async with http.stream(
+                    "POST",
+                    f"/lines/{line_id}/board/consequence/stream",
+                    json={"retiring": "AMS1117-3.3", "candidate": "NCP1117ST33T3G"},
+                ) as response:
+                    assert response.status_code == 200, await response.aread()
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            frames.append(json.loads(line[6:]))
+                return frames
+
+    frames = run(go())
+
+    streamed = [frame for frame in frames if frame["type"] == "step"]
+    assert len(streamed) == 5, [frame["name"] for frame in streamed]
+    assert [frame["name"] for frame in streamed] == [
+        "read the board's placements",
+        "place the part and carry its nets by function",
+        "refill the zones on both copies",
+        "run DRC before and after",
+        "render both pictures",
+    ]
+
+    assert frames[-1]["type"] == "done", "the stream ends with the whole answer"
+    decided = frames[-1]["consequence"]
+    assert [(step["name"], step["ms"]) for step in decided["steps"]] == [
+        (frame["name"], frame["ms"]) for frame in streamed
+    ], "one measurement reported twice, not two measurements of the same work"
+    assert decided["broke_connections"] is False
 
 
 @needs_kicad

@@ -209,13 +209,6 @@ FINDING_RECORDERS: dict[str, FindingRecorder] = {}
 PROGRESS_TASKS: set[asyncio.Task[None]] = set()
 """Terminal writes still running after the client has disconnected."""
 
-SSE_HEADERS = {
-    "Cache-Control": "no-cache, no-transform",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no",  # nginx and friends will otherwise buffer the whole stream
-}
-
-
 class DesignRequest(BaseModel):
     prompt: str
     line_id: str | None = None
@@ -274,7 +267,7 @@ async def validate_pasted_bom(body: bom.BomRequest, request: Request) -> Streami
     return StreamingResponse(
         _run_bom(rows, body.prompt, stream, store),
         media_type="text/event-stream",
-        headers=SSE_HEADERS,
+        headers=events.SSE_HEADERS,
     )
 
 
@@ -402,7 +395,7 @@ async def design(body: DesignRequest, request: Request) -> StreamingResponse:
             user.org_id if user else None,
         ),
         media_type="text/event-stream",
-        headers=SSE_HEADERS,
+        headers=events.SSE_HEADERS,
     )
 
 
@@ -457,7 +450,7 @@ async def resume(body: ResumeRequest, request: Request) -> StreamingResponse:
             user.org_id if user else None,
         ),
         media_type="text/event-stream",
-        headers=SSE_HEADERS,
+        headers=events.SSE_HEADERS,
     )
 
 
@@ -483,7 +476,7 @@ async def continue_thread(thread_id: str, request: Request) -> StreamingResponse
     return StreamingResponse(
         _run(request.app.state.graph, thread_id, None, store, user.org_id),
         media_type="text/event-stream",
-        headers=SSE_HEADERS,
+        headers=events.SSE_HEADERS,
     )
 
 

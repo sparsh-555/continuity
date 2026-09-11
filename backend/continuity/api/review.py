@@ -52,13 +52,6 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["review"])
 
-SSE_HEADERS = {
-    "Cache-Control": "no-cache, no-transform",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no",  # nginx and friends will otherwise buffer the whole stream
-}
-
-
 CATALOGUE_POOL = 25
 """How deep into the distributor's list to look before filtering.
 
@@ -764,7 +757,7 @@ async def run_review(
             # abandoning a run look like it never ran.
             await store.record_review_trace(notice_id, user.org_id, recorded)
 
-    return StreamingResponse(framed(), media_type="text/event-stream", headers=SSE_HEADERS)
+    return StreamingResponse(framed(), media_type="text/event-stream", headers=events.SSE_HEADERS)
 
 
 # ── answering a decision ──────────────────────────────────────────────────────

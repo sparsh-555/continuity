@@ -26,7 +26,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 from . import drc, pins, render
 from .project import Project
@@ -181,6 +181,7 @@ def consequence(
     pinout: Mapping[str, str],
     value: str | None = None,
     library_root: str = FOOTPRINT_LIBRARY,
+    on_step: Callable[[Step], None] | None = None,
 ) -> Consequence:
     """Substitute one part on a copy of the board and report what changed.
 
@@ -190,6 +191,12 @@ def consequence(
 
     The original board file is never written to. The substituted copy is a new file beside
     it, which is also what makes the two renders comparable.
+
+    `on_step` is called as each operation finishes, with the operation and its time. It exists
+    because this function takes ten seconds on a cold board and a pane that showed nothing for
+    ten seconds and then everything at once was a jump rather than a wait. **The steps the
+    caller receives are the same objects that end up on the result** — one measurement
+    reported twice, never two measurements of the same work.
     """
     steps: list[Step] = []
 
@@ -199,7 +206,10 @@ def consequence(
         try:
             yield
         finally:
-            steps.append(Step(name, int((time.monotonic() - started) * 1000)))
+            taken = Step(name, int((time.monotonic() - started) * 1000))
+            steps.append(taken)
+            if on_step is not None:
+                on_step(taken)
 
     with step("read the board's placements"):
         placed = placements(project, runner)
