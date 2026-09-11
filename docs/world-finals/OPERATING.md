@@ -300,15 +300,15 @@ The demo consequence of the speed, which is a choice rather than a defect, is in
 cd backend
 
 # offline, no infrastructure
-../.venv/bin/python -m pytest                                    # 942 passed, 228 skipped, ~10s
+../.venv/bin/python -m pytest                                    # 959 passed, 238 skipped, ~9s
 
 # with a database
 CONTINUITY_TEST_DB=postgresql:///continuity_test \
-  ../.venv/bin/python -m pytest                                  # 1150 passed, 20 skipped, ~40s
+  ../.venv/bin/python -m pytest                                  # 1177 passed, 20 skipped, ~30s
 
 # with a database and KiCad
 CONTINUITY_KICAD=docker CONTINUITY_TEST_DB=postgresql:///continuity_test \
-  ../.venv/bin/python -m pytest                                  # 1162 passed, 8 skipped, ~170s
+  ../.venv/bin/python -m pytest                                  # 1189 passed, 8 skipped, ~145s
 
 # the eight that still skip: five need the network, two need a real model, and one is
 # the answer given when KiCad is absent

@@ -333,7 +333,14 @@ async def _attach_board(
     on, so there is nobody to tell and nothing to undo: the request is already correct and
     the card already knows what to render without a picture.
     """
-    made = await boards_api.consequence_for(store, line_id, org_id, retiring, candidate)
+    try:
+        made = await boards_api.consequence_for(store, line_id, org_id, retiring, candidate)
+    except Exception as error:  # noqa: BLE001
+        # **The swallow lives here**, because this caller has nobody to tell: the line has
+        # ended, the question is on screen, and the request is already correct without a
+        # picture. The endpoint beside it reports its refusals to the person who asked.
+        log.warning("board consequence for %s could not be stored: %s", line_id, error)
+        return
     if made is None:
         return
     await store.attach_board_consequence(org_id, notice_id, line_id, made)

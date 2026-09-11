@@ -457,11 +457,12 @@ async def consequence_for(
     stored = await store.board_bundle(line_id, org_id)
     if stored is None:
         return None
-    try:
-        return await asyncio.to_thread(_consequence, stored[1], retiring, candidate)
-    except Exception as error:  # noqa: BLE001
-        log.warning("board consequence for %s failed: %s", line_id, error)
-        return None
+    # **Raised, not swallowed.** `_consequence` refuses a part with no pinout on file by
+    # name and a board that does not carry the part with its own sentence, and those are the
+    # only actionable things this endpoint can say. Catching here turned every one of them
+    # into a generic "that board could not be substituted" — the swallow belongs to the
+    # background caller, which has nobody to tell, and it lives there.
+    return await asyncio.to_thread(_consequence, stored[1], retiring, candidate)
 
 
 @router.post("/{line_id}/board/consequence")
