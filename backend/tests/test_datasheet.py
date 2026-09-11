@@ -35,6 +35,48 @@ TLV1117_THERMAL = """THERMAL METRIC TLV1117LV DCY (SOT-223) 4 PINS UNIT
 RθJA Junction-to-ambient thermal resistance 62.9 °C/W"""
 TLV1117_LINE = "RθJA Junction-to-ambient thermal resistance 62.9 °C/W"
 
+NCP1117_THERMAL = """MAXIMUM RATINGS
+Rating Symbol Value Unit
+Input Voltage (Note 1) Vin 20 V
+Power Dissipation and Thermal Characteristics
+Case 318H (SOT−223)
+Power Dissipation (Note 2)
+Thermal Resistance, Junction−to−Ambient, Minimum Size Pad
+Thermal Resistance, Junction−to−Case
+Case 369A (DPAK)
+Power Dissipation (Note 2)
+Thermal Resistance, Junction−to−Ambient, Minimum Size Pad
+Thermal Resistance, Junction−to−Case
+PD
+R/C0113JA
+R/C0113JC
+PD
+R/C0113JA
+R/C0113JC
+Internally Limited
+160
+15
+Internally Limited
+67
+6.0
+W
+°C/W
+°C/W
+W
+°C/W
+°C/W
+Maximum Die Junction Temperature Range TJ −55 to 150 °C"""
+"""onsemi's NCP1117 maximum ratings table, as `pypdf` linearises it.
+
+Copied from the real document on 11 September, including the two things about it that
+matter: every label comes first and every value thirteen lines below, so the θJA row carries
+no number at all; and the packages are *rows* (`Case 318H (SOT−223)`, `Case 369A (DPAK)`)
+rather than columns. The mangled `R/C0113JA` is not a typo here either — that is what the
+θ symbol linearises to.
+"""
+
+NCP1117_LINE = "Thermal Resistance, Junction−to−Ambient, Minimum Size Pad"
+
 
 def _column_claim(
     theta_ja, columns, column_index, source_line, *, mounting=None, revision=None
@@ -99,6 +141,84 @@ def test_single_column_ti_table_uses_the_parenthetical_package_alias():
 
     assert fact is not None
     assert (fact.theta_ja, fact.package_column) == (62.9, "DCY (SOT-223) 4 PINS")
+
+
+# ── a table whose packages are rows rather than columns ──────────────────────
+
+
+def _row_claim(theta_ja, source_line=NCP1117_LINE):
+    """The reply the model actually gave for onsemi's document, on 11 September."""
+    return {
+        "theta_ja": theta_ja,
+        "source_line": source_line,
+        "columns": ["Value"],
+        "column_index": 0,
+        "mounting": "Minimum Size Pad",
+        "revision": "Rev. 31",
+    }
+
+
+def test_a_row_per_package_table_binds_the_figure_to_the_package_row():
+    """The θJA line carries no number at all: every label is printed first and every value
+    thirteen lines below it, so the column binding has nothing to bind against.
+
+    The binding that is available is the one a person would use. The figures run in the
+    order the labels do, and a row belongs to the last package heading printed above it.
+    """
+    fact = datasheet._fact_from_reply(_row_claim(160), NCP1117_THERMAL, "SOT-223")
+
+    assert fact is not None
+    assert (fact.theta_ja, fact.package_column) == (160.0, "Case 318H (SOT−223)")
+    assert fact.mounting == "Minimum Size Pad"
+
+
+def test_the_other_package_row_gets_the_other_figure():
+    """Same document, same row, and the answer follows the package asked about — which is
+    the property that stops one package's figure being applied to another's board."""
+    fact = datasheet._fact_from_reply(_row_claim(67), NCP1117_THERMAL, "DPAK")
+
+    assert fact is not None
+    assert (fact.theta_ja, fact.package_column) == (67.0, "Case 369A (DPAK)")
+
+
+@pytest.mark.parametrize("claimed", [67, 15, 6.0])
+def test_a_figure_from_another_row_of_the_same_table_is_refused(claimed):
+    """67 is the junction-to-ambient figure for the DPAK row; 15 and 6.0 are
+    junction-to-case. None of them is the SOT-223 part's answer and none may be given as
+    if it were."""
+    assert datasheet._fact_from_reply(_row_claim(claimed), NCP1117_THERMAL, "SOT-223") is None
+
+
+def test_a_figure_taken_from_the_row_below_is_refused():
+    """The values shift by one and the same number now belongs to junction-to-case."""
+    shifted = NCP1117_THERMAL.replace("160\n15", "15\n160")
+    assert datasheet._fact_from_reply(_row_claim(160), shifted, "SOT-223") is None
+
+
+def test_a_junction_to_ambient_row_under_a_watt_unit_is_refused():
+    """A power dissipation is not a thermal resistance, and the unit column is the only
+    place that says which of the two a number is."""
+    swapped = NCP1117_THERMAL.replace(
+        "W\n°C/W\n°C/W\nW\n°C/W\n°C/W", "°C/W\nW\n°C/W\n°C/W\nW\n°C/W"
+    )
+    assert datasheet._fact_from_reply(_row_claim(160), swapped, "SOT-223") is None
+
+
+def test_a_value_column_that_does_not_line_up_with_the_labels_is_refused():
+    ragged = NCP1117_THERMAL.replace(
+        "Internally Limited\n160\n15\nInternally Limited\n67\n6.0",
+        "Internally Limited\n160\n15\nInternally Limited\n67",
+    )
+    assert datasheet._fact_from_reply(_row_claim(160), ragged, "SOT-223") is None
+
+
+def test_a_row_layout_with_no_package_heading_above_the_row_is_refused():
+    """Without a heading the row cannot be attributed to a package at all, and attributing
+    it to whichever package came first is the mistake this path exists to avoid."""
+    headless = NCP1117_THERMAL.replace("Case 318H (SOT−223)\n", "").replace(
+        "Case 369A (DPAK)\n", ""
+    )
+    assert datasheet._fact_from_reply(_row_claim(160), headless, "SOT-223") is None
 
 
 def test_value_from_another_column_is_rejected_even_when_the_row_is_real():

@@ -188,6 +188,22 @@ def _is_theta_ja_line(source_line: str) -> bool:
 def _fact_from_reply(
     reply: Mapping[str, Any], text: str, package: str
 ) -> ThermalFact | None:
+    """The figure the document supports, by whichever binding its table allows.
+
+    Two layouts, and the second is reached only where the first declines. **Packages as
+    columns** is the common one: the cited row holds one number per column and the chosen
+    column's number is the answer. Some vendors print **packages as rows** instead, with
+    every label in the table ahead of every value, and then no row carries a number for the
+    column binding to hold on to.
+    """
+    return _column_layout_fact(reply, text, package) or _row_layout_fact(
+        reply, text, package
+    )
+
+
+def _column_layout_fact(
+    reply: Mapping[str, Any], text: str, package: str
+) -> ThermalFact | None:
     value = reply.get("theta_ja")
     source_line = reply.get("source_line")
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -259,6 +275,247 @@ def _packages_overlap(column: str, package: str) -> bool:
     exactly the unsafe substitution this extractor exists to prevent.
     """
     return bool(set(packages._candidate_keys(column)) & set(packages._candidate_keys(package)))
+
+
+# ── tables that print their packages as rows ─────────────────────────────────
+
+
+_THERMAL_METRIC = re.compile(
+    r"^\s*(?:power\s+dissipation\s*\(|thermal\s+resistance\s*,\s*junction)", re.IGNORECASE
+)
+"""A labelled row of a thermal table, as opposed to the heading printed over one.
+
+Deliberately narrow, and measured against onsemi's NCP1117 rather than imagined: the
+section heading above that table reads *Power Dissipation and Thermal Characteristics*, and
+a looser pattern swallows it as a seventh label for six values, which misaligns every figure
+in the table. The bracket after `Power Dissipation`, or the comma after `Thermal
+Resistance`, is what tells the row apart from the heading over it.
+"""
+
+_UNIT_TOKENS = frozenset(
+    {
+        "W", "mW", "kW", "°C/W", "C/W", "°C", "V", "mV", "kV", "A", "mA", "µA", "uA", "nA",
+        "Ω", "kΩ", "MΩ", "ohm", "%", "F", "nF", "pF", "µF", "uF", "mF", "H", "nH", "µH",
+        "uH", "mH", "Hz", "kHz", "MHz", "GHz", "s", "ms", "µs", "us", "ns", "dB", "ppm",
+        "V/µs", "V/us", "A/µs", "mV/V", "%/V", "µA/MHz",
+    }
+)
+"""The units a thermal or electrical table prints beneath its value column.
+
+A closed set rather than "any short line", because the point of finding the unit column is
+that the value column sits in the same order directly above it, and a word mistaken for a
+unit would take the whole alignment with it."""
+
+_UNIT_FOR_THERMAL_RESISTANCE = ("C/W",)
+"""What the unit column has to say under a junction-to-ambient row.
+
+A wattage is not a thermal resistance, and the unit is the only place in this layout that
+says which of the two a bare number is."""
+
+
+def _is_unit_line(line: str) -> bool:
+    return line.strip() in _UNIT_TOKENS
+
+
+def _is_bare_number(value: str) -> bool:
+    return re.fullmatch(r"[-+]?\d+(?:\.\d+)?", value.strip()) is not None
+
+
+def _is_value_line(line: str) -> bool:
+    """A cell of a value column: a number, or the words a datasheet puts where one goes."""
+    stripped = line.strip()
+    if _is_bare_number(stripped):
+        return True
+    return bool(stripped) and len(stripped) <= 30 and re.fullmatch(
+        r"[A-Za-z][A-Za-z \-]*", stripped
+    ) is not None
+
+
+def _is_symbol_line(line: str) -> bool:
+    """The symbol column, which sits between the labels and the values.
+
+    `R/C0113JA` is what onsemi's `RθJA` linearises to, so this is a shape rather than a
+    vocabulary: a short, unspaced token that is neither a unit nor a number.
+    """
+    stripped = line.strip()
+    return (
+        bool(stripped)
+        and len(stripped) <= 12
+        and " " not in stripped
+        and not _is_unit_line(stripped)
+        and not _is_bare_number(stripped)
+    )
+
+
+def _names_any_package(line: str) -> bool:
+    """Whether a printed row label or heading contains a package the tables know.
+
+    `_names_a_package` cannot answer this one. It asks about each whitespace-separated
+    *token*, and onsemi typesets `SOT−223` with U+2212, so the heading splits into `SOT` and
+    `223` and neither resolves — measured on the real document, where it returned False for
+    `Case 318H (SOT−223)`. The candidate keys fold that dash correctly, which is why
+    `_packages_overlap` already reaches for them.
+    """
+    return any(
+        packages.theta_ja(key) is not None or packages.body_mm(key) is not None
+        for key in packages._candidate_keys(line)
+    )
+
+
+def _package_heading_above(lines: Sequence[str], index: int) -> str | None:
+    """The last line above `index` that names a package, within its own table block.
+
+    Stops at the first line that is neither a labelled row, a symbol, nor a heading: the
+    section heading over onsemi's table ends the walk, which is what keeps a package from
+    another table being read as this row's.
+    """
+    for position in range(index - 1, max(-1, index - 40), -1):
+        line = lines[position].strip()
+        if not line:
+            return None
+        if _names_any_package(line):
+            return line
+        if not (_THERMAL_METRIC.match(line) or _is_symbol_line(line)):
+            return None
+    return None
+
+
+def _thermal_runs(
+    lines: Sequence[str], row: int
+) -> tuple[list[int], list[str], list[str]] | None:
+    """The label, value and unit columns of the table this row sits in.
+
+    Forward from the row to the unit column, then the same number of lines directly above it
+    are the values, and the labelled rows above those are the labels. `None` unless all
+    three line up, because the whole binding is that the i-th label carries the i-th value:
+    a column that does not line up cannot say which figure belongs to which row.
+    """
+    start = next((i for i in range(row + 1, len(lines)) if _is_unit_line(lines[i])), None)
+    if start is None:
+        return None
+
+    units: list[str] = []
+    for position in range(start, len(lines)):
+        if not _is_unit_line(lines[position]):
+            break
+        units.append(lines[position].strip())
+    if len(units) < 2:
+        return None
+
+    values = [lines[i].strip() for i in range(start - len(units), start)]
+    if not all(_is_value_line(value) for value in values):
+        return None
+
+    labels: list[int] = []
+    for position in range(start - len(units) - 1, max(-1, start - len(units) - 60), -1):
+        line = lines[position].strip()
+        if not line:
+            break
+        if _THERMAL_METRIC.match(line):
+            labels.append(position)
+        elif not (_is_symbol_line(line) or _names_any_package(line)):
+            break
+    labels.reverse()
+
+    if len(labels) != len(values) or row not in labels:
+        return None
+    return labels, values, units
+
+
+def _row_for_package(lines: Sequence[str], source_line: str, package: str) -> int | None:
+    """The printed row being asked about, chosen by the heading above it rather than by
+    the line's position in the document."""
+    for index, line in enumerate(lines):
+        collapsed = _collapsed(line)
+        if collapsed != source_line and source_line not in collapsed:
+            continue
+        heading = _package_heading_above(lines, index)
+        if heading is not None and _packages_overlap(heading, package):
+            return index
+    return None
+
+
+def _row_layout_fact(
+    reply: Mapping[str, Any], text: str, package: str
+) -> ThermalFact | None:
+    """θJA from a table whose packages are rows and whose figures are printed apart.
+
+    onsemi's NCP1117 prints its maximum ratings the other way round from Texas Instruments'
+    thermal tables. Every label comes first, then every symbol, then every value, then every
+    unit::
+
+        Power Dissipation and Thermal Characteristics
+        Case 318H (SOT−223)
+        Power Dissipation (Note 2)
+        Thermal Resistance, Junction−to−Ambient, Minimum Size Pad
+        Thermal Resistance, Junction−to−Case
+        Case 369A (DPAK)
+        ...
+        Internally Limited
+        160
+        15
+        Internally Limited
+        67
+        6.0
+        W
+        °C/W
+        °C/W
+        W
+        °C/W
+        °C/W
+
+    Nothing on the θJA line carries a number, so the column binding has nothing to bind and
+    this extractor correctly refused the part — the demonstration states that figure by hand
+    instead. **The binding that is available is the one a person would use**: the figures run
+    in the order the labels do, so the i-th labelled row carries the i-th value, and a row
+    belongs to the last package heading printed above it.
+
+    **Which row answers the question is decided here rather than by the model.** It reports
+    the figure and the row it read it from; this finds the occurrences of that row, keeps the
+    one whose nearest heading above is the package being asked about, and requires the
+    reported figure to be the one that position holds. Reading the right row and the wrong
+    number in it is refused, and so is reading the right number out of the other package's
+    row, which is the failure that passes a board that cooks.
+    """
+    source_line = _collapsed(str(reply.get("source_line") or ""))
+    value = reply.get("theta_ja")
+    if (
+        not source_line
+        or not _is_theta_ja_line(source_line)
+        or isinstance(value, bool)
+        or not isinstance(value, (int, float))
+    ):
+        return None
+
+    mounting = reply.get("mounting")
+    revision = reply.get("revision")
+    if mounting is not None and (not isinstance(mounting, str) or not mounting.strip()):
+        return None
+    if revision is not None and (not isinstance(revision, str) or not revision.strip()):
+        return None
+
+    lines = text.splitlines()
+    row = _row_for_package(lines, source_line, package)
+    if row is None:
+        return None
+    runs = _thermal_runs(lines, row)
+    if runs is None:
+        return None
+
+    labels, values, units = runs
+    index = labels.index(row)
+    if not _is_bare_number(values[index]) or float(values[index]) != float(value):
+        return None
+    if not any(token in units[index] for token in _UNIT_FOR_THERMAL_RESISTANCE):
+        return None
+
+    return ThermalFact(
+        float(value),
+        source_line,
+        _package_heading_above(lines, row) or "",
+        mounting.strip() if isinstance(mounting, str) else None,
+        revision.strip() if isinstance(revision, str) else None,
+    )
 
 
 async def theta_ja_from_text(text: str, *, mpn: str, package: str) -> ThermalFact | None:
