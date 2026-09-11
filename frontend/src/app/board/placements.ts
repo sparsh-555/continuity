@@ -49,3 +49,25 @@ export function rememberPlacement(
 export function forgetPlacements(): void {
   placed.clear()
 }
+
+/** Whether this instance has told us it has no KiCad.
+ *
+ * **A deployment without KiCad should not ask once per document.** The deployed service runs
+ * on a host with no container, so `runner.available()` is false and the streaming endpoint
+ * answers 503. The card places itself now rather than offering a button, which means an
+ * unsolicited "this instance has no KiCad configured" would appear on every change request a
+ * visitor opens, reading as a broken feature rather than an absent one.
+ *
+ * Learned once, from the server's own answer, and remembered for the session. Nothing is
+ * assumed: on a machine with KiCad the flag never rises, and the flag is only ever set by a
+ * 503 that came back from the server.
+ */
+let noKicad = false
+
+export function kicadMissing(): boolean {
+  return noKicad
+}
+
+export function noteKicadMissing(): void {
+  noKicad = true
+}

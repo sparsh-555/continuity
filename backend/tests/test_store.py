@@ -1258,3 +1258,70 @@ def test_an_organisation_holding_work_is_never_dropped_even_with_nobody_in_it():
             return survives
 
     assert run(go()) == 1, "an organisation still holding a line was deleted"
+
+
+def test_the_grant_backfill_reaches_a_world_that_predates_grants():
+    """A deployed database has lines, users, and no grants, and it must come back whole.
+
+    Since 11 September a product line is visible because there is a `line_access` row for it.
+    Every database written before that table existed has none, so without a back-fill the
+    deployed app returns an empty product list, a 404 for every line, and a notice that
+    reaches nothing, while holding all of the data.
+    """
+    async def go():
+        async with fresh() as store:
+            eng = await a_user(store, "eng@example.com")
+            await store.add_user_to_organisation(
+                (await a_user(store, "buy@example.com")).id, eng.org_id, ["procurement"]
+            )
+            # Re-read, because moving a person does not rewrite the object that moved them.
+            buyer = await store.user_by_email("buy@example.com")
+            await store.create_line(eng.id, eng.org_id, "Gateway")
+
+            # As a database from before the table came into force.
+            async with store.pool.connection() as conn:
+                await conn.execute("DELETE FROM line_access")
+
+            await store.setup()
+            return [
+                [row.name for row in await store.lines_for_user(eng.org_id, eng.id)],
+                [row.name for row in await store.lines_for_user(buyer.org_id, buyer.id)],
+            ]
+
+    assert run(go()) == [["Gateway"], ["Gateway"]], "the world comes back whole"
+
+
+def test_the_grant_backfill_does_not_widen_a_later_arrangement():
+    """The guard is the whole safety of it, and a per-pair guard would get this wrong.
+
+    A company with three lines brings somebody in on two. The insert is conditional on the
+    table being **empty** rather than on each pair being absent, because this file runs at
+    every boot: a per-pair guard is idempotent and would hand over the third line on the next
+    restart, quietly undoing the invitation.
+    """
+    async def go():
+        async with fresh() as store:
+            eng = await a_user(store, "eng@example.com")
+
+            lines = [
+                await store.create_line(eng.id, eng.org_id, name)
+                for name in ("Gateway", "Sensor node", "Cabinet controller")
+            ]
+            await store.add_user_to_organisation(
+                (await a_user(store, "new@example.com")).id, eng.org_id, ["quality"]
+            )
+            newcomer = await store.user_by_email("new@example.com")
+            await store.grant_lines([lines[0].id, lines[1].id], newcomer.id, eng.org_id)
+
+            # Two more boots, which is all it takes for a wrong guard to show itself.
+            await store.setup()
+            await store.setup()
+            return [
+                row.name
+                for row in await store.lines_for_user(newcomer.org_id, newcomer.id)
+            ]
+
+    # Sorted, because the list comes back newest first and the order is not what this is about.
+    assert sorted(run(go())) == ["Gateway", "Sensor node"], (
+        "the two they were brought in on, and no more"
+    )

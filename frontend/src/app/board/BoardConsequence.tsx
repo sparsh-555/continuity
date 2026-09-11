@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { streamBoardConsequence, type BoardStep, type BoardConsequence as Consequence } from '../lib/api'
-import { recallPlacement, rememberPlacement } from './placements'
+import { kicadMissing, noteKicadMissing, recallPlacement, rememberPlacement } from './placements'
 
 type CropPhase = 'before' | 'after'
 
@@ -190,6 +190,11 @@ export function BoardConsequence({
         setBusy(false)
       },
       onError: (message, status) => {
+        // **A 503 is remembered, and then nothing is drawn.** On an instance with no KiCad
+        // every document would otherwise place itself, fail, and print the same sentence,
+        // which reads as a broken feature. The capability is absent rather than broken, so
+        // after the server has said so once the pane simply carries no board section.
+        if (status === 503) noteKicadMissing()
         if (wanted.current !== candidate) return
         // Each of these is a different true sentence, and collapsing them into "that
         // failed" would hide the only one the reader can act on.
@@ -214,7 +219,7 @@ export function BoardConsequence({
     // place a substitute without being asked, and the run fires one per line in the
     // background, so most of the time the answer is already here. Placing again would spend
     // eleven seconds of KiCad to redraw a picture that is on screen.
-    if (auto && !stored) void check()
+    if (auto && !stored && !kicadMissing()) void check()
   }, [auto, check, stored])
 
   if (!candidate) return null

@@ -203,28 +203,6 @@ CREATE TABLE IF NOT EXISTS organisations (
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id text REFERENCES organisations(id);
 
--- Added 11 Sep 2026. Which product lines a person was brought in on.
---
--- **The sharing boundary was the company and now it is a grant.** Everything in this product
--- authorises on `org_id`, which answers *is this your company's work* and cannot answer *is
--- this yours*. That was deliberate while a company was the unit of sharing, and it stopped
--- being enough the moment a person could be invited to three projects rather than to
--- everything: an unticked project would have been visible anyway, which is a checkbox that
--- does nothing.
---
--- Additive and back-filled by the seed: every person in the demo world holds every line, so
--- nothing about the run-through changes. The narrowing only shows on a person invited after
--- today. `product_lines.user_id` stays and keeps meaning who *created* a line, which is a
--- different fact from who may open it.
-CREATE TABLE IF NOT EXISTS line_access (
-    line_id    text NOT NULL REFERENCES product_lines(id) ON DELETE CASCADE,
-    user_id    text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    org_id     text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (line_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS line_access_user_idx ON line_access(org_id, user_id);
 
 -- A set, not a single value. People wear more than one hat, and the demo needs one account
 -- that can walk every gate while single-role accounts prove the refusal. The default keeps
@@ -256,6 +234,51 @@ UPDATE findings f SET org_id = u.org_id FROM users u
  WHERE u.id = f.user_id AND f.org_id IS NULL;
 UPDATE line_parts lp SET org_id = u.org_id FROM users u
  WHERE u.id = lp.user_id AND lp.org_id IS NULL;
+
+-- Added 11 Sep 2026. Which product lines a person was brought in on.
+--
+-- **The sharing boundary was the company and now it is a grant.** Everything in this product
+-- authorises on `org_id`, which answers *is this your company's work* and cannot answer *is
+-- this yours*. That was deliberate while a company was the unit of sharing, and it stopped
+-- being enough the moment a person could be invited to three projects rather than to
+-- everything: an unticked project would have been visible anyway, which is a checkbox that
+-- does nothing.
+--
+-- Additive and back-filled by the seed: every person in the demo world holds every line, so
+-- nothing about the run-through changes. The narrowing only shows on a person invited after
+-- today. `product_lines.user_id` stays and keeps meaning who *created* a line, which is a
+-- different fact from who may open it.
+CREATE TABLE IF NOT EXISTS line_access (
+    line_id    text NOT NULL REFERENCES product_lines(id) ON DELETE CASCADE,
+    user_id    text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    org_id     text NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (line_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS line_access_user_idx ON line_access(org_id, user_id);
+
+-- **The back-fill, and it is not optional.** Every database written before this table existed
+-- has product lines and users and no grants, and visibility is a grant now: without this, the
+-- deployed world comes back with `/lines` empty, every product line a 404, and every notice
+-- reporting that it reaches nothing. The app would look like it had lost its data while
+-- holding all of it.
+--
+-- Before this table, a line was visible to everyone in its organisation. That is exactly what
+-- this restores, so nothing changes hands and nobody loses access to work they could already
+-- open.
+--
+-- **`WHERE NOT EXISTS (SELECT 1 FROM line_access)` is the whole safety of it.** The insert is
+-- guarded on the table being *empty* rather than on each pair being absent. A per-pair guard
+-- would be idempotent and wrong: this file runs at every boot, so the first restart after
+-- somebody is invited to two projects out of five would hand them the other three. The table
+-- can only be empty on a database that predates grants, because `create_line` writes the
+-- author's grant in the same transaction as the line.
+INSERT INTO line_access (line_id, user_id, org_id)
+SELECT p.id, u.id, p.org_id
+  FROM product_lines p
+  JOIN users u ON u.org_id = p.org_id
+ WHERE NOT EXISTS (SELECT 1 FROM line_access);
 
 -- Only once the back-fill has run can `org_id` be read as authoritative, so the NOT NULL
 -- goes on afterwards. `IF EXISTS`-style guards do not exist for this, so each is wrapped:
