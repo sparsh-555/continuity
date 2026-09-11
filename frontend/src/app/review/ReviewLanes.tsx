@@ -234,7 +234,11 @@ export function ReviewLanes({
     setOpen((current) => (current.has(lineId) ? new Set<string>() : new Set([lineId])))
 
   return (
-    <section className="space-y-md">
+    // **A named region, so the run is addressable.** The notice row now carries what the
+    // notice reaches, which names the same product lines the lanes do, so "the button called
+    // Sensor node" stopped being one button. Naming the region answers that for a screen
+    // reader and for anything else that has to point at this pane rather than at the page.
+    <section aria-label="The review" className="space-y-md">
       <div className="flex items-center justify-between gap-md">
         <h2 className="font-data-tabular text-[12px] tracking-[0.08em] text-on-surface-variant uppercase">
           {lanes.length > 0 ? `${lanes.length} product lines, checked together` : 'The review'}
@@ -324,6 +328,7 @@ export function ReviewLanes({
                     type="button"
                   >
                     <span
+                      aria-hidden
                       className={`material-symbols-outlined text-[18px] text-on-surface-variant transition-transform ${
                         expanded ? 'rotate-90' : ''
                       }`}

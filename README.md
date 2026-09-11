@@ -57,11 +57,11 @@ request in front of each desk that examined it.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/media/review.png" alt="Three product lines checked together, each with its own trace and verdict, with a change request open underneath one of them."></td>
+<td width="50%"><img src="docs/media/review.png" alt="Three panes: the desk's own queue on the left with its sign buttons, three product lines checked together in the middle, and one board's change request on the right."></td>
 <td width="50%"><img src="docs/media/lists.png" alt="The approved manufacturer list and the approved vendor list, each entry naming who approved it and when."></td>
 </tr>
 <tr>
-<td><b>A notice.</b> One supplier notice reaches three products. All three are re-checked at once against four departments' rules, and they end in three different places.</td>
+<td><b>A notice.</b> One supplier notice reaches three products. All three are re-checked at once against four departments' rules and they end in three different places. The desk on the left owes a signature and sees only its own checks; the document on the right is the whole change, because a change order is one object and signing it means signing all of it.</td>
 <td><b>And the policy it is checked against.</b> The lists gate every board, and every entry says who put it there.</td>
 </tr>
 </table>

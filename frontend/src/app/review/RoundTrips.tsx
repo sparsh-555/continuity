@@ -85,8 +85,10 @@ function Bar({ legs, tone }: { legs: readonly Leg[]; tone: string }) {
  * through, and it is what the run counted: `crossings` is the desks it examined the change
  * against, minus one.
  *
- * It is an estimate and it says so, in the same breath as the numbers rather than in a
- * footnote nobody reads.
+ * **The constants are not on screen.** The sentence that named Loch and Terwiesch and
+ * Herbsleb was here, and it is in the spoken layer now: a five-minute demonstration is not
+ * the place to cite a paper, and the Q&A is where somebody asks. What stays is the *about*,
+ * which is the honest half a reader needs, and the drawing, which is to scale.
  */
 export function RoundTrips({ saving }: { saving: RoundTripSaving }) {
   const { sequential, together } = roundTripLegs(saving)
@@ -130,9 +132,6 @@ export function RoundTrips({ saving }: { saving: RoundTripSaving }) {
         </p>
       </div>
 
-      <p className="m-0 font-data-tabular text-[11px] text-on-surface-variant/60 leading-relaxed">
-        {saving.basis}
-      </p>
     </section>
   )
 }

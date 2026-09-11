@@ -48,7 +48,11 @@ test('a delivered notice announces itself and refreshes rows and an open product
   await page.getByRole('button', { name: 'Changes' }).click()
   await page.getByRole('button', { name: 'START THE REVIEW' }).click()
   await expect(page.getByRole('button', { name: 'RUN IT AGAIN' })).toBeVisible({ timeout: 15_000 })
-  const sensorLane = page.getByRole('button', { name: /Sensor node/ })
+  // Scoped to the run, because the notice row names the same product lines in `Affects 3
+  // product lines: Cabinet controller, Gateway, Sensor node` and an unscoped locator matches
+  // two buttons. The pane has its own name for exactly this reason.
+  const run = page.getByRole('region', { name: 'The review' })
+  const sensorLane = run.getByRole('button', { name: /Sensor node/ })
   await expect(sensorLane).toBeVisible()
   await sensorLane.click()
   await expect(page.getByText(/^Trying .+\.$/).first()).toBeVisible()
@@ -71,7 +75,7 @@ test('a delivered notice announces itself and refreshes rows and an open product
   await page.reload()
   await expect(page.getByRole('button', { name: 'RUN IT AGAIN' })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('AMS1117-3.3 is going end of life.')).toBeVisible()
-  await expect(page.getByRole('button', { name: /Sensor node/ })).toBeVisible()
+  await expect(run.getByRole('button', { name: /Sensor node/ })).toBeVisible()
 
   // **Three panes, and the signature is in the one about this desk.** It used to be on the
   // lane, and the same four ticks appeared again on the change request, so one document had

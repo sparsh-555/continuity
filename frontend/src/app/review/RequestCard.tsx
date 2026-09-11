@@ -223,9 +223,6 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
             {request.saving.queue_days} days of queueing: {request.saving.desks} desks,{' '}
             {request.saving.crossings} handoffs, none of which this change had to cross.
           </p>
-          <p className="m-0 font-data-tabular text-[12px] text-on-surface-variant/70 leading-relaxed">
-            {request.saving.basis}
-          </p>
         </section>
       ) : null}
 
@@ -286,9 +283,6 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
                 {request.avoidance.layout_work
                   ? `Not a drop-in: ${request.line_name} needs layout work before this can ship, which is the board revision the metric below prices.`
                   : `Nothing. The substitute lands on the pads that are already there, so this is ${request.avoidance.resolution} rather than ${request.avoidance.resolution_if_it_had_not_fitted}.`}
-              </p>
-              <p className="m-0 font-data-tabular text-[12px] text-on-surface-variant/70 leading-relaxed">
-                {request.avoidance.basis}
               </p>
             </div>
           ) : null}

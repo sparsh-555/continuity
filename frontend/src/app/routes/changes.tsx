@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { useLocation } from 'react-router'
 
 import { Modal } from '../design/Modal'
 import { RequestPanel } from '../review/RequestPanel'
@@ -57,7 +57,7 @@ export function noticeIdentity(notice: Notice): string {
  */
 export default function ChangesRoute() {
   const { arrival } = useNoticeArrivals()
-  const navigate = useNavigate()
+
   const [notices, setNotices] = useState<Notice[]>([])
   const [selected, setSelected] = useState<Notice | null>(null)
   const [received, setReceived] = useState<ReceivedNotice | null>(null)
@@ -267,6 +267,20 @@ export default function ChangesRoute() {
       <div className="grid grid-cols-[minmax(300px,20%)_minmax(320px,1fr)_minmax(400px,32%)] gap-lg items-stretch flex-1 min-h-0">
         {/* ── The desk ───────────────────────────────────────────────────────────── */}
         <aside className="h-full overflow-y-auto space-y-md pr-sm">
+          {/* **A heading, because a column of cards with no name is a column nobody can
+              place.** The pane holds two different things, the notices and what this desk
+              owes, and they were told apart only by reading them. */}
+          <h2 className="m-0 font-data-tabular text-[11px] tracking-[0.08em] text-on-surface-variant uppercase">
+            Notices
+          </h2>
+
+          {/* A list, not a row of ten-pixel chips. What arrived, when, how, and what it
+              retires, enough to pick one without having already known which to pick.
+
+              **The open one carries its own detail.** The notice's own line and what it
+              reaches were a second box below the list, so the selected row and the thing it
+              described were two cards saying overlapping things. They are one box now: the
+              row you pressed is the row that answers. */}
           {notices.length > 0 ? (
             <div className="flex flex-col gap-1">
               {notices.map((notice) => {
@@ -302,6 +316,23 @@ export default function ChangesRoute() {
                       {notice.effective_date ? ` · last order ${notice.effective_date}` : ''}
                       {notice.replacement_mpn ? ` · recommends ${notice.replacement_mpn}` : ''}
                     </span>
+                    {isOpen && active ? (
+                      <span className="block mt-sm pt-sm border-t border-outline-variant/50">
+                        {/* The line the part number was actually read from. A notice whose MPN
+                            cannot be traced back into its own document would start a review
+                            of a part nobody sells. */}
+                        <span className="block font-data-tabular text-[11px] text-on-surface-variant/70 leading-relaxed">
+                          read from: “{active.mpn_line}”
+                        </span>
+                        {reaches ? (
+                          <span className="block font-data-tabular text-[12px] text-on-surface leading-relaxed mt-0.5">
+                            {reaches.length === 0
+                              ? 'This part is not on any product line you ship.'
+                              : `Affects ${reaches.length} product line${reaches.length === 1 ? '' : 's'}: ${reaches.map((line) => line.name).join(', ')}.`}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
                   </button>
                 )
               })}
@@ -310,25 +341,6 @@ export default function ChangesRoute() {
 
           {error ? <p className="font-data-tabular text-[12px] text-error">{error}</p> : null}
 
-          {active ? (
-            <section className="border border-outline-variant rounded p-lg space-y-sm">
-              <h2 className="font-data-tabular text-[16px] text-on-surface">{active.mpn}</h2>
-              {/* The line the part number was actually read from. A notice whose MPN cannot
-                  be traced back into its own document would start a review of a part nobody
-                  sells. */}
-              <p className="font-data-tabular text-[12px] text-on-surface-variant leading-relaxed">
-                read from: “{active.mpn_line}”
-              </p>
-              {reaches ? (
-                <p className="font-body-md text-[14px] text-on-surface leading-relaxed">
-                  {reaches.length === 0
-                    ? 'This part is not on any product line you ship.'
-                    : `Affects ${reaches.length} product line${reaches.length === 1 ? '' : 's'}: ${reaches.map((line) => line.name).join(', ')}.`}
-                </p>
-              ) : null}
-            </section>
-          ) : null}
-
           {/* **The one place a change is signed.** The buttons and the four ticks used to be
               here *and* on the lane and *again* on the change request; a desk that owes a
               signature should find it where it is told it owes one. */}
@@ -336,7 +348,6 @@ export default function ChangesRoute() {
             busy={signing}
             decisions={waiting}
             onAnswer={(decision, approve) => void answer(decision, approve)}
-            onOpen={(noticeId) => navigate(`/changes?notice=${encodeURIComponent(noticeId)}`)}
             requests={requests}
           />
 

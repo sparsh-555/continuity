@@ -27,14 +27,12 @@ export function WaitingOnYou({
   decisions,
   requests,
   busy,
-  onOpen,
   onAnswer,
 }: {
   decisions: readonly WaitingDecision[]
   /** The change requests, so a decision can show the checks its own desk owns. */
   requests: readonly ChangeRequest[]
   busy: string | null
-  onOpen: (noticeId: string) => void
   onAnswer: (decision: WaitingDecision, approve: boolean) => void
 }) {
   const mine = decisions.filter((decision) => decision.mine.length > 0)
@@ -56,24 +54,16 @@ export function WaitingOnYou({
 
         return (
           <article className="space-y-sm border-t border-outline-variant pt-sm first:border-t-0 first:pt-0" key={decision.id}>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-md gap-y-0.5">
-              <p className="m-0 font-data-tabular text-[13px] text-on-surface">
-                {decision.line_name}
-                <span className="text-on-surface-variant">
-                  {' '}
-                  · {decision.refdes.toUpperCase()} · {decision.retiring} → {decision.proposal}
-                </span>
-              </p>
-              {decision.notice_id ? (
-                <button
-                  className="h-7 px-md shrink-0 border border-outline-variant rounded font-data-tabular text-[11px] text-on-surface-variant hover:border-on-surface-variant transition-colors"
-                  onClick={() => onOpen(decision.notice_id as string)}
-                  type="button"
-                >
-                  THE NOTICE
-                </button>
-              ) : null}
-            </div>
+            {/* No way back to the notice: this page is already on it, and the button that
+                said so navigated to where the reader was standing. The product line above
+                names what is being replaced, which is what the button was standing in for. */}
+            <p className="m-0 font-data-tabular text-[13px] text-on-surface">
+              {decision.line_name}
+              <span className="text-on-surface-variant">
+                {' '}
+                · {decision.refdes.toUpperCase()} · {decision.retiring} → {decision.proposal}
+              </span>
+            </p>
 
             {/* Ticks rather than a sentence. *Two of four* is the same statement in the shape
                 the eye scans, and the desk names stay beside the marks so the row survives
