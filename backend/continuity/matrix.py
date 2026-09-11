@@ -54,6 +54,14 @@ class Cell:
     incumbent — the row that says what the board does today, which is not a substitution
     and must not be reported as one."""
 
+    slot: str = ""
+    """The position this candidate was substituted into **on this board**.
+
+    On the cell rather than on the matrix because boards disagree: the demo's own three
+    products carry the same regulator at U3, U1 and U2, and a grid that can only name one
+    position cannot describe them. The headline a desk reads names this position, so it is
+    the cell's to state."""
+
     @property
     def is_incumbent(self) -> bool:
         return self.incumbent_mpn is None
@@ -139,7 +147,7 @@ class Cell:
 class Matrix:
     """Every candidate against every board, and the arithmetic that produced each cell."""
 
-    slot: str
+    slot: str | None
     cells: tuple[Cell, ...]
 
     @property
@@ -220,17 +228,27 @@ def substitute(board: Board, slot_id: str, candidate: PartSpec) -> Board:
 def evaluate_matrix(
     boards: Sequence[tuple[str, str, Board]],
     candidates: Sequence[PartSpec],
-    slot_id: str,
+    slots: str | Mapping[str, str],
 ) -> Matrix:
     """Every candidate against every board. Deterministic, and no model is involved.
 
     `boards` is `(line_id, line_name, board)` rather than a mapping so the caller decides
     the row order and it survives to the screen; a dict would hand that decision to
     whatever order the store happened to return.
+
+    **`slots` is one position or one per line.** A `/matrix` question is asked about a
+    position, so a single string is the ordinary case and every board uses it. A notice
+    reaches whatever position each product happens to carry the part at, and real boards
+    disagree far more often than they agree — the demo's own three do — so a mapping is
+    what that caller passes. `Matrix.slot` is the single position when there is one and
+    `None` when there is not, because a grid that named one of several would be a lie.
     """
+    per_line = {line_id: slots for line_id, _, _ in boards} if isinstance(slots, str) else slots
+
     cells: list[Cell] = []
     for line_id, line_name, board in boards:
-        if slot_id not in board.slots:
+        slot_id = per_line.get(line_id)
+        if slot_id is None or slot_id not in board.slots:
             raise KeyError(
                 f"{line_name} has no slot {slot_id!r}; a board that does not carry the "
                 "part under review does not belong in this matrix"
@@ -247,6 +265,7 @@ def evaluate_matrix(
                     candidate=placed.part,
                     incumbent_mpn=placed.baseline.mpn if placed.baseline else None,
                     verdicts=tuple(rules.evaluate(substituted)),
+                    slot=slot_id,
                 )
             )
-    return Matrix(slot=slot_id, cells=tuple(cells))
+    return Matrix(slot=slots if isinstance(slots, str) else None, cells=tuple(cells))

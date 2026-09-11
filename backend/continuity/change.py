@@ -326,11 +326,13 @@ def for_line(
             qualified=chosen is not None and chosen.candidate.mpn.upper() in approved,
         ),
         approvals_required=_approvals_for(chosen, verdicts),
-        departments=_departments_for(verdicts, matrix.slot),
+        # The cell's position, not the matrix's: a grid spanning boards that carry the
+        # part at different designators has no single one to name.
+        departments=_departments_for(verdicts, cells[0].slot if cells else None),
         checked=Checked(
             candidates=len(cells),
             checks=sum(len(cell.verdicts) for cell in cells),
-            departments=len(_departments_for(verdicts, matrix.slot)),
+            departments=len(_departments_for(verdicts, cells[0].slot if cells else None)),
             lines=len(matrix.lines),
         ),
     )

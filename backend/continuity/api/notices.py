@@ -256,16 +256,15 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
     if not boards:
         raise HTTPException(409, "no affected line could be assembled into a board")
 
-    slots = {entry["slot"] for entry in per_line.values()}
-    if len(slots) > 1:
-        raise HTTPException(
-            409,
-            f"the retired part sits at different positions across these lines ({', '.join(sorted(slots))}); "
-            "name one with `slot`",
-        )
-
-    slot_id = slots.pop()
-    matrix = evaluate_matrix(boards, candidates, slot_id)
+    # **Every board keeps its own position.** The slot was already looked up per line from
+    # that line's own bill; what refused was the grid, which could only name one. Real
+    # boards disagree far more often than they agree — U3, U1 and U2 on the demo's own
+    # three — and a caller who names one explicitly still gets it applied to all of them,
+    # because then they have said which they mean.
+    slots = {line_id: entry["slot"] for line_id, entry in per_line.items()}
+    matrix = evaluate_matrix(
+        boards, candidates, body.slot if body.slot else slots
+    )
 
     # What this company already knows, before proposing anything. A rejection is scoped to
     # the board it happened on: a part that cooked the gateway says nothing about the
@@ -274,7 +273,7 @@ async def _review(store, user, notice, exposed, body, approved) -> dict[str, Any
     ruled_out = {
         line_id: await store.rejected_on(user.org_id, line_id) for line_id in per_line
     }
-    await _remember(store, user.org_id, matrix, slot_id, ruled_out)
+    await _remember(store, user.org_id, matrix, ruled_out)
     requests = change.for_every_line(
         matrix,
         notice_mpn=notice["mpn"],
@@ -406,31 +405,35 @@ async def _facts_for(store: Any, mpn: str) -> list[dict[str, Any]]:
     return (await store.part_facts([mpn])).get(mpn, [])
 
 
-def _signature_for(cell, slot_id: str) -> str | None:
-    """The shape of what went wrong in this cell, for a precedent to be keyed on."""
+def _signature_for(cell) -> str | None:
+    """The shape of what went wrong in this cell, for a precedent to be keyed on.
+
+    The cell's own position, not one passed in: a grid spanning boards that carry the part
+    at different designators has no single one, and each cell already knows its own.
+    """
     failures = cell.failures
     if not failures:
         return None
     part = cell.candidate
     return situation.signature(
         failures[0],
-        _board_of(cell, slot_id),
+        _board_of(cell),
         category=categories.canonical(part.category),
     )
 
 
-def _board_of(cell, slot_id: str):
+def _board_of(cell):
     """`situation.signature` reads the conflicting slot's part off a board."""
     from ..engine.models import Board, Slot
 
     return Board(
         requirements=None,
-        slots={slot_id: Slot(slot_id, slot_id, "power", part=cell.candidate)},
+        slots={cell.slot: Slot(cell.slot, cell.slot, "power", part=cell.candidate)},
         rails={},
     )
 
 
-async def _remember(store, org_id: str, matrix, slot_id: str, ruled_out) -> None:
+async def _remember(store, org_id: str, matrix, ruled_out) -> None:
     """Record what this review learned, both ways.
 
     Rejections matter as much as successes and are the half that was missing: without them
@@ -442,7 +445,7 @@ async def _remember(store, org_id: str, matrix, slot_id: str, ruled_out) -> None
         for cell in matrix.cells:
             if cell.line_id != line_id or cell.is_incumbent:
                 continue
-            signature = _signature_for(cell, slot_id)
+            signature = _signature_for(cell)
             if cell.ok:
                 # A success is keyed on the shape of the problem it solved, which a passing
                 # cell does not have — so it is recorded against the incumbent's conflict

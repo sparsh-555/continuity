@@ -465,6 +465,104 @@ def test_a_preliminary_and_a_full_notice_about_one_part_are_two_notices(model):
 
 
 @pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
+def test_a_review_works_when_the_boards_disagree_about_the_position(monkeypatch, model):
+    """Real boards put the same part at different reference designators, and that is normal.
+
+    This endpoint applied one position to every affected line, so a company whose regulator
+    sits at U3 on one board and U1 on another was told to name one — for a question the
+    product can already answer per line. The streaming run has always looked the slot up on
+    each board from its own bill; only this path could not, and it refused rather than
+    guessing, which was right and still left the common case unanswerable.
+    """
+    from continuity.api import matrix as matrix_api
+    from tools.eol_differential import AMS1117, LINE_A, NCP1117, OUTPUT_CAPACITOR
+
+    specs = {part.mpn: part for part in (AMS1117, NCP1117, OUTPUT_CAPACITOR, LINE_A.load_part)}
+
+    async def resolve(mpn: str, manufacturer: str | None = None):
+        return specs.get(mpn)
+
+    monkeypatch.setattr(matrix_api, "resolve", resolve)
+    model(reply())
+
+    async def go():
+        async with a_store():
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test", timeout=60.0
+            ) as http:
+                await http.post(
+                    "/auth/register",
+                    json={"email": "pcn@example.com", "password": "a-good-password"},
+                )
+                # Two boards that carry the regulator at a different position, which is what
+                # the demo's own seeded world does.
+                for name, refdes, ambient in (
+                    ("Gateway", "u1", 45.0), ("Sensor node", "u3", 25.0)
+                ):
+                    line = (await http.post("/lines", json={"name": name})).json()
+                    await http.put(
+                        f"/lines/{line['id']}/bom",
+                        json={
+                            "rows": [
+                                {"refdes": refdes, "mpn": AMS1117.mpn},
+                                {"refdes": "u2", "mpn": LINE_A.load_part.mpn},
+                                {"refdes": "c1", "mpn": OUTPUT_CAPACITOR.mpn},
+                            ]
+                        },
+                    )
+                    await http.put(
+                        f"/lines/{line['id']}/profile",
+                        json={
+                            "revision": "C",
+                            "profile": {
+                                "ambient_c": ambient,
+                                "ambient_source": "test",
+                                "mounting": "1000 mm\u00b2 top and back copper, 1/16in FR-4, 1 oz",
+                                "rails": {
+                                    "vin": {
+                                        "voltage": 5.0, "i_limit": 3000,
+                                        "basis": "test", "members": [refdes],
+                                    },
+                                    "3v3": {
+                                        "source": refdes, "members": ["u2", "c1"],
+                                        "i_load": LINE_A.load,
+                                        "i_load_basis": LINE_A.load_basis,
+                                    },
+                                },
+                            },
+                        },
+                    )
+                posted = (
+                    await http.post(
+                        "/notices",
+                        json={
+                            "document": base64.b64encode(PCN.encode()).decode(),
+                            "filename": "PCN-2026-114.pdf",
+                        },
+                    )
+                ).json()
+                return await http.post(
+                    f"/notices/{posted['id']}/review", json={"candidates": [NCP1117.mpn]}
+                )
+
+    reviewed = run(go())
+
+    # **The 409 is what this row was.** Naming one position and applying it to both boards
+    # was the only thing the endpoint could do, so it refused — and a company whose
+    # regulator sits at U1 on one product and U3 on another could not review a notice.
+    assert reviewed.status_code == 201, reviewed.text
+    requests = {r["line_name"]: r for r in reviewed.json()["requests"]}
+    assert set(requests) == {"Gateway", "Sensor node"}
+
+    # Each board was substituted at its own position: a candidate only becomes a proposal if
+    # the replacement happened in the slot that board actually carries the part in.
+    for name, request in requests.items():
+        assert request["proposal"] == NCP1117.mpn, f"{name}: {request['proposal_detail']}"
+        assert request["baseline_mpn"] == AMS1117.mpn
+
+
+
 def test_a_notice_for_a_part_we_do_not_ship_says_so_rather_than_failing(model):
     """An empty answer is a real result: this does not reach anything we make."""
     model(reply())

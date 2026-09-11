@@ -379,6 +379,7 @@ scoped to `src`. Playwright specs are not bun tests.
 | A reviewed line shows a verdict but no trace | The API predates `/lines/:id/reviews`. Restart it |
 | A change request shows *PLACE … ON THIS BOARD* a minute after a run | The placement had not landed when the card loaded. Reload once; if it persists the instance has no KiCad, which is the honest case that button is for |
 | `/changes` shows no lanes on a notice that was reviewed | The API predates `/notices/:id/reviews`, or the run predates the `decisions` rows that back it. Restart it, then **RUN IT AGAIN** once |
+| `POST /notices/{id}/review` refuses with *the retired part sits at different positions* | Fixed 11 Sep. Only an old build does this: each board is now substituted at its own position |
 | Two identical notices in the drawer | Both forwarded and uploaded, or a reseed re-read the mailed message |
 | `no matching manifest for linux/arm64` | The `--platform linux/amd64` flag is missing |
 | A notice upload fails saying `no fixture for notice_read` | That document has never been read **under this prompt**. Changing `notices.SYSTEM` restages every recording. `./demo.sh --live`, forward it once, and it replays from then on |
