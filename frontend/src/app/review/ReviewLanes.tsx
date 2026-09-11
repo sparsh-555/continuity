@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ReasoningLine } from '../design/ReasoningLine'
 import { useAuth } from '../hooks/useAuth'
-import { departmentLabel } from './Departments'
+import { departmentLabel, isMine, MINE_ACCENT } from './Departments'
 import { RequestCard } from './RequestCard'
 import { RoundTrips } from './RoundTrips'
 import { SignatureRow } from './Signatures'
@@ -408,14 +408,18 @@ export function ReviewLanes({
                 )
               }
               const mark = CHECK_MARK[item.status]
+              // **Every check is drawn, and the reader's own are marked.** Filtering the
+              // trace to the signed-in desk would leave a signatory signing a change they
+              // were not shown; see `isMine` for why the whole record stays visible.
               return (
-                <ReasoningLine
-                  detail={`${item.detail}${item.margin ? ` · ${item.margin} to spare` : ''}`}
-                  icon={mark.icon}
-                  iconClassName={mark.tone}
-                  key={`${item.rule}:${item.scope ?? ''}:${position}`}
-                  text={traceText(item)}
-                />
+                <div className={isMine(item.departments, myRoles) ? MINE_ACCENT : undefined} key={`${item.rule}:${item.scope ?? ''}:${position}`}>
+                  <ReasoningLine
+                    detail={`${item.detail}${item.margin ? ` · ${item.margin} to spare` : ''}`}
+                    icon={mark.icon}
+                    iconClassName={mark.tone}
+                    text={traceText(item)}
+                  />
+                </div>
               )
             }
             return (

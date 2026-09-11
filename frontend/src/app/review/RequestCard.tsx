@@ -1,7 +1,8 @@
 import { Fragment } from 'react'
 
 import { BoardConsequence } from '../board/BoardConsequence'
-import { departmentLabel } from './Departments'
+import { useAuth } from '../hooks/useAuth'
+import { departmentLabel, isMine, MINE_ACCENT } from './Departments'
 import { checkLabel } from './ReviewLanes'
 import { SignatureRow } from './Signatures'
 import type { ChangeRequest } from '../lib/api'
@@ -16,7 +17,13 @@ import type { ChangeRequest } from '../lib/api'
  * way to open it, because twenty-two satisfied checks per candidate is a wall of agreement
  * that buries the one line worth reading.
  */
-function Verdicts({ alternative }: { alternative: ChangeRequest['alternatives'][number] }) {
+function Verdicts({
+  alternative,
+  mine,
+}: {
+  alternative: ChangeRequest['alternatives'][number]
+  mine: readonly string[]
+}) {
   const verdicts = alternative.verdicts ?? []
   const failed = verdicts.filter((verdict) => verdict.status === 'failed')
   const rest = verdicts.filter((verdict) => verdict.status !== 'failed')
@@ -24,7 +31,9 @@ function Verdicts({ alternative }: { alternative: ChangeRequest['alternatives'][
 
   const line = (verdict: (typeof verdicts)[number], position: number) => (
     <p
-      className="m-0 font-data-tabular text-[12px] leading-relaxed"
+      className={`m-0 font-data-tabular text-[12px] leading-relaxed ${
+        isMine(verdict.departments ?? [], mine) ? MINE_ACCENT : ''
+      }`}
       key={`${verdict.rule}:${verdict.scope ?? ''}:${position}`}
     >
       {/* The word first, never the colour alone: this is read on a projector and in a
@@ -78,6 +87,8 @@ export function RequestCard({
    *  times is what made them read as boilerplate rather than as a finding. */
   showRoundTrips?: boolean
 }) {
+  const { user } = useAuth()
+  const mine = user?.roles ?? []
   const rejected = request.alternatives.filter((a) => a.rejected_because)
   const viable = request.alternatives.filter((a) => !a.rejected_because)
 
@@ -124,7 +135,7 @@ export function RequestCard({
                 <span className="text-on-surface">{alternative.mpn}</span>
                 <span className="text-on-surface-variant"> — {alternative.rejected_because}</span>
               </p>
-              <Verdicts alternative={alternative} />
+              <Verdicts alternative={alternative} mine={mine} />
             </div>
           ))}
         </section>
@@ -150,10 +161,17 @@ export function RequestCard({
               <Fragment key={desk.role}>
                 <dt
                   className={`font-data-tabular text-[12px] uppercase ${
-                    desk.failed > 0 ? 'text-error' : 'text-on-surface-variant'
+                    desk.failed > 0
+                      ? 'text-error'
+                      : mine.includes(desk.role)
+                        ? 'text-on-surface'
+                        : 'text-on-surface-variant'
                   }`}
                 >
                   {departmentLabel(desk.role)}
+                  {mine.includes(desk.role) ? (
+                    <span className="text-primary-container"> your desk</span>
+                  ) : null}
                 </dt>
                 <dd className="font-data-tabular text-[12px] text-on-surface-variant leading-relaxed">
                   {/* Words rather than a colour alone: which desk is outstanding has to

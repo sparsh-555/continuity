@@ -100,6 +100,8 @@ export default function PolicyRoute() {
                 name: entry.mpn,
                 detail: entry.manufacturer ?? 'manufacturer not recorded',
                 note: entry.note,
+                by: entry.by,
+                at: entry.created_at,
               }))}
               kept={policy.parts.kept}
               mayEdit={mayKeepParts}
@@ -147,8 +149,14 @@ export default function PolicyRoute() {
               entries={policy.vendors.entries.map((entry) => ({
                 key: entry.distributor,
                 name: entry.distributor,
-                detail: 'an approved source',
-                note: entry.note,
+                // **Not a placeholder.** This said `an approved source` on every row, which
+                // is a constant dressed as data, while the note, the approver and the date
+                // were fetched and thrown away. A row that reads the same for every entry is
+                // what made this list look like a settings screen with nothing in it.
+                detail: entry.note ?? 'no note was recorded when this source was approved',
+                note: null,
+                by: entry.by,
+                at: entry.created_at,
               }))}
               kept={policy.vendors.kept}
               mayEdit={mayKeepVendors}
@@ -164,7 +172,31 @@ export default function PolicyRoute() {
               typed={vendor}
               what="sources this company will buy from"
               onTyped={setVendor}
-            />
+            >
+              {/* **What the list actually holds back**, which the AML says for itself and
+                  this one never did. Kept and empty is not the same as not kept: an empty
+                  AML fails nothing, and an empty AVL fails every candidate whose source
+                  nobody has approved. That asymmetry is why the two are separate lists, so
+                  the screen states it rather than leaving a company to find out from a
+                  review. */}
+              {policy.vendors.kept && policy.vendors.entries.length === 0 ? (
+                <div className="border border-tertiary-container rounded p-sm">
+                  <p className="m-0 font-data-tabular text-[12px] text-tertiary-container leading-relaxed">
+                    This list is kept and nothing is on it, so every candidate the review
+                    checks fails procurement&rsquo;s source approval — including the part
+                    already fitted.
+                  </p>
+                </div>
+              ) : (
+                <p className="m-0 font-data-tabular text-[12px] text-on-surface-variant leading-relaxed">
+                  Procurement&rsquo;s source approval holds every part the review checks
+                  against this list. A part with no source at all is reported as unknown
+                  rather than as a breach, because nobody has said where it would come from,
+                  and reporting that as a policy failure would put a decision in front of
+                  somebody the data does not support.
+                </p>
+              )}
+            </List>
           </>
         ) : (
           <p className="font-data-tabular text-[11px] text-on-surface-variant">Loading…</p>
@@ -174,7 +206,15 @@ export default function PolicyRoute() {
   )
 }
 
-type Entry = { key: string; name: string; detail: string; note: string | null }
+type Entry = {
+  key: string
+  name: string
+  detail: string
+  note: string | null
+  /** Who put it there, and when. Both have been on the wire since the endpoint existed. */
+  by: string | null
+  at: string
+}
 
 /** One list: the switch that turns its gate on, what is on it, and how to change it. */
 function List({
@@ -244,19 +284,32 @@ function List({
           <ul className="m-0 p-0 list-none flex flex-col">
             {entries.map((entry) => (
               <li
-                className="flex items-baseline justify-between gap-md border-b border-outline-variant/50 py-1 last:border-b-0"
+                className="flex items-start justify-between gap-md border-b border-outline-variant/50 py-1.5 last:border-b-0"
                 key={entry.key}
               >
-                <span className="min-w-0">
-                  <span className="font-data-tabular text-[11px] text-on-surface">
+                <span className="min-w-0 flex flex-col">
+                  <span className="font-data-tabular text-[13px] text-on-surface">
                     {entry.name}
+                    <span className="text-on-surface-variant text-[12px] ml-sm">
+                      {entry.detail}
+                    </span>
                   </span>
-                  <span className="font-data-tabular text-[10px] text-on-surface-variant ml-sm">
-                    {entry.detail}
+                  {/* **Who put it there, and when.** Three facts were stored for every entry
+                      and the row rendered a constant instead: the screen a company uses to
+                      state its own policy could not say who stated it. An entry with nobody
+                      behind it is worth knowing about too, so the absence is said rather
+                      than hidden. */}
+                  <span className="font-data-tabular text-[11px] text-on-surface-variant/70">
+                    {entry.by ? `approved by ${entry.by}` : 'no approver recorded'} ·{' '}
+                    {new Date(entry.at).toLocaleDateString(undefined, {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
                   </span>
                 </span>
                 <button
-                  className="font-data-tabular text-[10px] text-on-surface-variant hover:text-error transition-colors disabled:hidden"
+                  className="font-data-tabular text-[11px] text-on-surface-variant hover:text-error transition-colors disabled:hidden shrink-0"
                   disabled={busy || !mayEdit}
                   onClick={() => onRemove(entry.name)}
                   type="button"
@@ -267,7 +320,7 @@ function List({
             ))}
           </ul>
         ) : (
-          <p className="m-0 font-data-tabular text-[11px] text-on-surface-variant">
+          <p className="m-0 font-data-tabular text-[12px] text-on-surface-variant">
             Nothing on this list. A company that keeps an empty one has qualified nothing, and
             every part on every board fails it.
           </p>
@@ -275,7 +328,7 @@ function List({
 
         <div className="flex gap-sm items-center">
           <input
-            className="input-field px-sm h-8 flex-1 max-w-[320px] font-data-tabular text-[11px]"
+            className="input-field px-sm h-8 flex-1 max-w-[320px] font-data-tabular text-[12px]"
             disabled={busy || !mayEdit}
             onChange={(event) => onTyped(event.target.value)}
             onKeyDown={(event) => {

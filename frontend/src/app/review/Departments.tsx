@@ -71,14 +71,54 @@ export function groupByDepartment<T extends { departments: string[]; status: Eve
   )
 }
 
+/** Whether a check is one of the signed-in reader's own.
+ *
+ * **Everyone sees every check, and the reader sees which are theirs.** They are not filtered,
+ * and that is a deliberate departure from the obvious access rule. A change order is one
+ * controlled object with one audit trail: a desk signing it is signing the whole change, and
+ * a signatory who cannot see procurement's objection is signing something they were not
+ * shown. The PLM convention is the same one — reviews are routed concurrently and *each
+ * function reviews the same change against its own criteria* — and the documented failure
+ * mode of splitting them is a stakeholder who cannot see a dependency outside their own
+ * column until it is expensive.
+ *
+ * So the answer is emphasis rather than a filter. `mine` is the desk the reader is signed in
+ * as, and it is the only thing this decides.
+ */
+export function isMine(departments: readonly string[], mine: readonly string[]): boolean {
+  const owners = departments.length > 0 ? departments : ['engineering']
+  return owners.some((role) => mine.includes(role))
+}
+
+/** The accent a row wears when it is the reader's own desk's business.
+ *
+ * A left border rather than a colour change on the text: the verdict's own colour already
+ * carries satisfied or failed, and a second colour meaning a second thing on the same line is
+ * how a reader loses the first one. The words stay the same size and place, because this is a
+ * change of emphasis and not a second document.
+ */
+export const MINE_ACCENT = 'border-l-2 border-primary-container pl-sm -ml-[2px]'
+
 /** One desk's block: its name, then its own verdicts in the same marks the trace uses. */
-export function DepartmentBlock({ role, checks }: { role: string; checks: readonly DeskCheck[] }) {
+export function DepartmentBlock({
+  role,
+  checks,
+  mine = false,
+}: {
+  role: string
+  checks: readonly DeskCheck[]
+  /** This is the reader's own desk. Same content, said louder — see `isMine`. */
+  mine?: boolean
+}) {
   const failed = checks.filter((check) => check.status === 'failed').length
 
   return (
-    <section className="flex flex-col gap-xs">
+    <section className={`flex flex-col gap-xs ${mine ? MINE_ACCENT : ''}`}>
       <h4 className="flex items-baseline gap-sm px-sm pt-2 font-data-tabular text-[10px] uppercase">
-        <span className="text-on-surface-variant/70">{departmentLabel(role)}</span>
+        <span className={mine ? 'text-on-surface' : 'text-on-surface-variant/70'}>
+          {departmentLabel(role)}
+        </span>
+        {mine ? <span className="text-primary-container">your desk</span> : null}
         {/* Words, not a colour: which approvals are missing must survive greyscale and a
             projector. */}
         <span className={failed > 0 ? 'text-error' : 'text-on-surface-variant/50'}>

@@ -1166,17 +1166,29 @@ class Store:
 
         `approved_lists` answers the rules, which match on names and need nothing else. A
         screen has to say who qualified a part and when, and a set of names cannot.
+
+        **The approver's address, not their id**, and that is the difference between a
+        provenance line and a hash. It was an id on the wire from the day this was written and
+        the screen rendered neither it nor the note nor the date — three stored facts thrown
+        away, with a constant string in their place, which is why the approved vendor list
+        read as a dead screen with one row on it.
         """
         async with self.pool.connection() as conn:
             cursor = await conn.cursor(row_factory=dict_row).execute(
-                """SELECT mpn, manufacturer, qualified_by, note, created_at
-                     FROM approved_parts WHERE org_id = %s ORDER BY mpn""",
+                """SELECT p.mpn, p.manufacturer, p.note, p.created_at,
+                          u.email AS by
+                     FROM approved_parts p
+                     LEFT JOIN users u ON u.id = p.qualified_by
+                    WHERE p.org_id = %s ORDER BY p.mpn""",
                 (org_id,),
             )
             parts = await cursor.fetchall()
             cursor = await conn.cursor(row_factory=dict_row).execute(
-                """SELECT distributor, approved_by, note, created_at
-                     FROM approved_vendors WHERE org_id = %s ORDER BY distributor""",
+                """SELECT v.distributor, v.note, v.created_at,
+                          u.email AS by
+                     FROM approved_vendors v
+                     LEFT JOIN users u ON u.id = v.approved_by
+                    WHERE v.org_id = %s ORDER BY v.distributor""",
                 (org_id,),
             )
             vendors = await cursor.fetchall()

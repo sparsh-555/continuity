@@ -935,7 +935,9 @@ export type Policy = {
     entries: Array<{
       mpn: string
       manufacturer: string | null
-      qualified_by: string | null
+      /** The address of whoever qualified it, resolved server-side. An id is a hash to
+       *  a reader; the point of the field is that a person stands behind the entry. */
+      by: string | null
       note: string | null
       created_at: string
     }>
@@ -946,7 +948,8 @@ export type Policy = {
     kept: boolean
     entries: Array<{
       distributor: string
-      approved_by: string | null
+      /** See `by` above — the same provenance for a source. */
+      by: string | null
       note: string | null
       created_at: string
     }>
