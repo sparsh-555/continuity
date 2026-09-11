@@ -202,6 +202,7 @@ somebody is deciding whether to sign. See BUILD.md's second governing rule.
 | `/approvals` | what the signed-in desk owes, across every product line |
 | `/matrix` | every candidate against every product line. `?lines=&slot=&candidates=` prefills it and runs it, which is what **SHOW THE WORKING** on `/changes` links to; all three or it stays a form |
 | `/memory` | the company's record: parts, boards, notices, and what was decided |
+| `/policy` | the approved manufacturer list and the approved vendor list, where a company states them. Parts are engineering's and quality's to qualify, sources are procurement's alone, and every part a board carries that is not qualified is named with the action that clears it |
 
 Endpoints with no screen, worth knowing about:
 
