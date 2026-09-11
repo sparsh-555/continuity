@@ -47,7 +47,7 @@ export function Page({
   return (
     <div
       className={`text-on-background font-body-md antialiased ${
-        fill ? 'h-full overflow-hidden bg-background' : 'bg-transparent min-h-screen'
+        fill ? 'h-full flex flex-col overflow-hidden bg-background' : 'bg-transparent min-h-screen'
       }`}
     >
       <header className="flex items-center justify-between w-full px-lg h-12 shrink-0 bg-surface-container-low border-b border-outline-variant shadow-[0_1px_0_0_rgba(255,255,255,0.05)]">
@@ -80,7 +80,7 @@ export function Page({
       </header>
 
       <main
-        className={`${fill ? 'h-full min-h-0 overflow-hidden py-md' : 'min-h-[calc(100vh-48px)] py-xl'} ${
+        className={`${fill ? 'flex-1 w-full min-h-0 overflow-hidden py-md' : 'min-h-[calc(100vh-48px)] py-xl'} ${
           fill ? 'max-w-none' : width === 'wide' ? 'max-w-[1200px]' : 'max-w-[900px]'
         } mx-auto px-lg flex flex-col gap-md`}
       >

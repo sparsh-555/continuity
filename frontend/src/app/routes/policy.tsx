@@ -187,15 +187,7 @@ export default function PolicyRoute() {
                     already fitted.
                   </p>
                 </div>
-              ) : (
-                <p className="m-0 font-data-tabular text-[12px] text-on-surface-variant leading-relaxed">
-                  Procurement&rsquo;s source approval holds every part the review checks
-                  against this list. A part with no source at all is reported as unknown
-                  rather than as a breach, because nobody has said where it would come from,
-                  and reporting that as a policy failure would put a decision in front of
-                  somebody the data does not support.
-                </p>
-              )}
+              ) : null}
             </List>
           </>
         ) : (
