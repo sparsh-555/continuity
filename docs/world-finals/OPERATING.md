@@ -198,8 +198,7 @@ somebody is deciding whether to sign. See BUILD.md's second governing rule.
 | `/lines/:id` | one product, as a workspace: power tree or board, bill, its own review, and the notice against it |
 | `/design/:lineId` | the run in which this line was described; a brief screen only if it has none |
 | `/design` | single-user local mode, no account |
-| `/changes` | notices received, the company-wide review in lanes, the change requests |
-| `/approvals` | what the signed-in desk owes, across every product line |
+| `/changes` | notices received, the company-wide review in lanes, the change requests, and what this desk owes |
 | `/memory` | the company's record: parts, boards, notices, and what was decided |
 | `/policy` | the approved manufacturer list and the approved vendor list, where a company states them. Parts are engineering's and quality's to qualify, sources are procurement's alone, and every part a board carries that is not qualified is named with the action that clears it |
 
@@ -228,7 +227,7 @@ curl -s -b cookies.txt -X POST 'http://localhost:8000/decisions/<id>' \
 ## 5 · Replay, which is the default
 
 `./demo.sh` sets `CONTINUITY_FIXTURES=1`. Every distributor call and every reading of a
-change notice replays from `backend/fixtures/`, 619 recordings committed so a fresh clone has
+change notice replays from `backend/fixtures/`, 622 recordings committed so a fresh clone has
 them, and none of them touches the network.
 
 **Measured on 10 Sep.**
@@ -412,30 +411,32 @@ waiting for it. Do not re-report those.
   *procurement* on a stock shortfall, so one notice does produce answers that halt in different
   places — but no line's best answer is off the approved manufacturer list, so the
   qualification gate itself is still unexercised. 🟡
-- **The recurring half of the cost is still missing**, so every change request says *"no annual
-  volume stated"*. The **build** quantity is on the operating profile now and drives the stock
-  minimum; the **annual** figure the recurring cost needs is a different number and is not. 🟡
+- **The recurring half of the cost once said *"no annual volume stated"* on every request.**
+  Every operating profile carries an annual volume with its own source now, so the Gateway
+  reads **$2,344 a year** under *+$0.1172 a unit at 20,000/yr*. Closed in the third pass; the
+  line stays here because a request reading *no annual volume stated* is a regression rather
+  than an unknown.
 - **Applying a decision writes the distributor's manufacturer**, so the Gateway's bill reads
   `TLV1117LV33DCYR · JSMSEMI` where the part is Texas Instruments'. 🟡
 - **A deployed instance has no KiCad**, so the board section is unavailable anywhere but a
   machine with the container.
-- **The board consequence is not stored**, so it is not part of the change request document and
-  is computed again on a later visit. The picture itself is cached per board for as long as the
-  API is up, so it costs about three seconds once and nothing afterwards.
-- **A replayed review cannot say where each candidate came from.** The live trace narrates
-  *"Trying LD1117-3.3 — found in the distributor's catalogue"*; only the manufacturer and
-  package are stored per attempt, so the replay says *"Trying LD1117-3.3."* One field would
-  close it.
-- **A review left waiting on a desk replays without its buttons.** Reopening the line shows its
-  trace and its proposal; whether that decision is still answerable is the decision row's
-  business, and the trace does not re-raise the question.
-- **The AML and AVL have no screen.** The lists are read correctly by the gates and written only
-  by the seed and the store. Memory shows what was decided against them, which is the part a
-  person asks about.
+- **The board consequence is stored on the change request and nothing renders it there.**
+  `attach_board_consequence` writes it seconds after the document is written, and the card
+  carried it until 11 September, when the pictures moved to the product line's own BOARD pane.
+  The background KiCad run still happens. 🟡
+- **A review that ran before 11 September replays one lane at a time.** The run records the
+  frames it streams, so a review from now on replays with three boards advancing together; a
+  decision written before the column existed has no stored order and falls back to the
+  per-decision rebuild. Re-run the notice to get the recorded order.
+- **The AML and AVL are stated at `/policy`.** The lists were read by the gates and written only
+  by the seed until 11 September; parts are engineering's and quality's to qualify, sources are
+  procurement's alone, and every part a board carries that is not qualified is named with the
+  action that clears it.
 - **A mailed notice raises no notification.** `/changes` is the only screen that reacts to one
   on its own, and `/lines` needs a reload. This is the last 🔴 and it is BUILD item 28.
-- **The outbound approval request does not exist.** A desk finds what it owes by opening
-  `/approvals`; nothing goes out to tell it. The in-app queue is the demo-safe half. 🟡
+- **The outbound approval request does not exist.** A desk finds what it owes at the top of
+  `/changes`, or on the rail badge beside it; nothing goes out to tell it. The in-app queue is
+  the demo-safe half. 🟡
 
 ---
 

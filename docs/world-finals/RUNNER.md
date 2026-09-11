@@ -145,7 +145,8 @@ demonstrate a third, run `./demo.sh --live` and forward it once.
 
 - [ ] Discovery is said once, above the lanes, rather than three times.
 - [ ] **Leave the page and come back.** `/lines` and then `/changes` again: the three lanes, their traces and their questions are all still there, with nothing pressed and nothing re-run. An empty review where a run had been is a bug — that was the state until 11 September.
-- [ ] Three lanes advance together, one row per product, each showing the newest thing that board has said and its state. **Replayed they fill in over about twenty seconds**, staggered rather than metronomic, with **SKIP TO THE END** offered throughout.
+- [ ] Three lanes advance together, one row per product, each showing **the last three things that board has said** while it is still working and its newest one when it stops. The trace is drawn at reading pace — a full review takes about **eighty seconds** — staggered rather than metronomic, with **SKIP TO THE END** offered throughout.
+- [ ] **All three boards are moving at the same time.** A replay that played one board to its end before starting the next is a bug: the run's own order is what is stored, and it interleaves.
 - [ ] The three answers are these three, and they stop in two different places:
 
 | Product line | Answer | Where it stops |
@@ -224,26 +225,28 @@ request · NCP1117ST33T3G**. Press it.
 - [ ] The document opens in the right-hand drawer: the proposal, every rejection with its sentence, **every department that examined the change with its own result**, evidence, anything that could not be checked, cost, the desks required, and what was checked before anybody was asked.
 - [ ] **The recurring cost is a real figure**, because the line's own profile states an annual volume with a source. The Gateway reads **$2,344 a year**, under **+$0.1172 a unit at 20,000/yr**; the Sensor node $171.60 and the Cabinet controller $68.64. *No annual volume stated* would be a bug.
 - [ ] **Nothing on this document says a rule could not be checked.** Until 11 September `signal_integrity` did, on all three requests, because the datasheet figures it stacks never reached the engine. A `COULD NOT CHECK` block here is now a bug rather than a known state.
-- [ ] **THE BOARD says what it did to *this* board**: the pads carried by function with their real net names, what DRC found before and after, and **WHAT RAN** — five operations with the seconds each took, timed in the container.
-- [ ] The request carries **WHAT THE MISSING ROUND TRIPS ARE WORTH**, naming both constants and their sources, and saying in the same sentence that it is an estimate.
+- [ ] **CONSIDERED AND REJECTED names every part that was tried and failed, each in its own block**, with the sentence that killed it and the failed check underneath in full. The checks that passed are counted and folded away behind *the other N checks it passed*. A closed disclosure triangle here is what the old shape was, and a reader who found one concluded the rejected parts had been deleted with the matrix page.
+- [ ] The request carries **WHAT THE MISSING ROUND TRIPS ARE WORTH** on the review page and **not** on each card. It is the same three numbers for all three boards, and printing it three times is what made it read as boilerplate. On `/lines/:id`, where the card is the only thing on screen, it stays on the card.
+- [ ] **The APPROVALS block is four ticks**, one per desk, ticked where that desk has signed, with the count in words.
+- [ ] **No board pictures on the card.** KiCad's consequence is on the product line's own **BOARD** pane, which is where it has its own button and its own reason to be — see step 8.
 - [ ] **The Gateway's request carries a DISPOSITION and the other two do not.** Only the Gateway states a build quantity, and only its answer is short of it; a disposition on a line that clears outright is a bug.
 - [ ] Every request carries an **EFFECTIVITY** line.
-- [ ] **The board is already on the card**, before and after, with its caption — and **no *PLACE … ON THIS BOARD* button beside it**. The run computed it and the document carries it, so a button offering to compute it again has nothing to do. The pictures take a few seconds to arrive after a run; a card with the button is right for a world with no KiCad and wrong for this one a minute later.
 - [ ] Clicking a **notice** opens the notice, not the change request.
 
 ---
 
 ## Step 9a · What each desk owes
 
-**Do.** The rail's **Waiting on you** entry, the one carrying a count. Switch desks and open
-it again.
+**Do.** Switch desks with the rail switcher and come back to **Changes**. What this desk owes
+is at the top of the page; the rail's **Changes** entry carries the count beside its icon.
 
-- [ ] It names the desk you hold, at the top.
-- [ ] Every pending decision that desk may answer, across every product line, with what is being replaced and on which product.
+- [ ] **N waiting on you** at the top of `/changes`, naming the product line, the part, and what this desk is being asked to accept.
+- [ ] **Four ticks on each row**, one per desk, ticked where that desk has signed, with the count in words: *0 of 4 signed. Waiting on DESIGN, PROCUREMENT, PRODUCTION and QUALITY.*
 - [ ] The Gateway's row says procurement is being asked to accept the stock shortfall, and names the rule.
+- [ ] **OPEN THIS CHANGE** opens the notice that raised it, with the review already settled and the signature box waiting.
 - [ ] A decision this desk has already signed shows what it signed rather than buttons that would be refused.
-- [ ] A desk with nothing waiting says so plainly.
-- [ ] The count on the rail matches the number of rows you can act on.
+- [ ] A desk with nothing waiting shows no strip at all, and no badge.
+- [ ] The count on the rail matches the number of rows in the strip.
 
 ---
 

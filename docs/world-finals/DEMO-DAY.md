@@ -45,11 +45,12 @@ because procurement's rule already ran. What is left for the humans is four sign
 evidence already gathered — *procurement's approval becomes one click on evidence already
 gathered, instead of three days of investigation they run themselves.*
 
-**Three surfaces, and knowing which is which is the whole navigation.** `/changes` is the
-company view: what arrived, what it reaches, and every affected line running together.
-`/lines/:id` is one product: its power tree, its bill, its board and its own review. The same
-endpoint runs both, narrowed by `line_id`, so they cannot come to disagree about what a review
-is. `/approvals` is one desk: what it owes, across every product line, in its own terms.
+**Two surfaces, and knowing which is which is the whole navigation.** `/changes` is the company
+view: what arrived, what it reaches, every affected line running together, and what this desk
+owes at the top of the page. `/lines/:id` is one product: its power tree, its bill, its board
+and its own review. The same endpoint runs both, narrowed by `line_id`, so they cannot come to
+disagree about what a review is. There was a third, `/approvals`, and it was a second place to
+sign the same decisions the lanes already asked for.
 
 **Which desk you are is in the rail and in every header**, and it switches between four
 real sessions. Not an impersonation: a desk that has to sign has to be signed in.
@@ -225,9 +226,11 @@ will open it later, and what they see is the run that produced the question they
 ### Step 5c · The appendix behind the answer
 
 If a judge asks *how do you know the losing candidates were really checked*, the answer is in the
-change request itself. Under **CONSIDERED AND REJECTED**, every alternative carries the one
-sentence that killed it; opening it shows every check that sentence stands for — the satisfied
-ones, the failing one, the ones that did not apply, and the desk each one belongs to.
+change request itself. Under **CONSIDERED AND REJECTED**, every alternative that was tried gets
+its own block: the one sentence that killed it, and **the failing check printed underneath in
+full**, with the desk that owns it. The checks it passed are counted and folded away behind
+*the other N checks it passed*, because twenty-two satisfied verdicts is a wall of agreement
+that buries the one line worth reading.
 
 That is the shape every convention for rejected alternatives converges on, from NEPA's
 *alternatives considered but eliminated* to MADR's *considered options*: **one line in the body,
@@ -235,11 +238,13 @@ the working in the appendix.** NEPA's own standard is that a rejected alternativ
 briefly* rather than analysed in full, and the appendix is what makes brief honest. It is also
 why the grid the document used to be cut from stopped needing a screen of its own.
 
-### Step 9b · The layout consequence, on the document
+### Step 9b · The layout consequence, on the board itself
 
-The strongest artefact in the product used to sit behind a button nobody pressed. It is on the
-change request now: the real board, before and after, cropped to the regulator, with the
-footprint and both part numbers named underneath.
+The strongest artefact in the product sits on the product line's own **BOARD** pane: the real
+board, before and after, cropped to the regulator, with the footprint and both part numbers
+named underneath. It used to be on the change request, and it was moved because the question it
+answers is about *this* board — and because a card that repeats the same picture on three
+requests is a picture nobody looks at.
 
 **What it is worth saying.** Same package is a substitution; a different one is a board
 revision, and that inverts which part is cheap. This is the check that a parametric search
@@ -260,9 +265,10 @@ an assurance.
 
 ### Step 9a · What each desk owes
 
-Switch desk from the rail and open **Waiting on you**. This is the other half of removing the
-round trips: procurement does not have to be told which product line to open, or read a design
-trace to sign for procurement. Their own queue carries their own reason to care.
+Switch desk from the rail and stay on **Changes**. This is the other half of removing the round
+trips: procurement does not have to be told which product line to open, or read a design trace
+to sign for procurement. The strip at the top of the page carries their own reason to care, and
+the four ticks say who else has already signed.
 
 ### Step 9b · The shortfall procurement accepted
 
@@ -303,11 +309,16 @@ trip to the internet. The same review took over two minutes live and takes a qua
 second replayed, with identical verdicts and identical margins; reading the notice took
 1903 ms live and takes 7 ms, with the same reading.
 
-**The replay plays back at reading pace.** A recorded review fills the lanes over about twenty
-seconds rather than in a quarter of a second, so three products are seen working together rather
-than three verdicts appearing at once. The pace is staggered rather than metronomic — a fixed
-interval reads as a machine printing lines — and **SKIP TO THE END** is offered throughout for
-anybody who has seen enough.
+**The replay plays back at reading pace.** A recorded review fills the lanes over about
+**eighty seconds** rather than in a quarter of a second, so three products are seen working
+together rather than three verdicts appearing at once. Each line is given time in proportion to
+how much there is to read, and the pace is staggered rather than metronomic, because a fixed
+interval reads as a machine printing lines. **SKIP TO THE END** is offered throughout for
+anybody who has seen enough, and it is there the whole time rather than only at the start.
+
+**The pace is one constant, and it is the only thing to tune for the recording.** `FRAME_FLOOR_MS`
+and `FRAME_CEILING_MS` in `frontend/src/app/review/laneState.ts` set how long the shortest and
+longest line stay on screen. Nothing else anywhere in the product delays anything.
 
 **One thing to say if you are asked, and it is the honest half of the paragraph above.** The run
 is a **recording of a real run, played back.** The engine, every rule, KiCad and the model all
