@@ -139,12 +139,17 @@ else
   note "CONTINUITY_LLM_API_KEY in backend/.env; everything else still runs"
 fi
 
-if (cd "$ROOT/backend" && "$PY" -c 'from continuity import env, mail; env.load(); raise SystemExit(0 if mail.configured() else 1)'); then
-  ok "mailbox configured"
+# Signed in, not merely configured. The three variables were present all through the hour
+# Google was refusing this account, so this check used to pass while step 4 was the first
+# thing that could fail — which is the one step a rehearsal does not reach.
+mail_problem=$(cd "$ROOT/backend" && "$PY" -c 'from continuity import env, mail; env.load(); print(mail.reachable() or "")' 2>/dev/null | tail -1)
+if [ -z "$mail_problem" ]; then
+  ok "mailbox reachable — signed in"
 else
   WITH_MAIL=0
-  warn "no mailbox — the notice arrives by UPLOAD ONE INSTEAD rather than by email"
-  note "the three CONTINUITY_MAIL_* variables in backend/.env"
+  warn "mailbox not usable: $mail_problem"
+  note "the notice still arrives, by UPLOAD ONE INSTEAD on /changes"
+  note "a refused sign-in is usually a throttle after too much polling; it clears in minutes"
 fi
 
 recorded=$(ls "$ROOT"/backend/fixtures/*.json 2>/dev/null | wc -l | tr -d ' ')
@@ -219,7 +224,18 @@ api_env=(
   "DATABASE_URL=$DB"
   "CONTINUITY_KICAD=docker"
 )
-[ "$WITH_MAIL" = 1 ] && api_env+=("CONTINUITY_MAIL_ORG=engineer@northwind.example")
+if [ "$WITH_MAIL" = 1 ]; then
+  api_env+=("CONTINUITY_MAIL_ORG=engineer@northwind.example")
+else
+  # Blanked rather than left out, and that is the whole of this branch. The app calls
+  # `env.load()` and would otherwise find all four in backend/.env and poll a mailbox this
+  # run was told to leave alone — so `--no-mail` did not stop the polling it was written to
+  # stop, on the one day the polling is what closes the account.
+  api_env+=(
+    "CONTINUITY_MAIL_HOST=" "CONTINUITY_MAIL_USER="
+    "CONTINUITY_MAIL_PASSWORD=" "CONTINUITY_MAIL_ORG="
+  )
+fi
 [ "$FIXTURES" = 1 ] && api_env+=("CONTINUITY_FIXTURES=1")
 
 (
@@ -286,7 +302,17 @@ note "one desk each. Sign into each once; the rail switches between them after t
 echo
 if [ "$WITH_MAIL" = 1 ]; then
   echo "  Forward docs/world-finals/notices/PCN-2026-114.pdf to the demo mailbox for step 4."
-  note "the read position was moved past everything already in the inbox, so only new mail arrives"
+  # Asked of the database rather than asserted, because this line used to say the position
+  # had been moved whether or not it had: the seed sets it at rebuild time, and a mailbox
+  # that refused the sign-in leaves the world with no position at all — where the next poll
+  # reads the entire inbox as new mail and the notice arrives before step 4 does.
+  position=$(psql "$DB" -tAc "select uid from mail_cursor limit 1" 2>/dev/null | tr -d ' ')
+  if [ -n "$position" ]; then
+    note "the read position is at UID $position, so only mail forwarded from now on arrives"
+  else
+    warn "NO read position is stored — the poller would read the whole inbox as new mail"
+    note "get the mailbox answering, then run ./demo.sh again, before step 4"
+  fi
 else
   echo "  No mailbox: use UPLOAD ONE INSTEAD on /changes with the same PDF."
 fi

@@ -67,6 +67,23 @@ A bounded amount of work per tick. A mailbox that has been sitting unread for a 
 should not turn the first poll into fifty model calls.
 """
 
+PROCESSED_FOLDER = "Continuity/Processed"
+"""Where a message goes once it has become a notice.
+
+**The mailbox is the surface a person checks first, and it said nothing.** A message the
+poller had already acted on sat exactly where it was, looking untouched, beside the ones it
+had not read — so the only way to know what Continuity had dealt with was to open the
+database. Moving it makes the inbox itself the report: what is left in it is what was not
+a change notice.
+
+A move rather than a `\\Seen` flag, and the flag is deliberate: the read position is a
+stored UID precisely so that marking mail read stays the person's to do, and a poller that
+sets `\\Seen` would silently reorder somebody's inbox for them.
+
+A message that held no notice is **left where it is**, which is what makes the report true
+rather than tidy.
+"""
+
 
 @dataclass(frozen=True)
 class Delivery:
@@ -163,12 +180,18 @@ async def collect(
     *,
     read: Callable[[bytes], Awaitable[notices.Notice | None]] | None = None,
     validity: str | None = None,
+    stored: Callable[[Delivery], None] | None = None,
 ) -> list[str]:
     """Turn the messages that carry a notice into stored notices. Returns their ids.
 
     A message that holds no notice is **left alone**: nothing is stored, nothing is
     deleted, and nothing is guessed at. The read position still advances past it, because
     otherwise every poll re-reads the whole inbox and re-reading costs a model call.
+
+    `stored` is told about each message that **did** become a notice, so the caller can
+    tell the mailbox which ones it has finished with. It is a callback rather than a second
+    return value because the two answer different questions: the ids are what the caller
+    acts on, and the deliveries are what the mailbox needs to be told about.
     """
     read = read or notices.read
     saved: list[str] = []
@@ -192,6 +215,8 @@ async def collect(
         notice_id = await store.save_notice(org_id, None, notice, source=source)
         log.info("read %s out of %s, sent by %s", notice.mpn, source, delivery.sender)
         saved.append(notice_id)
+        if stored is not None:
+            stored(delivery)
 
     if highest is not None:
         await store.save_mail_cursor(org_id, validity=validity or "", uid=highest)
@@ -242,6 +267,58 @@ def deliveries(
                 )
             )
     return validity, found
+
+
+def move_to_processed(uids: Iterable[int], *, folder: str = PROCESSED_FOLDER) -> int:
+    """Move messages that have become notices out of the inbox. Returns how many moved.
+
+    **One connection of its own, and only when there is something to move.** The poll that
+    stores a notice is the rare one; every other poll returns here with an empty list and
+    does not authenticate at all. That matters more than it looks: a poll is a full login,
+    and the incident recorded in `POLL_CEILING_S` was a thousand of them an hour against a
+    mailbox that had already stopped answering.
+
+    `imap_tools` sends a server-side `UID MOVE` where the server advertises it and falls
+    back to `COPY` plus `STORE \\Deleted` where it does not, so Gmail takes the first path
+    and a server without `MOVE` still ends up with the message in the right place.
+    """
+    from imap_tools import MailBox
+
+    wanted = [str(uid) for uid in uids]
+    if not wanted:
+        return 0
+
+    host = os.environ["CONTINUITY_MAIL_HOST"]
+    user = os.environ["CONTINUITY_MAIL_USER"]
+    password = os.environ["CONTINUITY_MAIL_PASSWORD"]
+
+    with MailBox(host, port=IMAP_SSL_PORT, timeout=CONNECT_TIMEOUT_S).login(user, password) as box:
+        # Gmail refuses a move into a label that does not exist yet, and a fresh account
+        # has never had this one. `exists` first rather than catching the failure, because
+        # a create that races another writer is not an error worth reporting.
+        if not box.folder.exists(folder):
+            box.folder.create(folder)
+        box.move(wanted, folder)
+    return len(wanted)
+
+
+def reachable() -> str | None:
+    """Sign in and return `None`, or the mailbox's refusal as text.
+
+    **Configured and working are different states, and the preflight used to report the
+    first as the second.** The three variables were present all through the hour Google was
+    refusing this account, so `./demo.sh --check` printed `mailbox configured` and the first
+    thing to discover otherwise was step four of the demonstration.
+
+    One sign-in, at the moment somebody asked, which is cheap enough to do on purpose.
+    """
+    if not configured():
+        return "no mailbox configured"
+    try:
+        latest_uid()
+    except Exception as refusal:  # noqa: BLE001 - the server's own words are the report
+        return str(refusal)
+    return None
 
 
 def latest_uid() -> tuple[str | None, int | None]:
@@ -297,19 +374,80 @@ def _validity(box: Any) -> str | None:
 
 
 POLL_SECONDS = 15.0
-"""How often to look. Fast enough that a forwarded notice appears while somebody is still
-looking at the screen, slow enough that an idle app is not hammering a mailbox."""
+"""How often to look **while the mailbox is answering**. Fast enough that a forwarded
+notice appears while somebody is still looking at the screen."""
+
+POLL_CEILING_S = 300.0
+"""The longest the watcher will wait between attempts after a run of failures.
+
+A poll is a **full IMAP login**: `deliveries` opens a session, authenticates, reads and
+closes it, so fifteen seconds is 240 logins an hour. That is fine for the length of a
+demonstration and not fine for a process somebody forgot about, which is how this was
+found: a server started on 9 September was still polling on the 11th, an estimated nine
+thousand logins later, and Google stopped answering that account altogether. Its refusal
+arrives as `[ALERT] Invalid credentials (Failure)`, the same alert a revoked password
+gives, so the first hour of the incident went into regenerating a password that had never
+stopped working.
+
+Backing off costs nothing while the mailbox is healthy, because a healthy mailbox never
+reaches for it, and it bounds the damage when it is not: five minutes is twelve logins an
+hour instead of two hundred and forty."""
+
+
+def interval_after(failures: int, *, every: float = POLL_SECONDS) -> float:
+    """How long to wait before the next poll, after this many consecutive failures.
+
+    None is the healthy interval and each failure doubles it up to the ceiling. The count
+    is of *consecutive* failures, so one blip costs thirty seconds and not a permanent
+    slowdown: the caller clears it the moment a poll answers.
+    """
+    if failures <= 0:
+        return every
+    return min(every * 2 ** (failures - 1), POLL_CEILING_S)
 
 
 async def poll_once(store: Any, org_id: str) -> list[str]:
-    """One pass: read what is new, store any notices in it, move the position."""
+    """One pass: read what is new, store any notices in it, move the position.
+
+    A notice that was read and stored is then moved out of the inbox, which is the only
+    step here allowed to fail: the notice is already durable by then, and a mailbox that
+    will not accept the move is a tidiness problem rather than a lost change notice.
+    """
     import asyncio
 
     cursor = await store.mail_cursor(org_id)
+    if cursor is None:
+        # **Nothing has been read yet, and the honest position for a company that has just
+        # been created is the end of the folder.** The seed says so when it rebuilds a
+        # world; this is the same statement made again when the seed could not reach the
+        # mailbox to make it. Without it the poller asks the server for `ALL` and reads the
+        # entire inbox, which on 11 September is exactly what happened — and a forwarded
+        # copy of the notice left behind by a rehearsal would have been read back as though
+        # it had just arrived, before the step whose whole job is showing it arrive.
+        #
+        # A catch-up that fails raises, so a mailbox that is still unreachable is not read
+        # from the top either; the poll fails and backs off, as it should.
+        await catch_up(store, org_id)
+        cursor = await store.mail_cursor(org_id)
+
     validity, delivered = await asyncio.to_thread(deliveries, cursor=cursor)
     if not delivered:
         return []
-    return await collect(store, org_id, delivered, validity=validity)
+
+    dealt_with: list[Delivery] = []
+    saved = await collect(
+        store, org_id, delivered, validity=validity, stored=dealt_with.append
+    )
+    if dealt_with:
+        try:
+            await asyncio.to_thread(move_to_processed, [item.uid for item in dealt_with])
+        except Exception as failure:  # noqa: BLE001
+            log.warning(
+                "read %d notice(s) but could not move them out of the inbox: %s",
+                len(dealt_with),
+                failure,
+            )
+    return saved
 
 
 async def whose_mailbox(store: Any) -> str | None:
@@ -335,18 +473,23 @@ async def whose_mailbox(store: Any) -> str | None:
     return named
 
 
-async def watch(store: Any, *, every: float = POLL_SECONDS) -> None:
+async def watch(store: Any, *, every: float = POLL_SECONDS, sleep: Any = None) -> None:
     """Poll the mailbox for as long as the app is running.
 
     Started only when the three variables are set, so an unconfigured install does nothing
     and says so once. Every failure inside the loop is logged and swallowed: a mailbox that
     is unreachable, or credentials that stopped working, must not take the API down with
     them, and the upload path still works while it is broken.
+
+    A mailbox that keeps failing is asked **less and less often**, up to `POLL_CEILING_S`,
+    and the count is cleared by the first poll that answers. `sleep` is a seam for the test
+    that drives that schedule; nothing in the app passes it.
     """
     import asyncio
 
     from . import llm
 
+    wait = sleep or asyncio.sleep
     org_id = await whose_mailbox(store)
     if not org_id:
         log.warning(
@@ -358,6 +501,7 @@ async def watch(store: Any, *, every: float = POLL_SECONDS) -> None:
 
     log.info("watching %s for change notices, every %.0fs",
              os.environ.get("CONTINUITY_MAIL_USER"), every)
+    failures = 0
     while True:
         try:
             # Reading a notice needs the model. Polling without it would walk the whole
@@ -365,8 +509,14 @@ async def watch(store: Any, *, every: float = POLL_SECONDS) -> None:
             # at, which loses notices rather than delaying them.
             if llm.available():
                 await poll_once(store, org_id)
+            failures = 0
         except asyncio.CancelledError:
             raise
         except Exception as failure:  # noqa: BLE001
-            log.warning("mailbox poll failed, will try again: %s", failure)
-        await asyncio.sleep(every)
+            failures += 1
+            log.warning(
+                "mailbox poll failed, will try again in %.0fs: %s",
+                interval_after(failures, every=every),
+                failure,
+            )
+        await wait(interval_after(failures, every=every))

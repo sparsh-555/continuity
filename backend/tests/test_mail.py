@@ -251,6 +251,57 @@ def test_the_watcher_refuses_to_guess_whose_notice_it_is(monkeypatch, caplog):
 # ── the message we are handed is not the message we can read ─────────────────
 
 
+def test_a_world_that_has_never_read_its_mail_catches_up_before_it_reads_anything(monkeypatch):
+    """The seed moves a rebuilt world's read position past its inbox, and **this is the
+    second chance for the times it cannot reach the mailbox at all**.
+
+    11 September, live: the seed could not sign in, so the world kept no position, so the
+    poller asked the server for `ALL` and read the entire inbox. What it found there was an
+    older notice email, refused only because nobody had recorded that document. A forwarded
+    copy of the real notice, left in the mailbox by a rehearsal, would have been read back
+    as though it had just arrived — before step four, which is the step that shows it
+    arriving.
+    """
+    store = _Store()
+    asked: list[object] = []
+    caught_up: list[str] = []
+
+    async def catch_up(store_arg, org_id):
+        caught_up.append(org_id)
+        store_arg.cursor = ("1", 8)
+        return 8
+
+    def deliveries(*, cursor, limit=None):
+        asked.append(cursor)
+        return "1", []
+
+    monkeypatch.setattr(mail, "catch_up", catch_up)
+    monkeypatch.setattr(mail, "deliveries", deliveries)
+    monkeypatch.setattr("continuity.llm.available", lambda: True)
+
+    assert asyncio.run(mail.poll_once(store, "org-1")) == []
+    assert caught_up == ["org-1"], "a world with no position catches up before it reads"
+    assert asked == [("1", 8)], "and it reads from where that left it, not from the top"
+
+
+def test_a_world_that_has_read_its_mail_is_not_caught_up_again(monkeypatch):
+    """Catching up is for a world with no position. Doing it every poll would be a second
+    login every fifteen seconds, which is what closed this account in the first place."""
+    store = _Store()
+    store.cursor = ("1", 41)
+    asked: list[object] = []
+
+    async def catch_up(*_args, **_kwargs):
+        raise AssertionError("a world with a position must not be caught up again")
+
+    monkeypatch.setattr(mail, "catch_up", catch_up)
+    monkeypatch.setattr(mail, "deliveries", lambda *, cursor, limit=None: (asked.append(cursor), ("1", []))[1])
+    monkeypatch.setattr("continuity.llm.available", lambda: True)
+
+    assert asyncio.run(mail.poll_once(store, "org-1")) == []
+    assert asked == [("1", 41)]
+
+
 def test_a_message_parsed_the_way_imap_tools_parses_one_still_yields_its_attachment():
     """The guard on the trap that would have shipped.
 
@@ -456,3 +507,212 @@ def test_an_address_nobody_holds_is_refused_rather_than_guessed(monkeypatch):
 def test_an_organisation_id_is_still_accepted(monkeypatch):
     monkeypatch.setenv("CONTINUITY_MAIL_ORG", "563595ec3fb4")
     assert asyncio.run(mail.whose_mailbox(_Companies())) == "563595ec3fb4"
+
+
+# ── a mailbox that is refusing us is asked less and less often ───────────────
+
+
+class _Enough(BaseException):
+    """Ends the watcher from inside the fake sleep.
+
+    A `BaseException` on purpose. The loop swallows every `Exception`, because a mailbox
+    that stopped answering must not take the API down with it, so a test that wants to end
+    the loop has to arrive at a level that `except Exception` cannot catch.
+    """
+
+
+def _driven(monkeypatch, *, outcomes, every=mail.POLL_SECONDS):
+    """Run the watcher through `outcomes` and return every interval it waited.
+
+    One outcome per poll: True for a poll that answered, False for one that raised.
+    """
+    monkeypatch.delenv("CONTINUITY_MAIL_ORG", raising=False)
+    slept: list[float] = []
+
+    async def sleep(seconds):
+        slept.append(seconds)
+        if len(slept) == len(outcomes):
+            raise _Enough
+
+    polls = iter(outcomes)
+
+    async def poll_once(store, org_id):
+        if not next(polls):
+            raise RuntimeError("[ALERT] Invalid credentials (Failure)")
+
+    monkeypatch.setattr(mail, "poll_once", poll_once)
+    monkeypatch.setattr("continuity.llm.available", lambda: True)
+
+    try:
+        asyncio.run(mail.watch(_Companies(only="org-1"), every=every, sleep=sleep))
+    except _Enough:
+        pass
+    return slept
+
+
+def test_a_mailbox_that_keeps_refusing_us_is_asked_less_and_less_often(monkeypatch):
+    """Found the hard way on 11 September, and not by the suite.
+
+    A poll is a **full IMAP login**, so fifteen seconds is 240 of them an hour. A server
+    started on 9 September was still running on the 11th, roughly nine thousand logins
+    later, and Google stopped answering that account for the next hour. What it says then
+    is `[ALERT] Invalid credentials`, which is also what a revoked password says, so the
+    first hour went into re-creating a password that had never stopped working.
+    """
+    slept = _driven(monkeypatch, outcomes=[False, False, False, False], every=15.0)
+    assert slept == [15.0, 30.0, 60.0, 120.0]
+
+
+def test_one_poll_that_answers_puts_the_interval_back_where_it_was(monkeypatch):
+    """The half that decides whether the demo still works.
+
+    A mailbox that recovers has to be read at fifteen seconds again. An interval that only
+    ever grew would mean a notice forwarded after a single blip waits minutes to be seen,
+    which is a worse failure than the one the backoff exists to prevent.
+    """
+    slept = _driven(monkeypatch, outcomes=[False, False, True, False], every=15.0)
+    assert slept == [15.0, 30.0, 15.0, 15.0]
+
+
+def test_the_interval_never_grows_past_the_ceiling(monkeypatch):
+    slept = _driven(monkeypatch, outcomes=[False] * 8, every=15.0)
+    assert slept[-1] == mail.POLL_CEILING_S
+    assert all(seconds <= mail.POLL_CEILING_S for seconds in slept)
+
+
+def test_no_failures_at_all_is_the_healthy_interval():
+    assert mail.interval_after(0) == mail.POLL_SECONDS
+
+
+# ── the mailbox is the surface a person checks first ─────────────────────────
+
+
+class _Folder:
+    def __init__(self, exists: bool, created: list):
+        self._exists = exists
+        self._created = created
+
+    def exists(self, folder):
+        return self._exists
+
+    def create(self, folder):
+        self._created.append(folder)
+        self._exists = True
+
+
+class _Box:
+    """A mailbox that records what was asked of it and answers nothing else."""
+
+    def __init__(self, *, folder_exists: bool = True):
+        self.created: list[str] = []
+        self.moved: list[tuple[list[str], str]] = []
+        self.folder = _Folder(folder_exists, self.created)
+
+    def login(self, user, password):
+        self.credentials = (user, password)
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def move(self, uids, destination):
+        self.moved.append((list(uids), destination))
+
+
+def _a_box(monkeypatch, **kwargs):
+    opened = []
+
+    def factory(*_args, **_kwargs):
+        opened.append(_Box(**kwargs))
+        return opened[-1]
+
+    monkeypatch.setattr("imap_tools.MailBox", factory)
+    monkeypatch.setenv("CONTINUITY_MAIL_HOST", "imap.example.com")
+    monkeypatch.setenv("CONTINUITY_MAIL_USER", "notices@example.com")
+    monkeypatch.setenv("CONTINUITY_MAIL_PASSWORD", "app-password")
+    return opened
+
+
+def test_the_mailbox_is_told_which_messages_became_notices(monkeypatch):
+    """What it is told is what it moves, and nothing else.
+
+    A message that held no notice stays where it is on purpose: that is what makes the
+    inbox itself the report. What is left in it is what was not a change notice.
+    """
+    deliveries = [
+        mail.Delivery(uid=7, subject="a catalogue", sender="sales@x.com",
+                      documents=(("catalogue.pdf", b"%PDF-1.4 nothing"),)),
+        mail.Delivery(uid=8, subject="PCN", sender="notices@x.com",
+                      documents=(("PCN.pdf", b"%PDF-1.4 the notice"),)),
+    ]
+    told: list[int] = []
+
+    async def go():
+        return await mail.collect(
+            _Store(), "org-1", deliveries,
+            read=_reader({b"%PDF-1.4 the notice": NOTICE}),
+            stored=lambda delivery: told.append(delivery.uid),
+        )
+
+    saved = asyncio.run(go())
+    assert saved == ["notice-1"]
+    assert told == [8]
+
+
+def test_nothing_to_move_does_not_open_the_mailbox(monkeypatch):
+    """A poll that stored nothing must not authenticate a second time for it."""
+    opened = _a_box(monkeypatch)
+    assert mail.move_to_processed([]) == 0
+    assert opened == []
+
+
+def test_a_processed_message_is_moved_into_its_own_folder(monkeypatch):
+    """The read position is a stored UID rather than \\Seen precisely so that flag stays
+    the person's to set, so a message Continuity has dealt with is moved instead."""
+    opened = _a_box(monkeypatch)
+    assert mail.move_to_processed([8]) == 1
+    assert opened[0].moved == [(["8"], mail.PROCESSED_FOLDER)]
+    assert opened[0].created == [], "the folder is not created when it is already there"
+
+
+def test_the_folder_is_created_when_the_mailbox_does_not_have_it(monkeypatch):
+    """Gmail rejects a move into a label that does not exist yet."""
+    opened = _a_box(monkeypatch, folder_exists=False)
+    assert mail.move_to_processed([8, 9]) == 2
+    assert opened[0].created == [mail.PROCESSED_FOLDER]
+    assert opened[0].moved == [(["8", "9"], mail.PROCESSED_FOLDER)]
+
+
+def test_a_move_that_fails_does_not_lose_the_notice(monkeypatch):
+    """The notice is stored before anything is moved, and tidying the mailbox is the part
+    allowed to fail. A folder that cannot be created must not cost a change notice.
+
+    The call is recorded as well as raised, because a poll that never tries to move anything
+    would pass this on the first half alone — which is a test passing for the wrong reason.
+    """
+    store = _Store()
+    store.cursor = ("1", 7)
+    attempts: list[list[int]] = []
+
+    async def read(_document):
+        return NOTICE
+
+    def refuses(uids, **_kwargs):
+        attempts.append(list(uids))
+        raise OSError("the mailbox refused the move")
+
+    monkeypatch.setattr(mail.notices, "read", read)
+    monkeypatch.setattr(mail, "move_to_processed", refuses)
+    monkeypatch.setattr(mail, "deliveries", lambda **_kwargs: (
+        "1",
+        [mail.Delivery(uid=8, subject="PCN", sender="n@x.com",
+                       documents=(("PCN.pdf", b"%PDF-1.4 the notice"),))],
+    ))
+    monkeypatch.setattr("continuity.llm.available", lambda: True)
+
+    assert asyncio.run(mail.poll_once(store, "org-1")) == ["notice-1"]
+    assert store.saved == [("AMS1117-3.3", "PCN.pdf")]
+    assert attempts == [[8]], "the message that became the notice is what gets moved"
