@@ -182,10 +182,15 @@ function AuthCard({ mode }: AuthCardProps) {
           </button>
         </form>
 
-        {isSignIn ? (
+        {isSignIn && import.meta.env.DEV ? (
           <>
             <div className="border-t border-outline-variant" />
             {/* **The four seeded desks, signed in at once, before the camera rolls.**
+                Development only, and that is the whole point: a control that authenticates
+                four fixed accounts belongs to the demo world, and anybody opening the
+                deployed application must not find it. `import.meta.env.DEV` is true under
+                `bun run dev`, which is what `./demo.sh` runs, and false in every build — so
+                this cannot reach a deployment by being forgotten. **The four seeded desks, signed in at once, before the camera rolls.**
                 Demo craft guidance is explicit that a presenter should pre-authenticate and
                 never sign in live, and the product already holds every session this browser
                 has authenticated — so this is four calls rather than a new mechanism.

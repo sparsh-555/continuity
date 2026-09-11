@@ -79,6 +79,64 @@ class Alternative:
         return self.rejected_because is None
 
 
+ECO_TOUCH_HOURS = 5.2
+"""An engineering-change iteration's touch time, from Loch & Terwiesch (1999).
+
+Their per-task figures — a solution proposal at 2 h, simulation setup at 30 + 90 min, a
+cost-impact check at 45 min, parts ordering at 45 min, an approval at 10 min — sum to about
+five hours against **56 hours of throughput**, with waiting at 70–90% of it.
+https://doi.org/10.1016/s0737-6782(98)00042-3"""
+
+HANDOFF_STALL_DAYS = 0.9
+"""How long a request crossing between people stalls, from Herbsleb et al. (2001).
+
+A mean of **0.9 days** between people in one site, against 2.4 days across a boundary. The
+sequential process this product replaces moved one change between four desks, which is three
+crossings, each of which is a person's queue rather than their work.
+https://herbsleb.org/web-pubs/pdfs/herbsleb-empirical-2001.pdf"""
+
+
+@dataclass(frozen=True)
+class Saving:
+    """What the round trips that no longer happen were worth, in the literature\'s own terms.
+
+    **No published method turns counts into hours, so this does not pretend to be one.** What
+    is published is constants, and these two are applied to numbers this run actually holds:
+    the desks that examined the change, and the crossings a sequential process would have
+    needed to move it between them. The arithmetic is on the document and the constants are
+    here with their sources, so a reader can argue with the estimate rather than with the
+    conclusion — and an estimate that survives *where did that come from* is worth more than
+    a measured-looking number that does not.
+
+    It is an estimate. Nobody instrumented the old process, and nothing here has been
+    measured against it.
+    """
+
+    desk_hours: float
+    queue_days: float
+    desks: int
+    crossings: int
+
+    @property
+    def basis(self) -> str:
+        return (
+            f"one engineering-change iteration at {ECO_TOUCH_HOURS} h of desk time "
+            f"(Loch & Terwiesch 1999), and {self.crossings} handoff"
+            f"{'' if self.crossings == 1 else 's'} at {HANDOFF_STALL_DAYS} days each "
+            f"(Herbsleb et al. 2001). An estimate from published constants and this run\'s own "
+            f"count of desks, not a measurement of the process it replaces."
+        )
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "desk_hours": self.desk_hours,
+            "queue_days": self.queue_days,
+            "desks": self.desks,
+            "crossings": self.crossings,
+            "basis": self.basis,
+        }
+
+
 @dataclass(frozen=True)
 class Cost:
     """What the change costs, split the way somebody approving it needs to see it."""
@@ -132,6 +190,23 @@ class ChangeRequest:
 
     cost: Cost
     approvals_required: tuple[str, ...]
+
+    saving: Saving | None = None
+    """What the removed round trips are worth, estimated from published constants.
+
+    `None` where nothing was proposed: a change nobody is going to make does not save anybody
+    a handoff."""
+
+    disposition: str | None = None
+    """What has to happen to the stock the change leaves behind, where that is a decision.
+
+    An engineering change order carries an inventory disposition, and this product already
+    knows when one is needed: a line whose answer is short of the quantity it builds is
+    asking somebody to bridge-buy, accept a lead time, or qualify a second source."""
+
+    effectivity: str = "on the last signature"
+    """When the change takes effect. Not a date: nothing is ordered or fabricated before
+    every desk that examined it has signed, which is the gate the whole flow runs on."""
 
     checked: "Checked | None" = None
     """What was checked before anybody was asked anything.
@@ -209,6 +284,9 @@ class ChangeRequest:
             ],
             "no_evidence": list(self.no_evidence),
             "cost": self.cost.to_json(),
+            "saving": self.saving.to_json() if self.saving else None,
+            "disposition": self.disposition,
+            "effectivity": self.effectivity,
             "approvals_required": list(self.approvals_required),
             "departments": [d.to_json() for d in self.departments],
             "checked": self.checked.to_json() if self.checked else None,
@@ -329,6 +407,16 @@ def for_line(
     source = chosen if chosen is not None else baseline
     verdicts = source.verdicts if source is not None else ()
     approved = {mpn.upper() for mpn in (approved_mpns or ())}
+    # Computed once, because the saving's count of desks and the document's list of desks that
+    # must sign are the same fact and must not be able to disagree.
+    desks = _approvals_for(chosen, verdicts)
+    # **Failed**, not merely present: every board in the demonstration carries an availability
+    # verdict and most of them are satisfied, so keying on the rule alone puts a disposition on
+    # a change that has nothing to dispose of.
+    short_of_stock = chosen is not None and any(
+        verdict.rule == "availability" and verdict.status == "failed"
+        for verdict in chosen.verdicts
+    )
 
     return ChangeRequest(
         line_id=line_id,
@@ -358,7 +446,23 @@ def for_line(
             annual_volume,
             qualified=chosen is not None and chosen.candidate.mpn.upper() in approved,
         ),
-        approvals_required=_approvals_for(chosen, verdicts),
+        saving=(
+            None
+            if chosen is None
+            else Saving(
+                desk_hours=ECO_TOUCH_HOURS,
+                queue_days=round(max(len(desks) - 1, 0) * HANDOFF_STALL_DAYS, 1),
+                desks=len(desks),
+                crossings=max(len(desks) - 1, 0),
+            )
+        ),
+        disposition=(
+            "This line's answer is short of the quantity it builds, so somebody has to choose: "
+            "bridge-buy against the shortfall, accept the lead time, or qualify a second source."
+            if short_of_stock
+            else None
+        ),
+        approvals_required=desks,
         # The cell's position, not the matrix's: a grid spanning boards that carry the
         # part at different designators has no single one to name.
         departments=_departments_for(verdicts, cells[0].slot if cells else None),

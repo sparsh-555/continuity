@@ -251,6 +251,13 @@ and runs its own design rule check before and after. It is the same deterministi
 rest of the checks use, and it is the reason the phrase *we do not let a model decide what is
 electrically sound* holds all the way to the artwork.
 
+**And the pane says what it did to *this* board**, which it never used to. Not a sentence about
+every board in the demonstration: the pads the substitute's functions were carried onto —
+`pad 1 → GND, pad 2 → /+3.3vSB, pad 3 → /+5vSB` on the Gateway — then what two DRC runs found
+before and after, and then **WHAT RAN**: five operations with the seconds each took. Those
+numbers are taken with a clock inside the container, so *the check ran* is a figure rather than
+an assurance.
+
 ### Step 9a · What each desk owes
 
 Switch desk from the rail and open **Waiting on you**. This is the other half of removing the
@@ -360,6 +367,14 @@ are gone: nobody proposes a part and waits two days to learn procurement cannot 
 procurement's rule ran on every candidate before anybody proposed anything. What is left for
 the humans is four signatures on evidence already gathered, and the change request says exactly
 how much was checked to produce it.
+
+**Where does the saving come from?** Two published constants applied to counts this run holds,
+and it is worth saying them rather than a total. One engineering-change iteration is about five
+hours of desk time (Loch & Terwiesch, 1999), and a handoff between people stalls about 0.9 days
+(Herbsleb et al., 2001); four desks means three handoffs, which is where *about 5.2 hours and
+about 2.7 days* comes from. **It is an estimate and the document says so in the same sentence** —
+nobody instrumented the old process, so there is no measured figure to quote and **no 48 hours to
+claim**: that clock belongs to the problem statement, not to us.
 
 **What is not built?** Answer plainly from DEFERRED, which is written down rather than
 discovered. The one that is still red: a mailed notice raises no notification, so `/changes`

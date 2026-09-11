@@ -359,12 +359,20 @@ def test_the_demo_plays_end_to_end_on_the_seeded_world(monkeypatch):
     assert stored.status_code == 200, stored.text
     requests = {r["line_name"]: r for r in stored.json()}
     assert len(requests) == 3
+    # **The disposition turns on a line's own stated build quantity**, which is why it is
+    # asserted here: only the Gateway states one, and only its answer is short of it.
+    assert "bridge-buy" in requests["Gateway"]["disposition"]
+    assert requests["Sensor node"]["disposition"] is None
 
     for name, request in requests.items():
         assert request["baseline_mpn"] == AMS1117.mpn
         assert request["revision"] == seed_world.REVISION
         assert "not_assessed" not in request, f"{name} contains a retired coverage status"
         assert request["cost"]["recurring_annual"] is not None, "a volume was stated"
+        # The saving is an estimate from published constants, and it carries them.
+        assert request["saving"]["desks"] == len(request["approvals_required"])
+        assert "estimate" in request["saving"]["basis"]
+        assert request["effectivity"] == "on the last signature"
 
     # **Every alternative says who makes it**, because the number alone does not name a
     # part and the working has to be askable-for again without re-sourcing it. `LD1117-3.3`

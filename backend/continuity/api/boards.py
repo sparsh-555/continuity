@@ -284,6 +284,10 @@ def _consequence(raw: bytes, retiring: str, candidate: str) -> dict[str, Any]:
                 "unwired_pads": list(outcome.wiring.unwired_pads),
                 "stranded": list(outcome.wiring.roles_with_nowhere_to_go),
             },
+            # **What the substitution actually did, with the clock it did it on.** The pane
+            # has recited one hand-written sentence about every board since it was built; the
+            # operations were already running and nobody was timing them.
+            "steps": [{"name": step.name, "ms": step.ms} for step in outcome.steps],
             "broke_connections": outcome.broke_connections,
             "added": [
                 {

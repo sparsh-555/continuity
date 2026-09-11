@@ -252,6 +252,9 @@ export type BoardConsequence = {
     /** Roles the old part used that the substitute has no pin for. The loudest case. */
     stranded: string[]
   }
+  /** What ran to produce this, and what each operation cost. Absent on a payload stored
+   *  before 11 Sep, when nothing was timed. */
+  steps?: Array<{ name: string; ms: number }>
   broke_connections: boolean
   /** The page the pictures were drawn on, in millimetres, so a crop means something. */
   page: { width: number; height: number }
@@ -360,6 +363,19 @@ export type ChangeRequest = {
   /** Rules it tried to answer and could not — a different admission, kept apart. */
   no_evidence: string[]
   cost: ChangeRequestCost
+  /** What the round trips that no longer happen are worth, from published constants applied
+   *  to this run's own counts. Absent on a document written before 11 Sep. */
+  saving?: {
+    desk_hours: number
+    queue_days: number
+    desks: number
+    crossings: number
+    basis: string
+  } | null
+  /** What has to happen to the stock the change leaves behind, where that is a decision.
+   *  Only present where a line stated a build quantity and its answer is short of it. */
+  disposition?: string | null
+  effectivity?: string
   approvals_required: string[]
   /** What each desk found, over the same verdicts the evidence is drawn from. A desk that
    *  looked at nothing is absent rather than empty. */

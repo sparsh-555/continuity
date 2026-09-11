@@ -195,6 +195,16 @@ export function BoardConsequence({
 
   if (!candidate) return null
 
+  // Read from the payload rather than written here: which pads were carried and what DRC
+  // changed are facts about *this* board, and the pane that describes the substitution has
+  // never had them.
+  const wired = outcome
+    ? Object.entries(outcome.wiring.wired)
+        .map(([pad, net]) => `pad ${pad} \u2192 ${net}`)
+        .join(', ')
+    : ''
+  const changed = Object.entries(outcome?.counts ?? {})
+
   return (
     <section className={auto ? 'space-y-sm' : 'space-y-sm border-t border-outline-variant pt-md'}>
       <div className="flex items-center justify-between gap-md">
@@ -242,6 +252,46 @@ export function BoardConsequence({
                 : ' The pads it lands on are the pads that are already there.'}
             </span>
           </p>
+
+          {/* **What was carried, and by function.** The swap maps the substitute's pads onto
+              the nets those functions already sat on, and that mapping is the electrical work.
+              It has been on the wire since the endpoint existed and went unread, while this
+              pane recited one hand-written sentence about every board in the demonstration. */}
+          {wired ? (
+            <p className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed">
+              Carried by function: {wired}.
+            </p>
+          ) : null}
+
+          {/* What DRC found before and after, in the run's own numbers rather than a claim
+              that it ran. On every board in this demonstration the answer is "nothing
+              changed", and saying so is the point: a check that ran and found nothing is not
+              the same as a check nobody performed. */}
+          <p className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed">
+            {changed.length === 0
+              ? 'DRC before and after: nothing changed.'
+              : `DRC before and after: ${changed
+                  .map(([rule, counts]) => `${rule.replace(/_/g, ' ')} ${counts.before} → ${counts.after}`)
+                  .join(', ')}.`}
+          </p>
+
+          {/* **What ran, and what it cost.** Five operations, timed with a clock inside the
+              container rather than narrated: the same pane used to describe this work in one
+              sentence nobody could check. */}
+          {outcome.steps?.length ? (
+            <div className="space-y-0.5">
+              <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant">WHAT RAN</p>
+              {outcome.steps.map((step) => (
+                <p
+                  className="m-0 font-data-tabular text-[10px] text-on-surface-variant/80 leading-relaxed"
+                  key={step.name}
+                >
+                  {step.name} ·{' '}
+                  {step.ms >= 1000 ? `${(step.ms / 1000).toFixed(1)} s` : `${step.ms} ms`}
+                </p>
+              ))}
+            </div>
+          ) : null}
 
           <p className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed">
             {boardChangeCaption(outcome)}

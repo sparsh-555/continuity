@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -86,6 +88,20 @@ class Wiring:
 
 
 @dataclass(frozen=True)
+class Step:
+    """One thing the substitution actually does, and how long it took.
+
+    **Measured, not narrated.** The pane that describes this work has recited one hand-written
+    sentence about every board since it was built; what it lacked was not a better sentence but
+    the facts — which pads were carried, what DRC changed, and what the five operations cost.
+    This is the last of those three, and it is taken with a clock rather than chosen.
+    """
+
+    name: str
+    ms: int
+
+
+@dataclass(frozen=True)
 class Consequence:
     """The whole answer for one substitute on one board."""
 
@@ -96,6 +112,7 @@ class Consequence:
     before: render.Picture
     after: render.Picture
     crop: render.Crop
+    steps: tuple[Step, ...] = ()
 
     @property
     def broke_connections(self) -> bool:
@@ -174,7 +191,18 @@ def consequence(
     The original board file is never written to. The substituted copy is a new file beside
     it, which is also what makes the two renders comparable.
     """
-    placed = placements(project, runner)
+    steps: list[Step] = []
+
+    @contextmanager
+    def step(name: str):
+        started = time.monotonic()
+        try:
+            yield
+        finally:
+            steps.append(Step(name, int((time.monotonic() - started) * 1000)))
+
+    with step("read the board's placements"):
+        placed = placements(project, runner)
     if refdes not in placed:
         raise NoSuchPart(
             f"this board has no {refdes}. It places "
@@ -196,38 +224,47 @@ def consequence(
         "nets": dict(wiring.wired),
     }
     (project.root / "kicad-swap.json").write_text(json.dumps(spec), encoding="utf-8")
-    _run_script(
-        runner,
-        "swap_footprint.py",
-        [project.board_name, after_board, "kicad-swap.json", "kicad-swap-report.json"],
-        workdir=project.root,
-    )
+    with step("place the part and carry its nets by function"):
+        _run_script(
+            runner,
+            "swap_footprint.py",
+            [project.board_name, after_board, "kicad-swap.json", "kicad-swap-report.json"],
+            workdir=project.root,
+        )
 
     # Both boards through the same filler, each in its own interpreter. `pcbnew` keeps
     # global state and two boards in one process made the same input answer differently.
     filled_before = f"kicad-filled-before-{refdes}.kicad_pcb"
     filled_after = f"kicad-filled-after-{refdes}.kicad_pcb"
-    _run_script(runner, "refill_zones.py", [project.board_name, filled_before],
-                workdir=project.root)
-    _run_script(runner, "refill_zones.py", [after_board, filled_after], workdir=project.root)
+    with step("refill the zones on both copies"):
+        _run_script(runner, "refill_zones.py", [project.board_name, filled_before],
+                    workdir=project.root)
+        _run_script(runner, "refill_zones.py", [after_board, filled_after],
+                    workdir=project.root)
 
-    before = drc.run(
-        runner, workdir=project.root, board=filled_before, out="kicad-drc-before.json"
-    )
-    after = drc.run(
-        runner, workdir=project.root, board=filled_after, out="kicad-drc-after.json"
-    )
+    with step("run DRC before and after"):
+        before = drc.run(
+            runner, workdir=project.root, board=filled_before, out="kicad-drc-before.json"
+        )
+        after = drc.run(
+            runner, workdir=project.root, board=filled_after, out="kicad-drc-after.json"
+        )
+
+    with step("render both pictures"):
+        before_svg = render.svg(
+            runner, workdir=project.root, board=project.board_name, out="kicad-before.svg"
+        )
+        after_svg = render.svg(
+            runner, workdir=project.root, board=after_board, out="kicad-after.svg"
+        )
 
     return Consequence(
         placement=placement,
         footprint=footprint,
         wiring=wiring,
         delta=drc.compare(before, after),
-        before=render.svg(
-            runner, workdir=project.root, board=project.board_name, out="kicad-before.svg"
-        ),
-        after=render.svg(
-            runner, workdir=project.root, board=after_board, out="kicad-after.svg"
-        ),
+        before=before_svg,
+        after=after_svg,
         crop=render.around(placement.x_mm, placement.y_mm),
+        steps=tuple(steps),
     )

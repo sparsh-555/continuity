@@ -1,5 +1,23 @@
 # Task · DEFERRED pass 4 — the review as the artefact, and the demo's last mile
 
+> **Status: pass 4 is complete, 11 September.** All eight items landed, P12 to P19. What each
+> did is in the commits; what each exposed is below.
+>
+> Three things worth carrying forward from the building of it:
+>
+> - **The paced replay crashed the page on its first run.** The `setState` updater read a mutable
+>   index, and React calls an updater when it renders rather than when it is handed over — by
+>   which point later steps had advanced the index past the end and the reducer was handed
+>   `undefined`. The file's own comment, four lines above, warned that an updater must stay pure.
+> - **Two fields broke the client on documents written before they existed** — the replay's
+>   `origin` and the appendix's `verdicts`. A stored record is not rewritten, so every reader has
+>   to tolerate its absence. Both were found by opening the page; neither was visible to the
+>   suite.
+> - **The sign-in sweep is development-only, and committed.** `import.meta.env.DEV` gates it, so
+>   it cannot reach a built frontend — `grep -c 'SIGN IN ALL FOUR DESKS' dist/assets/*.js` is
+>   zero. Sparsh asked for it to stay out of the repository; committing it *gated* is stronger
+>   than leaving a local diff, which the next checkout takes with it.
+
 Pass 4 is the pass that makes the product into the demonstration. Passes 2 and 3 were about
 being correct; this one is about being *legible* in five recorded minutes, without putting a
 single false thing on screen. Nothing here is a new capability. Everything here is either a

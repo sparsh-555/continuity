@@ -224,6 +224,10 @@ request · NCP1117ST33T3G**. Press it.
 - [ ] The document opens in the right-hand drawer: the proposal, every rejection with its sentence, **every department that examined the change with its own result**, evidence, anything that could not be checked, cost, the desks required, and what was checked before anybody was asked.
 - [ ] **The recurring cost is a real figure**, because the line's own profile states an annual volume with a source. The Gateway reads **$2,344 a year**, under **+$0.1172 a unit at 20,000/yr**; the Sensor node $171.60 and the Cabinet controller $68.64. *No annual volume stated* would be a bug.
 - [ ] **Nothing on this document says a rule could not be checked.** Until 11 September `signal_integrity` did, on all three requests, because the datasheet figures it stacks never reached the engine. A `COULD NOT CHECK` block here is now a bug rather than a known state.
+- [ ] **THE BOARD says what it did to *this* board**: the pads carried by function with their real net names, what DRC found before and after, and **WHAT RAN** — five operations with the seconds each took, timed in the container.
+- [ ] The request carries **WHAT THE MISSING ROUND TRIPS ARE WORTH**, naming both constants and their sources, and saying in the same sentence that it is an estimate.
+- [ ] **The Gateway's request carries a DISPOSITION and the other two do not.** Only the Gateway states a build quantity, and only its answer is short of it; a disposition on a line that clears outright is a bug.
+- [ ] Every request carries an **EFFECTIVITY** line.
 - [ ] **The board is already on the card**, before and after, with its caption — and **no *PLACE … ON THIS BOARD* button beside it**. The run computed it and the document carries it, so a button offering to compute it again has nothing to do. The pictures take a few seconds to arrive after a run; a card with the button is right for a world with no KiCad and wrong for this one a minute later.
 - [ ] Clicking a **notice** opens the notice, not the change request.
 

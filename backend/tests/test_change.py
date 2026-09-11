@@ -216,9 +216,43 @@ def test_a_request_serialises_whole():
     assert set(body) == {
         "line_id", "line_name", "revision", "baseline_mpn", "notice_mpn", "notice_id",
         "proposal", "proposal_detail", "alternatives", "evidence",
-        "no_evidence", "cost", "approvals_required", "departments", "checked",
+        "no_evidence", "cost", "saving", "disposition", "effectivity",
+        "approvals_required", "departments", "checked",
     }
     assert body["cost"]["one_time_basis"]
+
+
+def test_the_saving_is_an_estimate_with_its_arithmetic_and_its_sources():
+    """**No published method turns counts into hours**, so this does not pretend to be one.
+
+    What is published is constants: Loch & Terwiesch's five work-hours of touch time for an
+    engineering change, Herbsleb's 0.9 days of stall per crossing between people. They are
+    applied to the desks this run actually asked, and the basis says so in as many words — an
+    estimate that survives *where did that come from* is worth more than a measured-looking
+    number that does not.
+    """
+    [request] = [r for r in requests(prefer=[LD1117.mpn]) if r.line_id == "B"]
+
+    saving = request.saving
+
+    assert saving is not None
+    assert saving.desks == len(request.approvals_required), "one count of desks, not two"
+    assert saving.crossings == saving.desks - 1, "four desks are three crossings"
+    assert saving.queue_days == round(saving.crossings * 0.9, 1)
+    assert "estimate" in saving.basis and "Loch" in saving.basis and "Herbsleb" in saving.basis
+    assert request.to_json()["saving"]["basis"] == saving.basis
+
+
+def test_a_change_says_when_it_takes_effect_and_a_full_line_disposes_of_nothing():
+    """**The disposition itself is asserted against the seeded world**, not here: it turns on a
+    line's stated build quantity, and this fixture's lines state none — so a disposition
+    assertion here would pass or fail for a reason that has nothing to do with the mechanism.
+    """
+    by_line = {r.line_id: r for r in requests(prefer=[TLV1117.mpn])}
+
+    assert by_line["B"].effectivity == "on the last signature"
+    assert by_line["A"].disposition is None
+    assert by_line["B"].disposition is None, "no line here states a quantity to be short of"
 
 
 # ── precedents: what was decided before ───────────────────────────────────────

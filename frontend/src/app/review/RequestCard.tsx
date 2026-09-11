@@ -163,10 +163,8 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
         stored={request.board ?? null}
       />
 
-      {/* What this replaced, in the run's own numbers. Deliberately a footnote and
-          deliberately not a saving: nobody measured how long a cross-team response takes
-          here, and a fabricated hours-saved figure is the first thing a judge would ask
-          about. The sequence is what costs the time, and there was no sequence. */}
+      {/* What this replaced, in the run's own numbers. The sequence is what costs a
+          cross-team response its time, and there was no sequence. */}
       {request.checked ? (
         <p className="font-data-tabular text-[10px] text-on-surface-variant/70 leading-relaxed">
           {request.checked.candidates} parts checked against {request.checked.departments}{' '}
@@ -175,6 +173,41 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
           board alone — before anybody was asked anything.
         </p>
       ) : null}
+
+      {/* **An estimate, with its arithmetic and its sources.** No published method turns
+          counts into hours, so this is two published constants applied to what the run
+          counted: one engineering-change iteration's touch time (Loch & Terwiesch 1999), and
+          one handoff's stall between people (Herbsleb et al. 2001). It is shown rather than
+          summarised because a reader can argue with a constant and cannot argue with a
+          number that arrives on its own. */}
+      {request.saving ? (
+        <section className="space-y-1 border-t border-outline-variant pt-md">
+          <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant">
+            WHAT THE MISSING ROUND TRIPS ARE WORTH
+          </p>
+          <p className="m-0 font-data-tabular text-[11px] text-on-surface leading-relaxed">
+            About {request.saving.desk_hours} hours of desk time and about{' '}
+            {request.saving.queue_days} days of queueing: {request.saving.desks} desks,{' '}
+            {request.saving.crossings} handoffs, none of which this change had to cross.
+          </p>
+          <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant/70 leading-relaxed">
+            {request.saving.basis}
+          </p>
+        </section>
+      ) : null}
+
+      {/* An engineering change order carries an inventory disposition, and this one only when
+          there is something to dispose of — a line short of what it builds. */}
+      {request.disposition ? (
+        <p className="font-data-tabular text-[10px] text-tertiary-container leading-relaxed">
+          DISPOSITION — {request.disposition}
+        </p>
+      ) : null}
+
+      <p className="font-data-tabular text-[10px] text-on-surface-variant">
+        EFFECTIVITY — {request.effectivity ?? 'on the last signature'}. Nothing is ordered or
+        fabricated before then.
+      </p>
 
       <section className="flex flex-wrap gap-lg border-t border-outline-variant pt-md">
         <div className={request.proposal ? '' : 'hidden'}>
