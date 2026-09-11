@@ -51,7 +51,7 @@ company view: what arrived, what it reaches, and every affected line running tog
 endpoint runs both, narrowed by `line_id`, so they cannot come to disagree about what a review
 is. `/approvals` is one desk: what it owes, across every product line, in its own terms.
 
-**Which desk you are is in the rail**, above the settings cog, and it switches between four
+**Which desk you are is in the rail and in every header**, and it switches between four
 real sessions. Not an impersonation: a desk that has to sign has to be signed in.
 
 ---

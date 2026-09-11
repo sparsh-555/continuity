@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useCallback, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 
 import { ApiError } from '../lib/api'
@@ -51,6 +51,22 @@ function AuthCard({ mode }: AuthCardProps) {
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  /** One press, four sessions. The engineer last, so that is the desk left active. */
+  const signInEveryDesk = useCallback(async () => {
+    setSubmitting(true)
+    setErrorMessage(null)
+    try {
+      for (const desk of ['procurement', 'production', 'quality', 'engineer']) {
+        await signIn(`${desk}@northwind.example`, DEMO_PASSWORD)
+      }
+      navigate(landingRouteFor(), { replace: true })
+    } catch {
+      setErrorMessage('The demo world refused one of its own accounts.')
+    } finally {
+      setSubmitting(false)
+    }
+  }, [navigate, signIn])
 
   if (loading) {
     return null
@@ -166,6 +182,30 @@ function AuthCard({ mode }: AuthCardProps) {
           </button>
         </form>
 
+        {isSignIn ? (
+          <>
+            <div className="border-t border-outline-variant" />
+            {/* **The four seeded desks, signed in at once, before the camera rolls.**
+                Demo craft guidance is explicit that a presenter should pre-authenticate and
+                never sign in live, and the product already holds every session this browser
+                has authenticated — so this is four calls rather than a new mechanism.
+
+                The accounts are the demo world's own and their shared password is published
+                in RUNNER.md, so writing it here discloses nothing: it is a demo world in a
+                scratch database, and this control exists for that world alone. The engineer
+                is signed in last so the session left active is the desk the run-through
+                opens with. */}
+            <button
+              className="w-full border border-outline-variant text-on-surface-variant font-body-sm text-body-sm py-sm rounded-DEFAULT hover:bg-surface-container transition-colors disabled:opacity-60"
+              disabled={submitting}
+              onClick={() => void signInEveryDesk()}
+              type="button"
+            >
+              {submitting ? 'SIGNING IN…' : 'SIGN IN ALL FOUR DESKS · DEMO WORLD'}
+            </button>
+          </>
+        ) : null}
+
         <div className="border-t border-outline-variant" />
 
         <div className="text-center">
@@ -195,6 +235,9 @@ function AuthCard({ mode }: AuthCardProps) {
     </div>
   )
 }
+
+/** The demo world's four accounts, and the password RUNNER.md publishes for them. */
+const DEMO_PASSWORD = 'continuity-demo-2026'
 
 export function SignInRoute() {
   return <AuthCard mode="signin" />

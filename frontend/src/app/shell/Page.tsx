@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 
+import { useAuth } from '../hooks/useAuth'
+import { departmentLabel } from '../review/Departments'
 import { Wordmark } from './Wordmark'
 
 /**
@@ -31,6 +33,7 @@ export function Page({
   width?: 'wide' | 'reading'
 }) {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   return (
     <div className="bg-transparent min-h-screen text-on-background font-body-md antialiased">
@@ -47,7 +50,20 @@ export function Page({
         ) : (
           <span />
         )}
-        <Wordmark />
+        <div className="flex items-center gap-md">
+          {/* **Whose eyes these are, on every page the rail reaches.** Four desks are
+              demonstrated from one browser, and the documented failure of a multi-persona
+              demonstration is the audience losing track of which one is on screen. The rail's
+              four-letter chip answers it at the corner; this says it in words, in the header,
+              where the eye already is. Deliberately not a colour: green, amber, violet and
+              cyan already mean satisfied, accepted, changed and working here. */}
+          {user?.roles.length ? (
+            <span className="font-data-tabular text-[10px] px-sm py-0.5 border border-outline-variant rounded text-on-surface-variant uppercase">
+              {user.roles.map(departmentLabel).join(' + ')}
+            </span>
+          ) : null}
+          <Wordmark />
+        </div>
       </header>
 
       <main

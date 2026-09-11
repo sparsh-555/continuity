@@ -38,10 +38,16 @@ progress. Anything that fails a check is explained in [OPERATING.md](OPERATING.m
 **Northwind Instruments**, four people, five products, both standing lists. One desk each, so
 no one person can sign for two departments.
 
-**Signing in as a second desk does not sign you out of the first.** The rail carries a
-four-letter button above the settings cog showing which desk you are; press it to move
-between every session this browser holds. Step 6 needs all four, so sign into each once and
-switching is a click after that. Three of the five
+**Sign in as all four desks with one press.** The sign-in screen carries **SIGN IN ALL FOUR
+DESKS · DEMO WORLD**: it authenticates the four seeded accounts into this browser and leaves
+the **engineer** active, which is the desk step 1 opens with. Do it before the camera rolls —
+demonstration practice is to pre-authenticate and never sign in live, and the four sessions
+coexist in one browser by design.
+
+**Switching does not sign you out.** The rail carries a four-letter button above the settings
+cog showing which desk you are; press it to move between every session this browser holds.
+Every page's header says the desk in words as well, because the documented failure of a
+multi-persona demonstration is the audience losing track of whose view is on screen. Three of the five
 carry the part the notice retires, at three different ambients on three different rails, which
 is what makes one recommendation right for one product and wrong for another.
 

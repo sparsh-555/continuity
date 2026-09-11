@@ -75,6 +75,7 @@ export function NoticeArrivalProvider({ children }: { children: ReactNode }) {
           })))
           if (!alive) return
           newNotices.forEach((notice) => known.current?.add(notice.id))
+          chime()
           setToasts((current) => [...announcements, ...current])
           setArrival((current) => current + 1)
         } finally {
@@ -102,6 +103,46 @@ export function NoticeArrivalProvider({ children }: { children: ReactNode }) {
       ) : null}
     </NoticeArrivalContext.Provider>
   )
+}
+
+/**
+ * A short tone when a notice arrives.
+ *
+ * **The whole point of the arrival notification is that it reaches somebody who is looking
+ * at something else**, and a toast in the corner of a screen nobody is watching is silent in
+ * every sense. Synthesised rather than shipped as a file: two oscillators and an envelope are
+ * smaller than an audio asset and cannot 404.
+ *
+ * It fires where the toast fires and nowhere else — never on the first poll, which seeds what
+ * is already known — so a page load with notices present is silent and a notice that actually
+ * lands is not. A browser that blocks audio until a gesture has happened refuses silently,
+ * which is the right failure for a sound.
+ */
+function chime() {
+  try {
+    const maker = window.AudioContext
+    if (!maker) return
+    const context = new maker()
+    const start = context.currentTime
+    for (const [index, frequency] of [880, 1318.5].entries()) {
+      const at = start + index * 0.09
+      const oscillator = context.createOscillator()
+      const gain = context.createGain()
+      oscillator.type = 'sine'
+      oscillator.frequency.value = frequency
+      gain.gain.setValueAtTime(0.0001, at)
+      gain.gain.exponentialRampToValueAtTime(0.05, at + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.28)
+      oscillator.connect(gain)
+      gain.connect(context.destination)
+      oscillator.start(at)
+      oscillator.stop(at + 0.3)
+    }
+    void context.resume?.()
+    setTimeout(() => void context.close(), 800)
+  } catch {
+    // A sound that cannot play is not worth a broken notification.
+  }
 }
 
 export function useNoticeArrivals() {
