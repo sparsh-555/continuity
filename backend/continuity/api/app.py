@@ -46,6 +46,7 @@ from . import review as review_api
 from . import matrix as matrix_api
 from . import notices as notices_api
 from . import decisions as decisions_api
+from . import policy as policy_api
 from .memory import FindingRecorder
 from .store import Store
 
@@ -185,6 +186,7 @@ app.include_router(matrix_api.router)
 app.include_router(notices_api.router)
 app.include_router(review_api.router)
 app.include_router(decisions_api.router)
+app.include_router(policy_api.router)
 
 STREAMS: dict[str, events.EventStream] = {}
 """thread_id → the live counter for a run in flight.

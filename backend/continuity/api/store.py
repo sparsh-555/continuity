@@ -1019,6 +1019,63 @@ class Store:
                 (org_id, distributor, by, note),
             )
 
+    async def list_entries(self, org_id: str) -> dict[str, list[dict[str, Any]]]:
+        """The AML and AVL as rows, with what each entry carries besides its name.
+
+        `approved_lists` answers the rules, which match on names and need nothing else. A
+        screen has to say who qualified a part and when, and a set of names cannot.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """SELECT mpn, manufacturer, qualified_by, note, created_at
+                     FROM approved_parts WHERE org_id = %s ORDER BY mpn""",
+                (org_id,),
+            )
+            parts = await cursor.fetchall()
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """SELECT distributor, approved_by, note, created_at
+                     FROM approved_vendors WHERE org_id = %s ORDER BY distributor""",
+                (org_id,),
+            )
+            vendors = await cursor.fetchall()
+        return {"parts": parts, "vendors": vendors}
+
+    async def shipped_parts(self, org_id: str) -> list[dict[str, Any]]:
+        """Every part this company's bills carry, which is what an AML has to cover.
+
+        The question an empty AML cannot answer is *what am I failing?*, and the answer is
+        every fitted part on every line. This is also the list the one-action qualification
+        works from, so that a company that has just declared a policy does not have to type
+        its own bill of materials back in to satisfy it.
+        """
+        async with self.pool.connection() as conn:
+            cursor = await conn.cursor(row_factory=dict_row).execute(
+                """SELECT DISTINCT mpn, manufacturer FROM line_parts
+                    WHERE org_id = %s AND populated AND mpn IS NOT NULL AND mpn <> ''
+                    ORDER BY mpn""",
+                (org_id,),
+            )
+            return await cursor.fetchall()
+
+    async def release_part(self, org_id: str, mpn: str) -> bool:
+        """Take a part off the AML. True when there was something there to take off."""
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute(
+                "DELETE FROM approved_parts WHERE org_id = %s AND upper(mpn) = upper(%s)",
+                (org_id, mpn),
+            )
+            return cursor.rowcount > 0
+
+    async def release_vendor(self, org_id: str, distributor: str) -> bool:
+        """Take a source off the AVL. True when there was something there to take off."""
+        async with self.pool.connection() as conn:
+            cursor = await conn.execute(
+                "DELETE FROM approved_vendors "
+                "WHERE org_id = %s AND upper(distributor) = upper(%s)",
+                (org_id, distributor),
+            )
+            return cursor.rowcount > 0
+
     async def record_approval(
         self,
         *,

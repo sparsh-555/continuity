@@ -828,3 +828,67 @@ export function deleteLine(lineId: string) {
     method: 'DELETE',
   })
 }
+
+/**
+ * The company's standing lists, which gate every board.
+ *
+ * `missing` is the answer an empty AML cannot give: every part the company already ships
+ * that is not on the list. It is empty while the list is not kept, because a company that
+ * has never declared a policy is failing nothing.
+ */
+export type Policy = {
+  parts: {
+    kept: boolean
+    entries: Array<{
+      mpn: string
+      manufacturer: string | null
+      qualified_by: string | null
+      note: string | null
+      created_at: string
+    }>
+    missing: Array<{ mpn: string; manufacturer: string | null }>
+    shipping: number
+  }
+  vendors: {
+    kept: boolean
+    entries: Array<{
+      distributor: string
+      approved_by: string | null
+      note: string | null
+      created_at: string
+    }>
+  }
+  desks: { parts: string[]; vendors: string[] }
+}
+
+export function getPolicy() {
+  return request<Policy>('/policy')
+}
+
+export function keepLists(body: { parts?: boolean; vendors?: boolean }) {
+  return request<{ parts: boolean | null; vendors: boolean | null }>('/policy/lists', {
+    method: 'PUT',
+    body,
+  })
+}
+
+export function qualifyPart(body: { mpn: string; manufacturer?: string }) {
+  return request<{ mpn: string }>('/policy/parts', { method: 'POST', body })
+}
+
+export function releasePart(mpn: string) {
+  return request<void>(`/policy/parts/${encodeURIComponent(mpn)}`, { method: 'DELETE' })
+}
+
+export function approveVendor(body: { distributor: string }) {
+  return request<{ distributor: string }>('/policy/vendors', { method: 'POST', body })
+}
+
+export function releaseVendor(distributor: string) {
+  return request<void>(`/policy/vendors/${encodeURIComponent(distributor)}`, { method: 'DELETE' })
+}
+
+/** Qualify everything this company already ships, and keep the list. */
+export function qualifyFromBill() {
+  return request<{ qualified: number }>('/policy/parts/from-bill', { method: 'POST' })
+}

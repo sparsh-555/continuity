@@ -11,6 +11,7 @@ import LineRoute from './app/routes/line'
 import LinesRoute from './app/routes/lines'
 import MatrixRoute from './app/routes/matrix'
 import MemoryRoute from './app/routes/memory'
+import PolicyRoute from './app/routes/policy'
 import ChangesRoute from './app/routes/changes'
 import ApprovalsRoute from './app/routes/approvals'
 import { AppFrame } from './app/shell/AppFrame'
@@ -81,6 +82,14 @@ const router = createBrowserRouter([
             element: (
               <RequireAuth>
                 <MemoryRoute />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: '/policy',
+            element: (
+              <RequireAuth>
+                <PolicyRoute />
               </RequireAuth>
             ),
           },

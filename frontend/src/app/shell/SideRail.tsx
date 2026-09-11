@@ -129,6 +129,15 @@ export function SideRail() {
           onClick={() => navigate('/approvals')}
         />
         <RailButton active={location.pathname === '/matrix'} icon="grid_view" label="Substitution matrix" onClick={() => navigate('/matrix')} />
+        {/* `fact_check` — a list with ticks beside it, which is what an approved list is.
+            Both lists have gated every board since they were built and had no writer outside
+            the seed, so a company could not state its own policy without a Python shell. */}
+        <RailButton
+          active={location.pathname === '/policy'}
+          icon="fact_check"
+          label="Approved lists"
+          onClick={() => navigate('/policy')}
+        />
         {/* `hub` — nodes and the links between them, which is literally what /memory shows.
             It was `memory`, a chip glyph, sitting one rail away from the wordmark's
             `developer_board` chip: two chips for two unrelated things. */}
