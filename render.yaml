@@ -35,7 +35,15 @@
 services:
   - type: web
     name: continuity-api
-    runtime: python
+    # **Docker, not `python`, and this is the KiCad decision.** A native runtime gives you a
+    # container with no Docker daemon and no way to become root, so the board surfaces can
+    # only report themselves unavailable. `CONTINUITY_KICAD=local` runs `kicad-cli` and the
+    # `pcbnew` module directly, which needs them installed on the host, which needs a
+    # Dockerfile. See the top of `Dockerfile` for why the base image is the same one the
+    # runner pins.
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./
     # Starter, matching what the service actually runs on. This said `free` for a long
     # time while the service was on Starter, which was harmless as documentation and is
     # not harmless now: free instances spin down after 15 minutes, and since this process
@@ -47,27 +55,16 @@ services:
     # resolves to the SPA fallback, which would return 200 for an app whose database is
     # gone. A health check that cannot fail is worse than none.
     healthCheckPath: /api/health
-    # `-e` matters. The wheel packages `continuity` only, so a non-editable install would
-    # copy the code to site-packages and leave `cache/` and `fixtures/` behind — and the
-    # anchored paths would then point at a site-packages directory that has neither.
-    # The UI is built here too, so both halves ship from one service. Render's native
-    # runtimes all carry node, npm and bun regardless of the service's language, so a
-    # Python service can run a Vite build.
-    buildCommand: cd frontend && npm ci && npm run build && cd .. && pip install -e ./backend
-    # `--host 0.0.0.0` because the container's loopback is not reachable from outside it,
-    # and $PORT because Render assigns it. One worker: the design run holds an SSE stream
-    # open for the length of the run, and a second worker would not share `STREAMS`.
-    # `:ui`, not `:app`. `app` is the bare API — what the tests drive and what local
-    # development serves to Vite's dev server. `ui` is that same API mounted under `/api`
-    # with the built frontend served from this origin.
-    startCommand: uvicorn continuity.api.app:ui --host 0.0.0.0 --port $PORT --workers 1
+    # There is no build command and no start command any more. Both are in the Dockerfile,
+    # and the reasons that used to be here moved with them: the editable install, one
+    # worker, `--host 0.0.0.0`, `$PORT`.
     envVars:
-      # Pinned, and fully qualified as Render requires. Their default for new services is
-      # 3.14.3, which nothing here has been run against — and the dependencies that would
-      # break on it are the compiled ones, psycopg and argon2-cffi, which is a build-log
-      # failure rather than anything visible in the app.
-      - key: PYTHON_VERSION
-        value: "3.13.5"
+      # **Where the pinned KiCad is found.** The image installs it and this tells the runner
+      # to use the binaries on the host rather than to shell out to a container that does not
+      # exist here. Unset, every board surface reports the capability absent, and the app is
+      # otherwise identical.
+      - key: CONTINUITY_KICAD
+        value: local
       # Neon connection string. Set in the dashboard, not here.
       - key: DATABASE_URL
         sync: false
@@ -86,6 +83,7 @@ services:
       # rejected outright once credentials are allowed.
       - key: CONTINUITY_ORIGINS
         sync: false
-      # Inlined by Vite at build time. `/api` because the API is mounted there.
+      # Inlined by Vite at build time, inside the Dockerfile's UI stage. `/api` because the
+      # API is mounted there.
       - key: VITE_API_URL
         value: /api

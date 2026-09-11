@@ -1,0 +1,45 @@
+# What the image build does not need. Render sends the repository as the build context unless
+# this file says otherwise, and two of these directories are larger than everything the image
+# actually contains.
+#
+# `.venv` and `node_modules` are the two that matter: 131 MB and 155 MB of platform-specific
+# dependencies that the image installs its own copies of, into a different Python and a
+# different libc. Sending them would slow every build and could shadow the correct ones.
+.venv/
+frontend/node_modules/
+frontend/dist/
+
+# **Credentials, and this is the one that matters most.** `backend/.env` holds the model key
+# and the mailbox password, and `COPY backend/` would bake it into a layer. A layer keeps what
+# it was given: deleting the file in a later instruction does not take it out of the image, and
+# anyone who can pull the image can read it. Render passes every one of these as an environment
+# variable at run time, which is the only place they should ever be.
+#
+# The example file stays. It contains variable names and no values, and it is how the next
+# person learns what the service needs.
+**/.env
+**/.env.*
+!backend/.env.example
+
+# Caches and build output, none of which belongs in an image.
+**/.mypy_cache/
+**/.ruff_cache/
+**/.pytest_cache/
+.demo/
+.playwright-mcp/
+backend/cache/
+backend/tests/__pycache__/
+**/__pycache__/
+*.pyc
+
+# Repository metadata and editor state.
+.git/
+.gitignore
+.gitattributes
+**/.DS_Store
+
+# The submission package and the deployment notes it was built from.
+docs/media/
+deploy/
+design/
+fixtures/
