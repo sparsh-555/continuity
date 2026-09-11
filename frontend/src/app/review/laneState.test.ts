@@ -1,6 +1,17 @@
 import { expect, test } from 'bun:test'
 
-import { emptyLanes, fresh, lanesFromReview, reduceFrame, type StoredNoticeReview } from './laneState'
+import {
+  emptyLanes,
+  fresh,
+  hasSigned,
+  lanesFromReview,
+  pacedDelay,
+  reduceFrame,
+  replayFrames,
+  seededLanes,
+  withSignatures,
+  type StoredNoticeReview,
+} from './laneState'
 import type { ReviewFrame } from '../lib/api'
 
 const started = (lines: Array<[string, string]>): ReviewFrame => ({
@@ -109,4 +120,76 @@ test('a stale hydration does not overwrite a run that has already started', () =
   // untouched, and a state with lanes is not.
   const running = { ...emptyLanes, lanes: [fresh('l1', 'Sensor node')] }
   expect(running.lanes).toHaveLength(1)
+})
+
+test('a desk that has already signed is not offered the question again', () => {
+  // The rule `/approvals` already holds, in the second place a question is answered. A desk
+  // that signs twice is refused by the server, and before this the refusal was painted on the
+  // lane as FAILED — a board that agrees with itself reading as a failed one.
+  const lane = {
+    ...fresh('l1', 'Sensor node'),
+    signatures: { signed: ['engineering'], outstanding: ['procurement', 'quality'] },
+  }
+
+  expect(hasSigned(lane, ['engineering'])).toBe(true)
+  expect(hasSigned(lane, ['procurement'])).toBe(false)
+})
+
+test('nobody has signed before anybody has signed', () => {
+  expect(hasSigned(fresh('l1', 'Sensor node'), ['engineering', 'quality'])).toBe(false)
+})
+
+test('one person holding two desks is signed when either of them signed', () => {
+  const lane = {
+    ...fresh('l1', 'Sensor node'),
+    signatures: { signed: ['quality'], outstanding: ['engineering'] },
+  }
+
+  expect(hasSigned(lane, ['engineering', 'quality'])).toBe(true)
+})
+
+test('a replay applies the run in the order the run emitted it', () => {
+  // **The lanes are two recordings of one run.** Each decision keeps its own board's frames,
+  // and every frame carries the run's `seq`, so sorting by it restores the interleaving the
+  // live stream had. Playing lane by lane would show sequentially exactly what this product
+  // exists to show happening at once.
+  const sensor = stored({
+    line_id: 'l1',
+    frames: [said(null, 'the notice', 0), said('l1', 'board one, late', 5)],
+  })
+  const gateway = stored({
+    line_id: 'l2',
+    line_name: 'Gateway',
+    frames: [said(null, 'the notice', 0), said('l2', 'board two, early', 2)],
+  })
+
+  const order = replayFrames([sensor, gateway]).map((frame) =>
+    'text' in frame ? frame.text : frame.type,
+  )
+
+  expect(order).toEqual(['the notice', 'board two, early', 'board one, late'])
+})
+
+test('a paced replay ends exactly where an instant one does', () => {
+  // The pacing must change when the frames arrive and nothing else. This is the guard: the
+  // same frames, in the same order, through the same reducer, one at a time.
+  const rows = [stored(), stored({ line_id: 'l2', line_name: 'Gateway', signed: ['engineering'] })]
+
+  const paced = withSignatures(
+    replayFrames(rows).reduce(reduceFrame, seededLanes(rows)),
+    rows,
+  )
+
+  expect(paced).toEqual(lanesFromReview(rows))
+})
+
+test('the pace is staggered rather than metronomic', () => {
+  // A fixed interval reads as a machine printing lines, and the run being played back was
+  // not evenly spaced. Bounded and repeatable, because a jitter nobody can test is a jitter
+  // nobody can reason about.
+  const delays = [0, 1, 2, 3, 4, 5, 6, 7].map((position) => pacedDelay(position))
+
+  expect(new Set(delays).size).toBeGreaterThan(3)
+  expect(Math.min(...delays)).toBeGreaterThanOrEqual(150)
+  expect(Math.max(...delays)).toBeLessThanOrEqual(240)
 })

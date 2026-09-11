@@ -88,52 +88,6 @@ export type ThreadBoard = {
   resumable: boolean
 }
 
-export type MatrixCheck = {
-  rule: string
-  scope: string | null
-  status: EventStatus
-  detail: string
-  margin: string | null
-  accepted: boolean
-  evidence: Array<{ field: string; value: string; source: string | null }>
-}
-
-export type MatrixCell = {
-  line_id: string
-  line_name: string
-  mpn: string
-  manufacturer: string | null
-  /** This board already runs this part — the row that says what it does today, which is
-   *  the status quo rather than a proposed change. */
-  is_incumbent: boolean
-  replaces: string | null
-  ok: boolean
-  /** The narrowest margin any satisfied check on this cell reports, where one can be
-   *  ordered. Satisfied and unshippable is the distinction this carries. */
-  margin: string | null
-  counts: Record<EventStatus, number>
-  /** Whose desks this cell lands on, derived from what actually failed on it. Empty on a
-   *  passing cell, because a cell that raises no question owns nobody's time. */
-  departments: string[]
-  checks: MatrixCheck[]
-}
-
-export type MatrixResponse = {
-  slot: string
-  lines: string[]
-  candidates: string[]
-  viable_everywhere: string[]
-  departments: string[]
-  /** Candidates the distributor has never heard of, named rather than dropped. */
-  unresolved: string[]
-
-  /** Candidates listed by more than one manufacturer, keyed to an explanation. Distinct
-   *  from `unresolved`: "never heard of it" and "heard of it twice" are different answers,
-   *  and only the second one has an action attached — say which manufacturer you meant. */
-  ambiguous: Record<string, string>
-  cells: MatrixCell[]
-}
-
 /** One frame of a review stream. Every frame carries the product line it belongs to, or
  *  `null` where it belongs to the whole review — discovery happens once, not once per
  *  board. */
@@ -344,9 +298,25 @@ export type ChangeRequestAlternative = {
   mpn: string
   /** The sentence that ruled it out, or null when it survived and simply was not chosen. */
   rejected_because: string | null
-  /** Who makes the part this run weighed. An MPN alone does not name one, and the matrix
-   *  cannot re-source a part this company has never bought. */
+  /** Who makes the part this run weighed. An MPN alone does not name one, and a reader
+   *  asking for this working again cannot re-source a part this company has never bought. */
   manufacturer?: string | null
+  /** **The appendix behind `rejected_because`**: every check this candidate was put through,
+   *  in the same shape as the proposal's own `evidence` below, so one renderer draws both.
+   *  It is what makes the document auditable without a grid screen of its own. */
+  /** **Absent on any document written before 11 Sep**, when the field did not exist.
+   *  The stored record is not rewritten — it is a record of what was decided — so a reader
+   *  must tolerate its absence rather than throw over it. */
+  verdicts?: Array<{
+    rule: string
+    scope: string | null
+    status: EventStatus
+    detail: string
+    margin: string | null
+    accepted: boolean
+    /** Whose desk this check lands on. Empty where the check raises no question. */
+    departments?: string[]
+  }>
 }
 
 export type ChangeRequestCost = {
@@ -565,27 +535,6 @@ export function logout() {
 
 export function me() {
   return request<PublicUser>('/auth/me')
-}
-
-export function buildMatrix(
-  lineIds: string[],
-  slot: string,
-  candidates: string[],
-  /** Whose part each named candidate is, where the caller already resolved it. See
-   *  `MatrixRequest.candidate_manufacturers`. */
-  candidateManufacturers: Record<string, string> = {},
-) {
-  return request<MatrixResponse>('/matrix', {
-    method: 'POST',
-    body: {
-      line_ids: lineIds,
-      slot,
-      candidates,
-      ...(Object.keys(candidateManufacturers).length
-        ? { candidate_manufacturers: candidateManufacturers }
-        : {}),
-    },
-  })
 }
 
 export function listNotices() {

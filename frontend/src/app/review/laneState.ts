@@ -30,6 +30,22 @@ export type Lane = {
   signatures: { signed: string[]; outstanding: string[] } | null
   applied: string | null
   error: string | null
+  refusal: string | null
+  /** **Not `error`.** A signature the server refused and a board that failed a check are
+   * different things, and the row renders `error` as FAILED — so a desk pressing a button it
+   * should not have had turned a board that agreed with itself into a failed one. */
+}
+
+/** Whether one of `roles` has already signed this line's decision.
+ *
+ * The same rule `/approvals` states in its own words: *a desk that has already signed sees
+ * what it signed and no buttons, rather than buttons that will 409*. This is the second place
+ * a question is answered, and two definitions of "may I sign this" is how the two places come
+ * to disagree.
+ */
+export function hasSigned(lane: Lane, roles: readonly string[]): boolean {
+  const signed = lane.signatures?.signed ?? []
+  return signed.some((desk) => roles.includes(desk))
 }
 
 export function fresh(lineId: string, name: string): Lane {
@@ -46,6 +62,7 @@ export function fresh(lineId: string, name: string): Lane {
     signatures: null,
     applied: null,
     error: null,
+    refusal: null,
   }
 }
 
@@ -154,6 +171,70 @@ export type StoredNoticeReview = {
   frames: ReviewFrame[]
 }
 
+/** The lanes a stored review starts from, before any frame is applied. */
+export function seededLanes(rows: readonly StoredNoticeReview[]): LaneState {
+  return {
+    ...emptyLanes,
+    lanes: rows.map((row) => ({
+      ...fresh(row.line_id, row.line_name ?? 'this product line'),
+      running: false,
+    })),
+  }
+}
+
+/** The signatures the run left, which no frame carries.
+ *
+ * Signing happens after the ending, so nothing in the stream says who has signed — it is
+ * read from the decision rows, which is also where a desk that signed this morning is
+ * remembered from. */
+export function withSignatures(
+  state: LaneState,
+  rows: readonly StoredNoticeReview[],
+): LaneState {
+  const byLine = new Map(rows.map((row) => [row.line_id, row]))
+  return {
+    ...state,
+    lanes: state.lanes.map((lane) => {
+      const row = byLine.get(lane.lineId)
+      if (!row || row.signed.length === 0) return lane
+      return { ...lane, signatures: { signed: row.signed, outstanding: row.outstanding } }
+    }),
+  }
+}
+
+/** Every stored frame a replay has to apply, in the order the run emitted it.
+ *
+ * **The lanes are three recordings of one run, not three runs.** Each decision keeps the
+ * frames that belong to its own board, and the `seq` on every frame is the run's own
+ * counter, so sorting by it restores the interleaving the live stream had: three boards
+ * advancing together rather than one after another. A replay that played lane by lane would
+ * show sequentially exactly what the product exists to show happening at once.
+ *
+ * The two opening lines — what is retiring and what the notice recommends — are unmarked
+ * and repeated in every decision, so they are read from the first one only.
+ */
+export function replayFrames(rows: readonly StoredNoticeReview[]): ReviewFrame[] {
+  const frames: ReviewFrame[] = []
+  rows.forEach((row, index) => {
+    for (const frame of row.frames) {
+      const scoped = 'line_id' in frame ? frame.line_id : null
+      if (index > 0 && !scoped) continue
+      frames.push(frame)
+    }
+  })
+  return [...frames].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
+}
+
+/** How long to wait before applying the next frame of a replay.
+ *
+ * **Staggered, not metronomic.** A fixed interval reads as a machine printing lines, and the
+ * run being played back was not evenly spaced, so the recording should not pretend it was.
+ * The wobble is a bounded function of the frame's position rather than a random number, so
+ * the pace is irregular to watch and repeatable to test. */
+export function pacedDelay(position: number, base = 150, spread = 90): number {
+  return Math.round(base + Math.abs(Math.sin(position * 1.7)) * spread)
+}
+
 /**
  * A finished review, read back through the same reducer a live one uses.
  *
@@ -164,32 +245,7 @@ export type StoredNoticeReview = {
  * the same screen as one nobody has looked at, and the replay has to say so.
  */
 export function lanesFromReview(rows: readonly StoredNoticeReview[]): LaneState {
-  let state: LaneState = {
-    ...emptyLanes,
-    lanes: rows.map((row) => ({
-      ...fresh(row.line_id, row.line_name ?? 'this product line'),
-      running: false,
-    })),
-  }
-  // **The notice is stated once, the boards are stated each.** `frames_from` marks the
-  // frames that belong to a board and leaves the two opening lines unmarked, because the
-  // part is retired on every board and the live run says that above the lanes rather than
-  // three times inside them. So the unmarked frames are read from the first decision only —
-  // every decision repeats them — and the marked ones fall into the lane they name.
-  rows.forEach((row, index) => {
-    for (const frame of row.frames) {
-      const scoped = 'line_id' in frame ? frame.line_id : null
-      if (index > 0 && !scoped) continue
-      state = reduceFrame(state, frame)
-    }
-  })
-  const byLine = new Map(rows.map((row) => [row.line_id, row]))
-  return {
-    ...state,
-    lanes: state.lanes.map((lane) => {
-      const row = byLine.get(lane.lineId)
-      if (!row || row.signed.length === 0) return lane
-      return { ...lane, signatures: { signed: row.signed, outstanding: row.outstanding } }
-    }),
-  }
+  // One definition of what a replay is: the same frames, in the same order, through the
+  // same reducer — whether they arrive in one pass or one at a time.
+  return withSignatures(replayFrames(rows).reduce(reduceFrame, seededLanes(rows)), rows)
 }

@@ -139,7 +139,7 @@ demonstrate a third, run `./demo.sh --live` and forward it once.
 
 - [ ] Discovery is said once, above the lanes, rather than three times.
 - [ ] **Leave the page and come back.** `/lines` and then `/changes` again: the three lanes, their traces and their questions are all still there, with nothing pressed and nothing re-run. An empty review where a run had been is a bug — that was the state until 11 September.
-- [ ] Three lanes advance together, one row per product, each showing the newest thing that board has said and its state. Replayed they finish in about a quarter of a second.
+- [ ] Three lanes advance together, one row per product, each showing the newest thing that board has said and its state. **Replayed they fill in over about twenty seconds**, staggered rather than metronomic, with **SKIP TO THE END** offered throughout.
 - [ ] The three answers are these three, and they stop in two different places:
 
 | Product line | Answer | Where it stops |
@@ -270,22 +270,14 @@ merely approve one, so it is the only place this state exists.
 
 ## If there is time
 
-### The matrix, which is the working
+### The appendix, which is the working
 
-`/changes` → below the change requests → **SHOW THE WORKING · 3 BOARDS AT U1**.
+Scroll a change request to **CONSIDERED AND REJECTED**, at the end of its lane.
 
-- [ ] The grid is already filled when the page opens. Nothing is typed and no button is pressed.
-- [ ] Three boards, and every part the review tried, including the ones it rejected.
-- [ ] Clicking a cell opens the evidence, every cell carrying the four coverage labels.
-- [ ] The same part is green on one line and red on another, and a cell that only just holds prints its margin.
-- [ ] **Nothing reads *not found at the distributor*.** The link carries who makes each part, so all six columns are checked. A `NOT FOUND` line naming `LD1117-3.3`, `SPX1117M3-L-3-3/TR` or `XBL1117-3.3` is a bug — it means the manufacturer did not travel with the link.
-
-Typing it by hand still works, and is the way to ask a question the review did not: `/matrix`
-→ the three affected lines → position `u1` → candidates:
-
-```
-AMS1117-3.3, NCP1117ST33T3G, LD1117S33TR, TLV1117LV33DCYR
-```
+- [ ] Every candidate the review tried is named, with the one sentence that killed it.
+- [ ] Opening one shows its whole check set — satisfied, failed and not-applicable — and each line names the desk it belongs to.
+- [ ] The failing line is the one the lane's own verdict quoted, so the appendix and the runway agree.
+- [ ] Nothing reads *not found at the distributor*: these verdicts were computed by the run, on this board, and not looked up again.
 
 ### What the reader refuses to invent
 

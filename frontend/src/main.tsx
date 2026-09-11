@@ -9,7 +9,6 @@ import { SignInRoute, SignUpRoute } from './app/routes/auth'
 import LandingRoute from './app/routes/landing'
 import LineRoute from './app/routes/line'
 import LinesRoute from './app/routes/lines'
-import MatrixRoute from './app/routes/matrix'
 import MemoryRoute from './app/routes/memory'
 import PolicyRoute from './app/routes/policy'
 import ChangesRoute from './app/routes/changes'
@@ -66,14 +65,6 @@ const router = createBrowserRouter([
             element: (
               <RequireAuth>
                 <ApprovalsRoute />
-              </RequireAuth>
-            ),
-          },
-          {
-            path: '/matrix',
-            element: (
-              <RequireAuth>
-                <MatrixRoute />
               </RequireAuth>
             ),
           },

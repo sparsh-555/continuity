@@ -394,3 +394,40 @@ def test_the_request_counts_what_was_checked_before_anybody_was_asked():
     )
     assert request.checked.departments == len(request.departments)
     assert request.checked.lines >= 1
+
+
+def test_an_alternative_carries_the_checks_that_rejected_it():
+    """The body says one sentence; the appendix is the working behind that sentence.
+
+    This is what let the substitution matrix stop being a screen: the verdict set a signature
+    rests on travels with the document that asks for the signature, which is where NEPA, MADR
+    and the decision memo all put it.
+    """
+    [gateway] = [r for r in requests(prefer=[NCP1117.mpn]) if r.line_id == "B"]
+    rejected = next(a for a in gateway.alternatives if a.mpn == NCP1117.mpn)
+
+    assert rejected.rejected_because, "the one-line reason is still the body"
+    assert len(rejected.verdicts) > 1, "and the appendix is the whole set, not the same sentence"
+    killing = next(v for v in rejected.verdicts if v.status == "failed")
+    assert killing.rule == "thermal_dissipation"
+    assert "159 °C" in killing.detail
+
+
+def test_the_appendix_reaches_the_document():
+    """**Written by hand in `to_json`, so a field added to the dataclass is silently absent
+    from the document unless this test says otherwise.** That has already happened once in
+    this file, to `manufacturer`."""
+    [request] = [r for r in requests(prefer=[NCP1117.mpn]) if r.line_id == "B"]
+    document = request.to_json()
+
+    rejected = next(a for a in document["alternatives"] if a["mpn"] == NCP1117.mpn)
+
+    assert rejected["verdicts"], "the appendix is empty on the wire"
+    assert {"rule", "scope", "status", "detail", "margin", "accepted", "departments"} <= set(
+        rejected["verdicts"][0]
+    )
+    # The desk that owns each check, at the level of the check rather than only in the
+    # summary beneath it — projected from `by_department`, so it cannot disagree with
+    # the block below it or with the trace.
+    owning = next(v for v in rejected["verdicts"] if v["status"] == "failed")
+    assert owning["departments"], "a failed check that owns no desk is not a finding"

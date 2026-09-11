@@ -63,6 +63,17 @@ class Alternative:
     ceilings — so a matrix opened from this document has to be told which listing was
     weighed, or it reports the part as *not found* and the grid is missing a column."""
 
+    verdicts: tuple[Verdict, ...] = ()
+    """**Every check this candidate was put through**, not only the one that killed it.
+
+    The body of the document says why each alternative was rejected in one sentence, which is
+    the standard every convention for rejected alternatives holds to — NEPA's *discussed
+    briefly*, MADR's one line per option. This is the appendix behind that sentence, and it is
+    the same shape the proposal's own evidence has, so one renderer draws both.
+
+    It is also why the substitution matrix stopped needing a screen of its own: the working a
+    signature rests on travels with the document that asks for the signature."""
+
     @property
     def viable(self) -> bool:
         return self.rejected_because is None
@@ -162,6 +173,27 @@ class ChangeRequest:
                     # part by number, which for one this company has never bought finds
                     # nothing at all.
                     "manufacturer": a.manufacturer,
+                    # **The appendix, in the same shape as `evidence` below**, so the card
+                    # draws a rejected candidate's checks with the renderer it already has.
+                    # Written by hand like every field here: a field added to the dataclass
+                    # and not to this dict is silently absent from the document.
+                    "verdicts": [
+                        {
+                            "rule": v.rule,
+                            "scope": v.scope,
+                            "status": v.status,
+                            "detail": v.detail,
+                            "margin": v.margin,
+                            # A failure somebody waived, which is not a pass and must not be
+                            # rendered as one.
+                            "accepted": v.accepted,
+                            # **Whose desk this one lands on**, so the appendix answers the
+                            # cross-team question at the level of the individual check rather
+                            # than only in the summary beneath it.
+                            "departments": [role for role, _ in by_department([v])],
+                        }
+                        for v in a.verdicts
+                    ],
                 }
                 for a in self.alternatives
             ],
@@ -288,6 +320,7 @@ def for_line(
                 if cell.failures
                 else ruled_out.get(cell.candidate.mpn)
             ),
+            verdicts=cell.verdicts,
         )
         for cell in candidates
         if chosen is None or cell.candidate.mpn != chosen.candidate.mpn

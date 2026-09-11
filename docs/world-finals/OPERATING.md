@@ -200,7 +200,6 @@ somebody is deciding whether to sign. See BUILD.md's second governing rule.
 | `/design` | single-user local mode, no account |
 | `/changes` | notices received, the company-wide review in lanes, the change requests |
 | `/approvals` | what the signed-in desk owes, across every product line |
-| `/matrix` | every candidate against every product line. `?lines=&slot=&candidates=` prefills it and runs it, which is what **SHOW THE WORKING** on `/changes` links to; all three or it stays a form |
 | `/memory` | the company's record: parts, boards, notices, and what was decided |
 | `/policy` | the approved manufacturer list and the approved vendor list, where a company states them. Parts are engineering's and quality's to qualify, sources are procurement's alone, and every part a board carries that is not qualified is named with the action that clears it |
 
@@ -237,7 +236,7 @@ them, and none of them touches the network.
 | | Live | Replayed |
 |---|---|---|
 | One product line | 52 s one day, **unfinished after 140 s** the next | — |
-| All three | — | **0.25 s** |
+| All three | — | **0.25 s** computed; **~20 s** as it plays back |
 | Reading `PCN-2026-114.pdf` | 1903 ms | **7 ms** |
 
 Same frames, same verdicts, same margins: TLV1117LV33DCYR at 35 °C on the Gateway,
@@ -391,7 +390,6 @@ scoped to `src`. Playwright specs are not bun tests.
 | The run finishes fast with no real MPNs | `CONTINUITY_LLM_API_KEY` did not load |
 | A review dies on its second frame saying the part could not be sourced | A distributor call has no recording. `./demo.sh --live` records it |
 | Accounts vanish on restart | The API was started without `DATABASE_URL` |
-| The prefilled matrix says *not found at the distributor* about parts the review just checked | The manufacturer did not travel in the link. See `matrixLink.LIST_SEPARATOR` — a comma-joined list splits inside a company name |
 | Two notice rows show the same date when they arrived on different days | Fixed 11 Sep. The label rendered a UTC slice; it now renders the reader's own day |
 | Twelve collection errors from pytest | Anaconda's Python. Use `.venv/bin/python` |
 | A forwarded notice never appears | It is in spam. `tools/check_mail.py` says so and names the filter |

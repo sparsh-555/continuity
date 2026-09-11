@@ -128,7 +128,6 @@ export function SideRail() {
           label="Waiting on you"
           onClick={() => navigate('/approvals')}
         />
-        <RailButton active={location.pathname === '/matrix'} icon="grid_view" label="Substitution matrix" onClick={() => navigate('/matrix')} />
         {/* `fact_check` — a list with ticks beside it, which is what an approved list is.
             Both lists have gated every board since they were built and had no writer outside
             the seed, so a company could not state its own policy without a Python shell. */}

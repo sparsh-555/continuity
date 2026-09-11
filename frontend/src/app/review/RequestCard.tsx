@@ -2,12 +2,14 @@ import { Fragment } from 'react'
 
 import { BoardConsequence } from '../board/BoardConsequence'
 import { departmentLabel } from './Departments'
+import { checkLabel } from './ReviewLanes'
 import type { ChangeRequest } from '../lib/api'
 
 /** A change request, as the person who has to sign it reads it.
  *
  *  This is the document the whole product exists to produce, and until now it existed only
- *  as JSON on an endpoint. The matrix shows the grid it is derived from — that is the
+ *  as JSON on an endpoint. The rejected candidates' own verdict sets are the appendix —
+ *  that is the
  *  working; this is the deliverable. */
 export function RequestCard({ request }: { request: ChangeRequest }) {
   const rejected = request.alternatives.filter((a) => a.rejected_because)
@@ -43,17 +45,47 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
           <h4 className="font-data-tabular text-[10px] text-on-surface-variant">
             CONSIDERED AND REJECTED
           </h4>
-          {/* The sentence that killed each, verbatim. A proposal on its own asks to be
-              trusted; one that shows its rejections asks to be checked. */}
-          {rejected.map((alternative) => (
-            <p
-              key={alternative.mpn}
-              className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed"
-            >
-              <span className="text-on-surface">{alternative.mpn}</span> —{' '}
-              {alternative.rejected_because}
-            </p>
-          ))}
+          {/* The sentence that killed each, verbatim — and behind it, the whole set of checks
+              that sentence stands for. **One line in the body, the working in the appendix**,
+              which is the shape NEPA, MADR and every decision memo converge on: a proposal on
+              its own asks to be trusted, one that shows its rejections asks to be checked, and
+              a reader who wants to check opens the alternative rather than leaving the page. */}
+          {rejected.map((alternative) => {
+            const verdicts = alternative.verdicts ?? []
+            return (
+            <details key={alternative.mpn}>
+              <summary className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed cursor-pointer">
+                <span className="text-on-surface">{alternative.mpn}</span> —{' '}
+                {alternative.rejected_because}
+                {verdicts.length > 0 ? (
+                  <span className="text-on-surface-variant/60"> · {verdicts.length} checks</span>
+                ) : null}
+              </summary>
+              <ul className="m-0 mt-1 ml-md p-0 list-none flex flex-col gap-y-0.5">
+                {verdicts.map((verdict, position) => (
+                  <li
+                    className="font-data-tabular text-[10px] leading-relaxed"
+                    key={`${verdict.rule}:${verdict.scope ?? ''}:${position}`}
+                  >
+                    {/* The word first, never the colour alone: this is read on a projector
+                        and in a screenshot. */}
+                    <span className={verdict.status === 'failed' ? 'text-error' : 'text-on-surface-variant/70'}>
+                      {checkLabel(verdict)}
+                    </span>{' '}
+                    <span className="text-on-surface-variant">
+                      {verdict.rule.replace(/_/g, ' ')}
+                      {verdict.scope ? ` · ${verdict.scope}` : ''} — {verdict.detail}
+                      {verdict.margin ? ` · ${verdict.margin} to spare` : ''}
+                      {verdict.departments && verdict.departments.length > 0
+                        ? ` · ${verdict.departments.map(departmentLabel).join(' / ')}`
+                        : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+            )
+          })}
         </section>
       ) : null}
 

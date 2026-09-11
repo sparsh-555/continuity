@@ -222,17 +222,18 @@ which matters for the demo's own premise, because a change that takes four signa
 something anybody watches from start to finish in one sitting. The desks who have not signed
 will open it later, and what they see is the run that produced the question they are answering.
 
-### Step 5c · The grid behind the answer
+### Step 5c · The appendix behind the answer
 
-If a judge asks *how do you know the losing candidates were really checked* — and it is one of the
-two questions the research says we cannot fully answer — `/changes` →
-**SHOW THE WORKING** is the answer.
+If a judge asks *how do you know the losing candidates were really checked*, the answer is in the
+change request itself. Under **CONSIDERED AND REJECTED**, every alternative carries the one
+sentence that killed it; opening it shows every check that sentence stands for — the satisfied
+ones, the failing one, the ones that did not apply, and the desk each one belongs to.
 
-Every candidate the review tried becomes a column, including the ones it rejected, and every
-product line a row. The cells carry the five coverage labels and the desk each failure belongs
-to, which is the whole cross-team claim in one picture. Nothing is typed: the review already
-resolved these parts and says which listing it weighed, which matters because a part number
-alone does not name a company.
+That is the shape every convention for rejected alternatives converges on, from NEPA's
+*alternatives considered but eliminated* to MADR's *considered options*: **one line in the body,
+the working in the appendix.** NEPA's own standard is that a rejected alternative is *discussed
+briefly* rather than analysed in full, and the appendix is what makes brief honest. It is also
+why the grid the document used to be cut from stopped needing a screen of its own.
 
 ### Step 9b · The layout consequence, on the document
 
@@ -295,12 +296,19 @@ trip to the internet. The same review took over two minutes live and takes a qua
 second replayed, with identical verdicts and identical margins; reading the notice took
 1903 ms live and takes 7 ms, with the same reading.
 
-**A choice to make before the day.** At a quarter of a second the lanes finish before anybody
-can watch them advance, so what you see is three verdicts appearing at once rather than three
-products working at once. The disagreement, which is the comparison the whole scenario exists
-to point at, reads exactly as well either way. If the beat matters more than the speed,
-`--live` gives the wait back honestly. Adding a delay to replay would not be honest and is not
-on the table.
+**The replay plays back at reading pace.** A recorded review fills the lanes over about twenty
+seconds rather than in a quarter of a second, so three products are seen working together rather
+than three verdicts appearing at once. The pace is staggered rather than metronomic — a fixed
+interval reads as a machine printing lines — and **SKIP TO THE END** is offered throughout for
+anybody who has seen enough.
+
+**One thing to say if you are asked, and it is the honest half of the paragraph above.** The run
+is a **recording of a real run, played back.** The engine, every rule, KiCad and the model all
+still execute; what is replayed is 622 recorded distributor calls, which is what makes the
+demonstration immune to the venue's network. Say that plainly rather than claiming a live run.
+The recordings are committed, `./demo.sh --check` says *replaying, not calling out* on every
+start, and the repository is public — so the answer is a strength rather than an apology, and
+claiming otherwise is the one thing that turns it into a problem.
 
 ---
 
@@ -334,7 +342,7 @@ with 420 mA through a 5 V rail, NCP1117 reaches 159 °C against a 150 °C limit.
 number on screen, and it is the one that makes the case.
 
 **Can it check a part it could not source?** No, and it says so rather than guessing. The four
-coverage labels are on every cell of the matrix, and nothing is left admitting a gap: `emc`,
+coverage labels are on every check of every change request, and nothing is left admitting a gap: `emc`,
 `output_capacitor_stability` and `signal_integrity` were three standing admissions until
 11 September and are now three real checks with published arithmetic behind them. The last of
 the three needed four datasheet figures that had been researched and then dropped on the way

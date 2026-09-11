@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router'
+import { useCallback, useEffect, useState } from 'react'
+import { useLocation } from 'react-router'
 
 import { ReviewLanes } from '../review/ReviewLanes'
 import { Page } from '../shell/Page'
 import { useNoticeArrivals } from '../hooks/useNoticeArrivals'
-import { matrixQuery } from './matrixLink'
 import {
   ApiError,
   exposureTo,
@@ -130,28 +129,6 @@ export default function ChangesRoute() {
 
   const active = received?.notice ?? selected
   const reaches = received?.affected ?? affected
-  // Everything the review tried on these boards: the part going away, every proposal, and
-  // every alternative it ruled out. The losers are the reason to open the matrix at all.
-  const working = useMemo(
-    () =>
-      reaches && requests.length
-        ? matrixQuery({
-            affected: reaches,
-            candidates: [
-              { mpn: active?.mpn ?? '' },
-              ...requests.flatMap((request) => [
-                { mpn: request.proposal ?? '' },
-                ...request.alternatives.map((alternative) => ({
-                  mpn: alternative.mpn,
-                  manufacturer: alternative.manufacturer,
-                })),
-              ]),
-            ],
-          })
-        : null,
-    [active, reaches, requests],
-  )
-
   return (
     <Page
       actions={
@@ -295,23 +272,6 @@ export default function ChangesRoute() {
                 onApplied={() => void refresh()}
                 requests={requests}
               />
-              {/* The grid these were cut from, with every rejection's working and every
-                  department's name on it. It carries the boards, the position and the parts
-                  that were tried, because the review already knows all three and the matrix
-                  used to ask the reader to type them back in. Rendered only when there is
-                  something to open it on, and **below the change requests** — which is where
-                  `RUNNER.md` sends the presenter looking for it. */}
-              {working ? (
-                <div className="flex justify-end">
-                  <Link
-                    className="font-data-tabular text-[10px] text-primary-container hover:underline"
-                    to={`/matrix?${working.search}`}
-                  >
-                    SHOW THE WORKING · {working.lines} BOARD
-                    {working.lines === 1 ? '' : 'S'} AT {working.slot.toUpperCase()} →
-                  </Link>
-                </div>
-              ) : null}
             </>
           ) : (
             <p className="font-data-tabular text-[11px] text-on-surface-variant">
