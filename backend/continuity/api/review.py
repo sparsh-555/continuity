@@ -418,7 +418,12 @@ async def _run_line(
         emit(line_id, stream.candidate(slot_id, candidate.part))
         say(f"Trying {candidate.part.mpn} — {candidate.origin}.", slot_id)
         made = review.attempt(
-            board, slot_id, candidate.part, waivers=waivers, revision=revision
+            board,
+            slot_id,
+            candidate.part,
+            origin=candidate.origin,
+            waivers=waivers,
+            revision=revision,
         )
         attempts.append(made)
         say(review.narrate(made), slot_id)
@@ -461,6 +466,10 @@ async def _run_line(
                     # materials row with no manufacturer at all the first time it ran.
                     "manufacturer": made.candidate.manufacturer,
                     "package": made.candidate.package,
+                    # Where the run found it, so the replay can say what the live trace said.
+                    # `replay._trying` reads it, and a record written before this line
+                    # existed simply does not carry one.
+                    "origin": made.origin,
                     "clear": made.clear,
                     "gated": made.gated,
                     "narration": review.narrate(made),

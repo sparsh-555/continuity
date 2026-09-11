@@ -18,11 +18,11 @@ each one, and the winner's verdicts — `api/review._run_line` writes it so that
 decision does not have to source the part again. This reassembles the trace from that, in
 the frames the client already renders.
 
-**One thing the run said cannot be reconstructed, and is not invented.** Each candidate was
-narrated with where it came from — *"recommended by the notice"*, *"found in the
-distributor's catalogue"* — and only the manufacturer and package are stored per attempt. So
-a replayed line reads *"Trying LD1117-3.3."* where the live one read *"Trying LD1117-3.3 —
-found in the distributor's catalogue."* Adding an origin here would mean guessing one.
+**What the run said is stored with it.** Each candidate is narrated with where it came from —
+*"recommended by the notice"*, *"found in the distributor's catalogue"* — and the attempt
+carries that origin beside its manufacturer and package, so a replayed line reads what the
+live one read. A decision written before 11 September carries no origin, and those replay
+with the bare part number rather than a source invented for them.
 """
 
 from __future__ import annotations
@@ -68,6 +68,23 @@ def _check(verdict: Mapping[str, Any], line_id: str | None = None) -> dict[str, 
     return frame
 
 
+def _trying(attempt: Mapping[str, Any]) -> str:
+    """`Trying LD1117-3.3 — found in the distributor's catalogue.`
+
+    The live run says where each candidate came from, and the difference it names is not
+    decoration: *recommended by the notice* and *found in the distributor's catalogue* are
+    different claims about the same part number, and a desk weighs them differently when it
+    decides whether to sign. The attempt records the origin now, so the replay can repeat it.
+
+    A decision stored before it did keeps the bare part number. A record that does not say
+    where a candidate came from is not a record to invent a source for.
+    """
+    origin = attempt.get("origin")
+    if isinstance(origin, str) and origin.strip():
+        return f"Trying {attempt.get('mpn')} — {origin.strip()}."
+    return f"Trying {attempt.get('mpn')}."
+
+
 def frames_from(notice: Mapping[str, Any], decision: Mapping[str, Any]) -> list[dict[str, Any]]:
     """The trace a finished review would show, from the decision it left behind.
 
@@ -97,7 +114,7 @@ def frames_from(notice: Mapping[str, Any], decision: Mapping[str, Any]) -> list[
             # against, and it was never a candidate. Narrating it as one would say the run
             # considered replacing the part with itself.
             continue
-        frames.append(_said(f"Trying {mpn}.", line_id))
+        frames.append(_said(_trying(attempt), line_id))
         if attempt.get("narration"):
             frames.append(_said(attempt["narration"], line_id))
 

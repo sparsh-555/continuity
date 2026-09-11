@@ -49,6 +49,15 @@ class Attempt:
     candidate: PartSpec
     verdicts: tuple[Verdict, ...]
 
+    origin: str = ""
+    """Where this candidate came from, in the words the run says out loud.
+
+    *Recommended by the notice* and *found in the distributor's catalogue* are different
+    claims about the same part number, and a desk deciding whether to sign weighs them
+    differently. The trace has always said which one it was; carrying it here is what lets
+    the stored record say it too, so a replayed review reads what the live one read.
+    """
+
     @property
     def mpn(self) -> str:
         return self.candidate.mpn
@@ -189,6 +198,7 @@ def attempt(
     slot_id: str,
     candidate: PartSpec,
     *,
+    origin: str = "",
     waivers: Sequence[Mapping[str, Any]] = (),
     revision: str | None = None,
 ) -> Attempt:
@@ -211,6 +221,7 @@ def attempt(
         verdicts=accepted_verdicts(
             rules.evaluate(substituted), waivers=waivers, parts=parts, revision=revision
         ),
+        origin=origin,
     )
 
 
