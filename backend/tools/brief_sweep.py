@@ -239,12 +239,11 @@ def flags(run: Run) -> list[str]:
                     f"output {vout} V — a buck belongs here"
                 )
 
-    # `evidence_missing` only. `not_assessed` is a declared boundary the engine states on
-    # every board — three of them, always — so counting it here would add a constant to a
-    # threshold and tell us nothing, and `not_applicable` is a correct answer rather than a
-    # gap. This read `("warn", "unchecked")` until now, and neither is a check status: one
-    # was retired with the three-label vocabulary, the other is an `EdgeStatus` and was
-    # never right.
+    # `evidence_missing` only. `not_applicable` is a rule that had nothing to look at, which
+    # is a correct answer rather than a gap, and counting it here would add a constant to a
+    # threshold and tell us nothing. This read `("warn", "unchecked")` until now, and
+    # neither is a check status: one was retired with the three-label vocabulary, the other
+    # is an `EdgeStatus` and was never right.
     unchecked = [
         f"{key[0]} on {key[1]}"
         for key, event in run.final_checks.items()

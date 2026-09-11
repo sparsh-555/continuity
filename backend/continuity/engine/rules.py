@@ -43,7 +43,8 @@ BOARD_SUBJECT = "board"
 """Subject for verdicts that belong to the whole board rather than to any component.
 
 Deliberately not a slot id. A rule with nothing to blame must not blame the first part
-it finds — see `not_assessed`, and `not_applicable` for a board with no buses on it.
+it finds — see `not_applicable`, which is what a rule returns when it had nothing to look
+at on this board.
 """
 
 MAX_EVIDENCE_ROWS = 4
@@ -1280,11 +1281,11 @@ def capacitor_requirements(board: Board) -> list[Verdict]:
     inherits a decision made for a different part.
 
     **This does not assess stability, and must never appear to.** Proving a regulator is
-    stable with a given capacitor needs simulation, and that boundary is declared in
-    `NOT_ASSESSED` where a reader can see it. What is checkable without simulation is an
-    explicit conflict with a *published* requirement, which is a narrower claim and a real
-    one — it turns the question from "not assessed" into an answer for the cases where a
-    datasheet actually stated something.
+    stable with a given capacitor needs simulation, and no signature can stand in for it.
+    What is checkable without simulation is an explicit conflict with a *published*
+    requirement, which is a narrower claim and a real one: a regulator that stated a
+    condition and a board that breaks it is a failure, and a regulator that stated nothing
+    is `evidence_missing` rather than a quiet pass.
 
     The asymmetry between "required" and "recommended" decides verdicts here, so the model
     keeps them apart: `cout_dielectrics` holds what a datasheet *requires*, and a

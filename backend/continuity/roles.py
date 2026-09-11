@@ -109,10 +109,9 @@ the three the topic asks about.
 _LOOKED = ("satisfied", "failed", "evidence_missing")
 """Statuses that mean a department actually examined this change.
 
-`not_assessed` is a coverage boundary the engine declares on every board, and
-`not_applicable` is a rule that had nothing to look at. Neither is a department's involvement
-in *this* change, and counting them would put a desk on a change request for a question
-nobody asked.
+`not_applicable` is a rule that had nothing to look at on this board. That is not a
+department's involvement in *this* change, and counting it would put a desk on a change
+request for a question nobody asked.
 """
 
 
