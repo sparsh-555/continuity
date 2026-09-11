@@ -173,6 +173,34 @@ value to the column *and* record the document revision it came from.
 
 ---
 
+### The parts the boards already carry — added 11 Sep 2026
+
+The four regulators above are the substitution's candidates. These are the parts the bills
+already fit, and until 11 September their readings carried no source line at all, so a change
+request showed *source unavailable* beside every one of them. Each is now pinned to the line
+that states it, in `tools/eol_differential.py`.
+
+| Part | Reading | The line it came from |
+|---|---|---|
+| ESP32-C3-MINI-1-N4 | 3.0~3.6 V, −40 to 85 °C | Espressif, *Operating Conditions*: "Operating voltage/Power supply: 3.0~3.6 V"; "85 °C version module: –40 ~ 85 °C" |
+| ESP32-WROOM-32E-N4 | 3.0~3.6 V, −40 to 85 °C | Espressif, *Operating Conditions*: "Operating voltage/Power supply: 3.0~3.6 V"; "85 °C version: –40~85 °C" |
+| CL31A226KAHNNNE | 22 µF, 25 V, X5R, 1206 | Samsung, *Specification*: "CAP, 22uF, 25V, ±10%, X5R, 1206", and the part-number breakdown naming each code |
+| STM32F103C8T6 | 2.0–3.6 V, −40 to 85 °C | **nothing, deliberately** — see below |
+
+**The STM32F103C8T6's four readings have no line on purpose.** ST's current document is
+**DS5319 Rev 20**. st.com will not serve it to a scripted download, and the only mirror that
+answers is a **July 2007 Rev 2 marked *Preliminary***. Its "2.0 to 3.6 V application supply
+and I/Os" is the right figure out of a document nobody should be citing, which is the LD1117
+Rev 26 lesson above wearing different clothes. An unsourced reading is weaker than a sourced
+one, and it is stronger than a wrong one.
+
+Both Espressif modules exist in an 85 °C and a 105 °C version. The line quoted is the **85 °C**
+one, which is what the distributor states and what these readings say. If a board ever carries
+the 105 °C variant the citation will not match its part number, and naming the line rather than
+the value is what makes that visible instead of silent.
+
+---
+
 ### What these four sets of figures are for
 
 `signal_integrity` stacks a regulator's published output accuracy with its published load

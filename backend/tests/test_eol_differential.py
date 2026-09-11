@@ -10,7 +10,16 @@ from dataclasses import replace
 from continuity.engine import packages
 from continuity.engine.draw import consumers, rail_draw
 from continuity.engine.rules import evaluate
-from tools.eol_differential import AMS1117, LD1117, LINES, NCP1117, TLV1117, make_board
+from continuity.parts.dossier import NO_SOURCE, facts_from_part
+from tools.eol_differential import (
+    AMS1117,
+    LD1117,
+    LINES,
+    NCP1117,
+    OUTPUT_CAPACITOR,
+    TLV1117,
+    make_board,
+)
 
 
 def verdict(board, rule: str, scope: str | None = None):
@@ -106,6 +115,39 @@ def test_ncp1117_fails_thermal_only_on_gateway_at_its_junction_limit():
             assert "159" in thermal.detail
             assert "150 °C limit" in thermal.detail
             assert "125 °C limit" not in thermal.detail
+
+
+def test_every_reading_a_seeded_part_carries_says_where_it_came_from():
+    """Fifty-seven of the demo world's seventy-eight readings had no line, so the drawer
+    rendered *source unavailable* beside values that were right. That is the admission the
+    `signal_integrity` row was about, one level down, and it sat on the document a judge
+    reads.
+
+    Each reading now cites the line it was taken from. The four that do not are named here
+    rather than tolerated in silence: ST's current document for the MCU is DS5319 Rev 20,
+    st.com refuses a scripted download of it, and the only mirror that answers is a July
+    2007 Rev 2 marked *Preliminary* — the stale-revision trap PARTS.md records for the
+    LD1117 thermal row. Writing a citation that old would be worse than the blank.
+    """
+    deliberately_unsourced = {
+        ("STM32F103C8T6", "vmin"),
+        ("STM32F103C8T6", "vmax"),
+        ("STM32F103C8T6", "temp_min"),
+        ("STM32F103C8T6", "temp_max"),
+    }
+    parts = [
+        AMS1117, TLV1117, LD1117, NCP1117, OUTPUT_CAPACITOR,
+        *(line.load_part for line in LINES),
+    ]
+
+    blank = {
+        (part.mpn, field)
+        for part in parts
+        for _mpn, field, _value, source in facts_from_part(part, verified=True)
+        if not source or NO_SOURCE in source
+    }
+
+    assert blank == deliberately_unsourced
 
 
 def test_every_theta_ja_in_the_matrix_comes_from_a_datasheet():

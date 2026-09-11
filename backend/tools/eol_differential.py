@@ -47,6 +47,23 @@ AMS1117 = PartSpec(
             "— ±3.0% of 3.3 V, derived from the published window and not quoted"
         ),
         "load_regulation_pct": "Load Regulation, 0.4% Max (Notes 2, 3)",
+        "t_j_max": "Maximum junction temperature must not exceed 125 °C",
+        "vmin": (
+            "No minimum VIN is published — 4.4 V is derived from the 3.3 V output plus "
+            "the 1.1 V dropout at 800 mA"
+        ),
+        "vmax": "Absolute Maximum Ratings: Input Voltage 15 V",
+        "i_max": "Features: Output Current of 1 A",
+        "package": "Ordering information: AMS1117-3.3 is the SOT-223 column, −40 to 125 °C",
+        "temp_min": "Operating Junction Temperature Range −40 °C to 125 °C",
+        "temp_max": "Operating Junction Temperature Range −40 °C to 125 °C",
+        "topology": "Front page: 1A Low Dropout Voltage Regulator",
+        "vout_min": (
+            "Ordering information: AMS1117-3.3, the fixed 3.3 V version in the SOT-223 column"
+        ),
+        "vout_max": (
+            "Ordering information: AMS1117-3.3, the fixed 3.3 V version in the SOT-223 column"
+        ),
     },
     topology="ldo", stock=1_493_359, unit_price=0.2176, distributor="JLCPCB",
     datasheet="http://www.advanced-monolithic.com/pdf/ds1117.pdf",
@@ -74,6 +91,25 @@ TLV1117 = PartSpec(
         "vout_accuracy_pct": "Output accuracy ±1.5%, SBVS160C Table 6.5",
         "load_regulation_pct": (
             "Load regulation 35 mV maximum across 0–1 A — 1.06% on a 3.3 V rail, derived"
+        ),
+        "vmin": "Recommended operating conditions: VIN 2 V to 5.5 V, IOUT 0–1 A, SBVS160C §6.3",
+        "vmax": (
+            "Recommended operating conditions: VIN 2 V to 5.5 V, and 6 V absolute maximum, "
+            "SBVS160C §6.1 and §6.3"
+        ),
+        "i_max": "Recommended operating conditions: IOUT 0 to 1 A, SBVS160C §6.3",
+        "t_j_max": "For reliable operation, limit junction temperature to 125°C maximum",
+        "temp_min": "Ordering information states TJ −40 to 125 °C, SBVS160C",
+        "temp_max": "Ordering information states TJ −40 to 125 °C, SBVS160C",
+        "package": "§6.4 Thermal Information, the single column DCY (SOT-223) 4 pins",
+        "topology": "Title: TLV1117LV 1-A, Positive Fixed-Voltage, Low-Dropout Regulator",
+        "vout_min": (
+            "Orderable addendum: TLV1117LV33DCYR in SOT-223 (DCY), −40 to 125 °C TJ — the 33 "
+            "in the part number is the fixed 3.3 V output"
+        ),
+        "vout_max": (
+            "Orderable addendum: TLV1117LV33DCYR in SOT-223 (DCY), −40 to 125 °C TJ — the 33 "
+            "in the part number is the fixed 3.3 V output"
         ),
     },
     topology="ldo", stock=3_416, unit_price=0.3345, distributor="JLCPCB",
@@ -105,6 +141,28 @@ LD1117 = PartSpec(
         "load_regulation_pct": (
             "Maximum load regulation 30 mV — 0.91% on a 3.3 V rail, derived"
         ),
+        "vmax": "Absolute maximum VIN 15 V (18 V below 20 mA), DocID2572 Rev 38",
+        "vmin": (
+            "3.3 V output plus the 1.1 V dropout at 800 mA, explicitly a derivation; ST "
+            "publishes no minimum input"
+        ),
+        "i_max": "Table 6, output voltage specified across 0–800 mA, DocID2572 Rev 38",
+        "t_j_max": "Electrical characteristics specified over TJ = 0 to 125 °C, DocID2572 Rev 38",
+        "temp_min": "Electrical characteristics specified over TJ = 0 to 125 °C, DocID2572 Rev 38",
+        "temp_max": "Electrical characteristics specified over TJ = 0 to 125 °C, DocID2572 Rev 38",
+        "package": "Table 2 thermal data, SOT-223 column, DocID2572 Rev 38",
+        "topology": (
+            "Description: the LD1117 is a low drop voltage regulator able to provide up to "
+            "800 mA of output current"
+        ),
+        "vout_min": (
+            "Table 6, VO output voltage nominal 3.3 V — 3.267–3.333 V at 25 °C, 3.235–3.365 V "
+            "over 0 to 800 mA"
+        ),
+        "vout_max": (
+            "Table 6, VO output voltage nominal 3.3 V — 3.267–3.333 V at 25 °C, 3.235–3.365 V "
+            "over 0 to 800 mA"
+        ),
     },
     topology="ldo", stock=41_254, unit_price=0.2429, distributor="JLCPCB",
     datasheet="https://www.st.com/resource/en/datasheet/ld1117.pdf",
@@ -134,6 +192,26 @@ NCP1117 = PartSpec(
         "load_regulation_pct": (
             "Maximum load regulation 10 mV — 0.30% on a 3.3 V rail, derived"
         ),
+        "vmax": "Absolute maximum input 20 V, NCP1117/D",
+        "vmin": (
+            "3.3 V output plus the 1.2 V dropout at 800 mA, explicitly a derivation"
+        ),
+        "t_j_max": "Maximum die junction temperature TJ −55 to 150 °C, NCP1117/D",
+        "temp_min": "Operating Ambient Temperature Range TA 0 to +125 °C, the quantity the "
+                    "distributor shows as 0 to +125 °C",
+        "temp_max": "Operating Ambient Temperature Range TA 0 to +125 °C, the quantity the "
+                    "distributor shows as 0 to +125 °C",
+        "package": "Case 318H (SOT−223), the row above the DPAK row in the thermal table",
+        "i_max": "Features: Output Current in Excess of 1.0 A",
+        "topology": "The NCP1117 series are low dropout positive voltage regulators",
+        "vout_min": (
+            "Output voltage, fixed output devices, 3.3 V row: 3.267–3.333 V at 25 °C, "
+            "3.235–3.365 V over 0 to 800 mA"
+        ),
+        "vout_max": (
+            "Output voltage, fixed output devices, 3.3 V row: 3.267–3.333 V at 25 °C, "
+            "3.235–3.365 V over 0 to 800 mA"
+        ),
     },
     topology="ldo", stock=78_632, unit_price=0.2354, distributor="JLCPCB",
     datasheet="https://www.onsemi.com/pdf/datasheet/ncp1117-d.pdf",
@@ -148,7 +226,19 @@ OUTPUT_CAPACITOR = PartSpec(
     temp_min=-55.0, temp_max=85.0, capacitance_uf=22.0, dielectric="X5R",
     stock=1_473_130, unit_price=0.1725,
     distributor="JLCPCB", product_url="https://jlcpcb.com/partdetail/C12891",
-    provenance={"temp_min": EIA_RS_198, "temp_max": EIA_RS_198},
+    datasheet="https://datasheet.datasheetarchive.com/originals/distributors/Datasheets_SAMA/9f57e07966b0fde480de744eca033cf5.pdf",
+    provenance={
+        "temp_min": EIA_RS_198,
+        "temp_max": EIA_RS_198,
+        "capacitance_uf": "Samsung specification sheet, description: CAP, 22uF, 25V, ±10%, X5R, 1206",
+        "dielectric": "Part number breakdown: ③ Dielectric X5R",
+        "package": "Part number breakdown: ② Size 1206 (inch code)",
+        "vmax": "Part number breakdown: ⑥ Rated Voltage 25 V",
+        "vmin": (
+            "Rated voltage 25 V; a non-polarised MLCC is rated symmetrically, so −25 V is "
+            "derived from it rather than printed"
+        ),
+    },
 )
 
 
@@ -177,6 +267,16 @@ LINE_A = ProductLine(
         category="RF Modules", vmin=3.0, vmax=3.6, i_peak=0.350, i_typ=0.084,
         temp_min=-40.0, temp_max=85.0, stock=18_086, unit_price=3.8336,
         distributor="JLCPCB", product_url="https://jlcpcb.com/partdetail/C2838502",
+        datasheet="https://www.espressif.com/sites/default/files/documentation/esp32-c3-mini-1_datasheet_en.pdf",
+        # The module exists in two ambient versions and this is the 85 °C one, which is
+        # what the listing states and what the datasheet's own line for it says. The
+        # supply figures are the same for both.
+        provenance={
+            "vmin": "Operating Conditions: operating voltage/power supply 3.0~3.6 V",
+            "vmax": "Operating Conditions: operating voltage/power supply 3.0~3.6 V",
+            "temp_min": "Operating Conditions: 85 °C version module –40 ~ 85 °C",
+            "temp_max": "Operating Conditions: 85 °C version module –40 ~ 85 °C",
+        },
     ),
 )
 LINE_B = ProductLine(
@@ -188,6 +288,13 @@ LINE_B = ProductLine(
         category="RF Modules", vmin=3.0, vmax=3.6, i_peak=0.239, i_typ=0.112,
         temp_min=-40.0, temp_max=85.0, stock=28_108, unit_price=3.7312,
         distributor="JLCPCB", product_url="https://jlcpcb.com/partdetail/C701341",
+        datasheet="https://www.espressif.com/sites/default/files/documentation/esp32-wroom-32e_esp32-wroom-32ue_datasheet_en.pdf",
+        provenance={
+            "vmin": "Operating Conditions: operating voltage/power supply 3.0~3.6 V",
+            "vmax": "Operating Conditions: operating voltage/power supply 3.0~3.6 V",
+            "temp_min": "Operating Conditions: 85 °C version: –40~85 °C",
+            "temp_max": "Operating Conditions: 85 °C version: –40~85 °C",
+        },
     ),
 )
 LINE_C = ProductLine(
@@ -197,6 +304,13 @@ LINE_C = ProductLine(
     "cabinet controller operating profile Rev C — 55 °C cabinet ambient",
     PartSpec(
         # JLCPCB C8734 states no current, so i_peak and i_typ deliberately remain unset.
+        #
+        # **The four figures it does carry have no source line on purpose.** They are right,
+        # and ST's current document is DS5319 Rev 20, which is not reachable from a script:
+        # st.com refuses the download, and the only mirror that answers is a July 2007
+        # Rev 2 marked *Preliminary*. Citing that revision is the same mistake as reading
+        # LD1117's TO-220 thermal row, which PARTS.md keeps as the worked example. An
+        # unsourced reading is weaker than a sourced one and stronger than a wrong one.
         mpn="STM32F103C8T6", manufacturer="STMicroelectronics", description="ARM Cortex-M3 MCU",
         category="Microcontrollers (MCU)", vmin=2.0, vmax=3.6, temp_min=-40.0, temp_max=85.0,
         stock=224_069, unit_price=1.7203, distributor="JLCPCB",
