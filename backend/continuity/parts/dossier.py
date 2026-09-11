@@ -247,11 +247,19 @@ def part_from_facts(
     `None` when nothing was recorded, because a part with no facts is not a part.
     """
     fields: dict[str, Any] = {}
+    sources: dict[str, str] = {}
     for fact in facts:
         field = str(fact.get("field") or "")
         value = value_from_text(field, str(fact.get("value") or ""))
         if value is not None:
             fields[field] = value
+            # **Kept, not stamped over.** The stored reading carries the line it was read
+            # from, and this used to replace every one of them with the bare dossier label —
+            # so a change request showed *vmax (dossier) 20.0* against nothing, and the
+            # source line PARTS.md promises for every figure stopped at the door. The
+            # `normalize` path has always carried it; this one is the fallback a product
+            # line's own parts are built by, which is the path most evidence goes through.
+            sources[field] = provenance(fact.get("source"))
     if not fields:
         return None
     return PartSpec(
@@ -259,6 +267,6 @@ def part_from_facts(
         manufacturer=manufacturer or "",
         description=f"{mpn}, from readings this company recorded",
         category=fields.pop("category", "") or "",
-        provenance={field: DOSSIER_SOURCE for field in fields},
+        provenance=sources,
         **fields,
     )

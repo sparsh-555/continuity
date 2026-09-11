@@ -229,6 +229,32 @@ def test_a_capacitance_read_back_is_a_number_the_engine_can_add_up():
     assert sum(read["capacitance_uf"] for _ in (1,)) == 22.0, "it has to be addable"
 
 
+def test_a_reading_built_from_the_record_still_says_where_it_came_from():
+    """The line a figure was read from is stored, and it used to stop at the door.
+
+    `facts_from_part` writes each reading with its source, and `normalize` carries that
+    source through as `Continuity dossier (…the line…)`. `part_from_facts` — the fallback a
+    product line's own parts are built by — threw it away and stamped every field with the
+    bare label, so a change request showed *vmax (dossier) 20.0* against nothing. PARTS.md
+    promises a source line for every figure in it, and this is the path where that promise
+    was not kept.
+    """
+    from tools.eol_differential import NCP1117
+
+    facts = dossier.facts_from_part(NCP1117, verified=True)
+    back = dossier.part_from_facts(NCP1117.mpn, NCP1117.manufacturer, [
+        {"field": field, "value": value, "source": source} for _, field, value, source in facts
+    ])
+
+    assert back is not None
+    for evidence in back.cite("u1", "vmax", "vout_accuracy_pct", "esr_stable_from_ohms"):
+        assert evidence.source != dossier.DOSSIER_PROVENANCE_PREFIX, (
+            f"{evidence.field} carries the bare label, so nothing says where it came from"
+        )
+        assert "(" in evidence.source and evidence.source.endswith(")"), evidence.source
+        assert evidence.source != f"{dossier.DOSSIER_PROVENANCE_PREFIX} (not recorded)"
+
+
 def test_a_regulators_published_error_is_a_fact_about_the_part():
     """The fields `signal_integrity` stacks, which were researched and then dropped.
 
