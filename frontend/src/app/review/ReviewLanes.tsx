@@ -99,6 +99,7 @@ export function ReviewLanes({
   openLineId,
   onOpenLine,
   onFinished,
+  onBusy,
 }: {
   noticeId: string
   candidates: string[]
@@ -107,6 +108,9 @@ export function ReviewLanes({
   onOpenLine: (lineId: string | null) => void
   /** A run ended, so the documents read from it are stale. */
   onFinished?: () => void
+  /** A run is arriving on screen. The page watches this to hold back what it would be
+   *  showing the *previous* run's answer to. */
+  onBusy?: (busy: boolean) => void
 }) {
   /** One state object rather than five, because the reducer owns the whole of it. */
   const [state, setState] = useState<LaneState>(emptyLanes)
@@ -114,6 +118,9 @@ export function ReviewLanes({
   const [open, setOpen] = useState<Set<string>>(new Set())
   /** The connection is open. */
   const [streaming, setStreaming] = useState(false)
+  /** Frames are still being drawn. Outlives `streaming`: a stream that has closed can leave
+   *  a queue behind it, and the run is not over on screen until the queue is empty. */
+  const [playing, setPlaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abort = useRef<(() => void) | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -132,6 +139,12 @@ export function ReviewLanes({
 
   useEffect(() => () => abort.current?.(), [])
 
+  // The page is told whenever the run starts or stops owning the screen, so that a pane
+  // showing what the *last* run concluded is not read as this one's answer.
+  useEffect(() => {
+    onBusy?.(streaming || playing)
+  }, [onBusy, playing, streaming])
+
   /** Draw one frame, then wait, then draw the next.
    *
    * The frame is taken out of the queue as a value rather than read from an index when the
@@ -143,6 +156,7 @@ export function ReviewLanes({
     const frame = queue.current.shift()
     if (!frame) {
       draining.current = false
+      setPlaying(false)
       const stored = rows.current
       if (stored.length > 0) {
         setState((current) => withSignatures(current, stored))
@@ -158,6 +172,7 @@ export function ReviewLanes({
     (frames: readonly ReviewFrame[]) => {
       if (frames.length === 0) return
       queue.current.push(...frames)
+      setPlaying(true)
       if (draining.current) return
       draining.current = true
       drain()
@@ -176,6 +191,7 @@ export function ReviewLanes({
     setState(emptyLanes)
     setOpen(new Set())
     setError(null)
+    setPlaying(false)
     setStreaming(true)
 
     abort.current = runReview(
@@ -391,9 +407,6 @@ export function ReviewLanes({
                     how one document came to disagree with itself about who had signed it. */}
                 {lane.question ? (
                   <div className="px-md pb-md pl-[46px] space-y-sm">
-                    <p className="font-data-tabular text-[11px] tracking-[0.08em] text-tertiary-container uppercase">
-                      {lane.question.roles.map(departmentLabel).join(' and ')} must sign
-                    </p>
                     <p className="font-body-md text-[14px] text-on-surface leading-relaxed">
                       {lane.question.text}
                     </p>

@@ -2,7 +2,12 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "target": "es2023",
-    "lib": ["ES2023"],
+    // **DOM as well as Node, and it is not a mistake.** These files run in Node, but the
+    // callbacks handed to `locator.evaluate` are serialised and executed in the browser, so
+    // `document` inside one is the page's. Without this they were typed against the outer
+    // scope and a spec that builds a long element resolved `document` to a neighbouring
+    // variable, or to nothing at all.
+    "lib": ["ES2023", "DOM"],
     "types": ["node"],
     "skipLibCheck": true,
 

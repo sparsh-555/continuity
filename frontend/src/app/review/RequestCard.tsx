@@ -192,6 +192,12 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
           screen shows is a cost with no reader. The product line's BOARD pane places the
           same part on demand; the card carries the one the run already computed. */}
       <BoardConsequence
+        // **It places itself, because opening the document is the question.** The run fires a
+        // placement per line in the background and this usually arrives with the pictures
+        // already on it. When it does not — a world with no KiCad, or a reader who opened the
+        // card inside the twenty seconds the placement takes — a button asking whether to place
+        // the substitute is a second question on a page where the reader has already asked it.
+        auto
         candidate={request.proposal}
         lineId={request.line_id}
         retiring={request.notice_mpn}

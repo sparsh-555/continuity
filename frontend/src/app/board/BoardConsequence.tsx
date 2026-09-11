@@ -210,8 +210,12 @@ export function BoardConsequence({
   // placed in this session comes back from `placements` without another KiCad run, so a
   // refetch behind the BOARD view no longer takes the picture away and puts PLACING… there.
   useEffect(() => {
-    if (auto) void check()
-  }, [auto, check])
+    // **Not when the document already carries the picture.** `auto` is what makes the pane
+    // place a substitute without being asked, and the run fires one per line in the
+    // background, so most of the time the answer is already here. Placing again would spend
+    // eleven seconds of KiCad to redraw a picture that is on screen.
+    if (auto && !stored) void check()
+  }, [auto, check, stored])
 
   if (!candidate) return null
 

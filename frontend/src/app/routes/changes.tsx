@@ -72,6 +72,9 @@ export default function ChangesRoute() {
   /** A signature the server refused, by decision. About the desk, never about the board. */
   const [refusals, setRefusals] = useState<Record<string, string>>({})
   const [signing, setSigning] = useState<string | null>(null)
+  /** A review is arriving on screen. The queue on the left is the *previous* run's answer
+   *  until this is false, and showing it during a run is what made the run look finished. */
+  const [reviewing, setReviewing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -264,7 +267,7 @@ export default function ChangesRoute() {
           left pane holds one desk's queue and the right one holds one document, so they take
           a share of the width; the run takes what is left, and each has a minimum below which
           it stops shrinking. */}
-      <div className="grid grid-cols-[minmax(300px,20%)_minmax(320px,1fr)_minmax(400px,32%)] gap-lg items-stretch flex-1 min-h-0">
+      <div className="grid grid-cols-[minmax(300px,20%)_minmax(320px,1fr)_minmax(400px,32%)] grid-rows-[minmax(0,1fr)] gap-lg items-stretch flex-1 min-h-0">
         {/* ── The desk ───────────────────────────────────────────────────────────── */}
         <aside className="h-full overflow-y-auto space-y-md pr-sm">
           {/* **A heading, because a column of cards with no name is a column nobody can
@@ -344,12 +347,29 @@ export default function ChangesRoute() {
           {/* **The one place a change is signed.** The buttons and the four ticks used to be
               here *and* on the lane and *again* on the change request; a desk that owes a
               signature should find it where it is told it owes one. */}
-          <WaitingOnYou
-            busy={signing}
-            decisions={waiting}
-            onAnswer={(decision, approve) => void answer(decision, approve)}
-            requests={requests}
-          />
+          {/* **Held back until the run is over.** The decisions this desk owes are read from
+              the database, not from the stream, so they are on screen the instant the page
+              loads — and with a run in flight they are the previous run's conclusions sitting
+              beside a trace that has not finished. The pane is the answer, so it waits for the
+              run that produces it. */}
+          {reviewing ? (
+            <section className="border border-outline-variant rounded p-md">
+              <p className="m-0 font-data-tabular text-[12px] tracking-[0.08em] text-on-surface-variant uppercase">
+                What this desk owes
+              </p>
+              <p className="m-0 mt-sm font-data-tabular text-[13px] text-on-surface-variant leading-relaxed">
+                Waiting for the run to finish. Anything signed before it does is signed against
+                the last one.
+              </p>
+            </section>
+          ) : (
+            <WaitingOnYou
+              busy={signing}
+              decisions={waiting}
+              onAnswer={(decision, approve) => void answer(decision, approve)}
+              requests={requests}
+            />
+          )}
 
           {Object.entries(refusals)
             .filter(([, message]) => message)
@@ -385,6 +405,7 @@ export default function ChangesRoute() {
                 if (noticeId) void reloadRequests(noticeId)
                 void refreshWaiting()
               }}
+              onBusy={setReviewing}
               onOpenLine={setOpenLineId}
               openLineId={openLineId}
             />
@@ -400,7 +421,7 @@ export default function ChangesRoute() {
 
         {/* ── The document ───────────────────────────────────────────────────────── */}
         <div className="h-full overflow-y-auto pr-sm">
-          <RequestPanel request={openRequest} />
+          <RequestPanel request={openRequest} requests={requests} running={reviewing} />
         </div>
       </div>
 

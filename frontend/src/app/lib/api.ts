@@ -866,27 +866,11 @@ export function listLines() {
   return request<Line[]>('/lines')
 }
 
-export type Member = {
-  id: string
-  email: string
-  /** The desks this person holds. Signing a change needs the desk, not the person. */
-  roles: string[]
-  /** The projects they were brought in on. Not the company's — theirs. */
-  line_ids: string[]
-  joined_at: string
-}
-
-export function listMembers() {
-  return request<Member[]>('/orgs/members')
-}
-
-/** Bring somebody in on some projects.
- *
- * `line_ids` is the selection made on the product lines list, and it is what makes the
- * invitation mean something: a project that was not ticked is not visible to them.
- */
 export function inviteTeammate(email: string, roles: string[], lineIds: string[]) {
-  return request<{ granted: number; member: Member | null }>('/orgs/invites', {
+  // The payload still carries the member row the server wrote, and nothing reads it: the
+  // dialog's confirmation is built from what was sent. Left in the type so the contract is
+  // stated rather than the response being narrowed to a field nobody asked for.
+  return request<{ granted: number; member: { email: string } | null }>('/orgs/invites', {
     method: 'POST',
     body: { email, roles, line_ids: lineIds },
   })

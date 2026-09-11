@@ -54,7 +54,21 @@ test('a delivered notice announces itself and refreshes rows and an open product
   const run = page.getByRole('region', { name: 'The review' })
   const sensorLane = run.getByRole('button', { name: /Sensor node/ })
   await expect(sensorLane).toBeVisible()
-  await sensorLane.click()
+
+  // **The click is retried only while the row is still closed.** A lane re-renders every few
+  // hundred milliseconds while its summary line is replaced, and a click that lands between
+  // two of those is swallowed. Retrying with `toPass` would toggle it back off when the first
+  // click did work, so this reads the state first and clicks only if it has to.
+  await expect
+    .poll(
+      async () => {
+        if ((await sensorLane.getAttribute('aria-expanded')) === 'true') return true
+        await sensorLane.click()
+        return (await sensorLane.getAttribute('aria-expanded')) === 'true'
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true)
   await expect(page.getByText(/^Trying .+\.$/).first()).toBeVisible()
 
   // **These waits are long because the trace is drawn at a pace a person can read.** The

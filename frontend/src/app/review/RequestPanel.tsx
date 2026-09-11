@@ -1,4 +1,5 @@
 import { RequestCard } from './RequestCard'
+import { RoundTrips } from './RoundTrips'
 import type { ChangeRequest } from '../lib/api'
 
 /**
@@ -9,27 +10,47 @@ import type { ChangeRequest } from '../lib/api'
  * first and a reader comparing two of them lost the trace they came from. Here it is a column
  * that swaps when a row is opened, and the run stays on screen beside it.
  *
- * **With nothing opened there is nothing here, and that is the decision rather than an
- * oversight.** This pane used to carry the round trips a change did not have to cross, drawn
- * as two timelines. The figure was the change's rather than any board's, because the same four
- * desks sign all three products, so it repeated verbatim whichever board was open, and it is
- * the one number on this page that is an estimate rather than a measurement. It is spoken
- * instead: the constants, their sources and the arithmetic are in DEMO-DAY.md and in
- * `change.py` beside them, which is where a question about them is answered from.
+ * **With nothing opened it carries the change's own figure.** The round trips a change did
+ * not have to cross belong to the change rather than to a board, because the same four desks
+ * sign all three products, so the pane shows them once here and the documents do not repeat
+ * them. The constants behind them are not on screen: the sentence naming the papers is in the
+ * Q&A, and the arithmetic is in `change.py` beside the numbers.
  */
-export function RequestPanel({ request }: { request: ChangeRequest | null }) {
-  if (!request) {
+export function RequestPanel({
+  request,
+  requests,
+  running = false,
+}: {
+  request: ChangeRequest | null
+  /** Every request in this review, for the change-level figure when nothing is opened. */
+  requests: readonly ChangeRequest[]
+  /** A review is arriving. Everything this pane can show is the *last* run's answer until it
+   *  is false, so it says so rather than putting yesterday's figure beside today's trace. */
+  running?: boolean
+}) {
+  const saving = requests.find((row) => row.saving)?.saving ?? null
+
+  if (running) {
     return (
       <div className="space-y-md">
         <p className="m-0 font-data-tabular text-[12px] tracking-[0.08em] text-on-surface-variant uppercase">
           The change request
         </p>
         <p className="m-0 font-data-tabular text-[13px] text-on-surface-variant leading-relaxed">
-          Open a product line to read its change request. It carries the proposal, every
-          candidate that was rejected with the checks that rejected it, what each of the four
-          desks found, the evidence the decision rests on, what could not be checked, and the
-          board as KiCad places the substitute on it.
+          Waiting for the run to finish. The documents here belong to the last one, and this
+          pane is the answer rather than the working.
         </p>
+      </div>
+    )
+  }
+
+  if (!request) {
+    return (
+      <div className="space-y-md">
+        <p className="m-0 font-data-tabular text-[12px] tracking-[0.08em] text-on-surface-variant uppercase">
+          The change request
+        </p>
+        {saving ? <RoundTrips saving={saving} /> : null}
       </div>
     )
   }

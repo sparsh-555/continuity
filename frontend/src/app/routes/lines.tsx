@@ -14,7 +14,7 @@ import {
   type Line,
   type LineThread,
 } from '../lib/api'
-import { InviteDialog, TeamPanel, useMembers } from '../team/Team'
+import { InviteDialog } from '../team/Team'
 import { Wordmark } from '../shell/Wordmark'
 
 type StatusBadge = {
@@ -141,7 +141,6 @@ export default function LinesRoute() {
   const [openMenuLineId, setOpenMenuLineId] = useState<string | null>(null)
   const [reloadCount, setReloadCount] = useState(0)
 
-  const { members, refresh: refreshMembers } = useMembers()
 
   const [renameLine, setRenameLine] = useState<Line | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -378,8 +377,6 @@ export default function LinesRoute() {
               sharing on faith without this. It is on the projects page rather than a
               destination of its own, so the answer to *how do you share these* sits beside
               the things being shared. */}
-          <TeamPanel members={members} />
-
           <div className="flex items-center justify-between gap-md border-b border-outline-variant pb-sm">
             <h1 className="font-label-caps text-label-caps tracking-[0.1em] uppercase text-on-surface">
               PRODUCT LINES
@@ -689,7 +686,6 @@ export default function LinesRoute() {
           setInviteNote(note)
           setPicking(false)
           setPicked(new Set())
-          refreshMembers()
         }}
         open={inviteOpen}
         selected={[...picked]}
