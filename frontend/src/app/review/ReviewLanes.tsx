@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ReasoningLine } from '../design/ReasoningLine'
 import { departmentLabel } from './Departments'
+import { RequestCard } from './RequestCard'
 import {
   ApiError,
   answerDecision,
   noticeReviews,
+  type ChangeRequest,
   type NoticeReview,
   type ReviewFrame,
 } from '../lib/api'
@@ -97,10 +99,13 @@ function Verdict({ lane }: { lane: Lane }) {
 export function ReviewLanes({
   noticeId,
   candidates,
+  requests = [],
   onApplied,
 }: {
   noticeId: string
   candidates: string[]
+  /** The change requests, one per affected product line, to sit at the end of their lane. */
+  requests?: ChangeRequest[]
   /** A product line changed, so anything showing it is stale. */
   onApplied?: (lineId: string) => void
 }) {
@@ -206,13 +211,14 @@ export function ReviewLanes({
     [onApplied, patch],
   )
 
+  /**
+   * **One lane open at a time.** This is the master-detail the page is: the rows stay
+   * visible and keep advancing, which is the simultaneity, and the one a reader opened owns
+   * the room its trace needs. Opening a second used to leave the first open too, which put
+   * two traces in one column again and is the shape this page was rebuilt to stop being.
+   */
   const toggle = (lineId: string) =>
-    setOpen((current) => {
-      const next = new Set(current)
-      if (next.has(lineId)) next.delete(lineId)
-      else next.add(lineId)
-      return next
-    })
+    setOpen((current) => (current.has(lineId) ? new Set<string>() : new Set([lineId])))
 
   return (
     <section className="space-y-md">
@@ -366,6 +372,21 @@ export function ReviewLanes({
                     Left as it is. The board still carries the retired part.
                   </p>
                 ) : null}
+
+                {/* **The change request is the lane's last layer, not a stack under the
+                    run.** It is about this board, and the reader who has just followed this
+                    trace is the reader who wants it. Under the lanes it arrived in the same
+                    column as the run, which made a finished document look like the
+                    replacement for a running one — and put the third product's request a
+                    scroll away from the first. `/lines/:id` says the same thing with its
+                    one-line summary at the end of its trace. */}
+                {requests
+                  .filter((request) => request.line_id === lane.lineId)
+                  .map((request) => (
+                    <div className="px-md pb-md pl-[46px]" key={request.line_id}>
+                      <RequestCard request={request} />
+                    </div>
+                  ))}
               </article>
             )
           })}

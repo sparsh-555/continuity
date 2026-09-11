@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 
 import { ReviewLanes } from '../review/ReviewLanes'
-import { RequestCard } from '../review/RequestCard'
 import { Page } from '../shell/Page'
 import { useNoticeArrivals } from '../hooks/useNoticeArrivals'
 import { matrixQuery } from './matrixLink'
@@ -173,8 +172,15 @@ export default function ChangesRoute() {
         </label>
       }
       title="CHANGES"
-      width="reading"
+      width="wide"
     >
+      {/* **Master and detail, rather than three screens down one column.** The left is what
+          arrived and what it reaches; the right is one thing at a time — the run, the lanes,
+          and the change request each lane ends in. A reading column made a finished document
+          arrive in the same place as a running one, which read as a replacement for it, and
+          put the third product's request a scroll below the first. See R3. */}
+      <div className="flex gap-lg items-start">
+        <aside className="w-[340px] flex-shrink-0 space-y-md">
 
       {/* A list, not a row of ten-pixel chips. What arrived, when, how, and what it
           retires — enough to pick one without having already known which to pick. The old
@@ -260,14 +266,7 @@ export default function ChangesRoute() {
             />
           </details>
         </section>
-      ) : (
-        <p className="font-data-tabular text-[11px] text-on-surface-variant">
-          Nothing has arrived yet. Forward a change notice to the mailbox, or upload one.
-          Continuity reads the part number out of the document, finds the products that
-          carry it, and checks every substitute against each product’s own operating
-          conditions.
-        </p>
-      )}
+      ) : null}
 
       {skipped.length > 0 ? (
         <section className="space-y-1">
@@ -281,45 +280,49 @@ export default function ChangesRoute() {
           ))}
         </section>
       ) : null}
+        </aside>
 
-      {active && (received?.id ?? selected?.id) ? (
-        <ReviewLanes
-          candidates={candidates
-            .split(/[,\n]/)
-            .map((mpn) => mpn.trim())
-            .filter(Boolean)}
-          noticeId={(received?.id ?? selected?.id) as string}
-          onApplied={() => void refresh()}
-        />
-      ) : null}
+        <div className="flex-1 min-w-0 space-y-md">
 
-      {requests.length > 0 ? (
-        <section className="space-y-md">
-          <div className="flex items-baseline justify-between gap-md flex-wrap">
-            <h2 className="font-data-tabular text-[11px] text-on-surface-variant">
-              {requests.length} CHANGE REQUEST{requests.length === 1 ? '' : 'S'} — ONE PER
-              AFFECTED PRODUCT LINE
-            </h2>
-            {/* The grid these were cut from, with every rejection's working and every
-                department's name on it. It carries the boards, the position and the parts
-                that were tried, because the review already knows all three and the matrix
-                used to ask the reader to type them back in. Rendered only when there is
-                something to open it on. */}
-            {working ? (
-              <Link
-                className="font-data-tabular text-[10px] text-primary-container hover:underline"
-                to={`/matrix?${working.search}`}
-              >
-                SHOW THE WORKING · {working.lines} BOARD{working.lines === 1 ? '' : 'S'} AT{' '}
-                {working.slot.toUpperCase()} →
-              </Link>
-            ) : null}
-          </div>
-          {requests.map((request) => (
-            <RequestCard key={request.line_id} request={request} />
-          ))}
-        </section>
-      ) : null}
+          {active && (received?.id ?? selected?.id) ? (
+            <>
+              <ReviewLanes
+                candidates={candidates
+                  .split(/[,\n]/)
+                  .map((mpn) => mpn.trim())
+                  .filter(Boolean)}
+                noticeId={(received?.id ?? selected?.id) as string}
+                onApplied={() => void refresh()}
+                requests={requests}
+              />
+              {/* The grid these were cut from, with every rejection's working and every
+                  department's name on it. It carries the boards, the position and the parts
+                  that were tried, because the review already knows all three and the matrix
+                  used to ask the reader to type them back in. Rendered only when there is
+                  something to open it on, and **below the change requests** — which is where
+                  `RUNNER.md` sends the presenter looking for it. */}
+              {working ? (
+                <div className="flex justify-end">
+                  <Link
+                    className="font-data-tabular text-[10px] text-primary-container hover:underline"
+                    to={`/matrix?${working.search}`}
+                  >
+                    SHOW THE WORKING · {working.lines} BOARD
+                    {working.lines === 1 ? '' : 'S'} AT {working.slot.toUpperCase()} →
+                  </Link>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p className="font-data-tabular text-[11px] text-on-surface-variant">
+              Nothing has arrived yet. Forward a change notice to the mailbox, or upload one.
+              Continuity reads the part number out of the document, finds the products that
+              carry it, and checks every substitute against each product’s own operating
+              conditions.
+            </p>
+          )}
+        </div>
+      </div>
     </Page>
   )
 }
