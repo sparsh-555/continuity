@@ -625,11 +625,13 @@ export function ReviewLanes({
                     column as the run, which made a finished document look like the
                     replacement for a running one.
 
-                    **And it is not drawn while a run is in flight.** These are the last
-                    run's documents, and a finished proposal sitting under a trace that is
-                    still arriving says the run has already concluded. The lane holds the
-                    trace until the run it belongs to is over. */}
-                {streaming
+                    **And it is not drawn while the run is still arriving.** A finished
+                    proposal sitting under a trace that is part-way through says the run has
+                    already concluded, and the reader skips the trace because they can see
+                    where it ends. That is true of a live run and of a replay, which is why
+                    this asks whether frames are still being drawn rather than whether the
+                    connection is open. */}
+                {streaming || playing
                   ? null
                   : requests
                       .filter((request) => request.line_id === lane.lineId)
