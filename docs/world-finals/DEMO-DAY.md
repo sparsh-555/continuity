@@ -45,12 +45,13 @@ because procurement's rule already ran. What is left for the humans is four sign
 evidence already gathered — *procurement's approval becomes one click on evidence already
 gathered, instead of three days of investigation they run themselves.*
 
-**Two surfaces, and knowing which is which is the whole navigation.** `/changes` is the company
-view: what arrived, what it reaches, every affected line running together, and what this desk
-owes at the top of the page. `/lines/:id` is one product: its power tree, its bill, its board
-and its own review. The same endpoint runs both, narrowed by `line_id`, so they cannot come to
-disagree about what a review is. There was a third, `/approvals`, and it was a second place to
-sign the same decisions the lanes already asked for.
+**Two surfaces, and knowing which is which is the whole navigation.** `/lines` is the company:
+the people on it and the projects they were brought in on, at the top of the page. `/changes`
+is the company view of one notice: what arrived, what it reaches, every affected line running
+together, and what this desk owes. `/lines/:id` is one product: its power tree, its bill, its
+board and its own review. The same endpoint runs both of the last two, narrowed by `line_id`,
+so they cannot come to disagree about what a review is. There was a third, `/approvals`, and it
+was a second place to sign the same decisions the lanes already asked for.
 
 **Which desk you are is in the rail and in every header**, and it switches between four
 real sessions. Not an impersonation: a desk that has to sign has to be signed in.
@@ -372,6 +373,20 @@ every candidate simultaneously, before the first person is asked. Then each depa
 for itself: the bill does not move until all of them have, no desk can sign for another, and
 each has a queue of what it owes. Show the Gateway, which stops at procurement while the other
 two clear, and the four blocks on any change request.
+
+**How do teams share the projects?** Two sentences, and the second is the one that lands:
+*a company owns the product lines, and a project is visible to the people who were brought in
+on it rather than to everybody who happens to work here.* On the projects page, **THE COMPANY**
+names each person and what they hold; **INVITE TEAMMATES** ticks the projects, and the
+invitation adds a desk and those projects and nothing else. If they want the proof rather than
+the description, switch to `priya@northwind.example` — she was brought in on three projects
+and sees three, and the fourth is not hers to know about.
+
+**And say what it does not do, in the same breath.** There is no invitation email: an
+invitation to an address nobody has signed up with needs a token, an expiry and an acceptance
+route, and the screen refuses that address with a sentence rather than pretending to send one.
+What it does is real — the account is in the company and on those projects the moment it
+returns, and the desk can then be asked to sign.
 
 **Did you not just move the meetings into an app?** No. The round trips are the cost, and they
 are gone: nobody proposes a part and waits two days to learn procurement cannot buy it, because

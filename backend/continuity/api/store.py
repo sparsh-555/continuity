@@ -295,6 +295,7 @@ class Store:
                  + (SELECT count(*) FROM threads WHERE org_id = %(org)s)
                  + (SELECT count(*) FROM findings WHERE org_id = %(org)s)
                  + (SELECT count(*) FROM line_parts WHERE org_id = %(org)s)
+                 + (SELECT count(*) FROM line_access WHERE org_id = %(org)s)
                  + (SELECT count(*) FROM approvals WHERE org_id = %(org)s)
                  + (SELECT count(*) FROM notices WHERE org_id = %(org)s)
                  + (SELECT count(*) FROM change_requests WHERE org_id = %(org)s)

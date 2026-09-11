@@ -1,6 +1,6 @@
 # Task · DEFERRED pass 5 — the page the review lives on
 
-> **Status: pass 5 is complete, 11 September.** Seven items, P20 to P26.
+> **Status: pass 5 is complete, 11 September.** Eight items, P20 to P27.
 >
 > Three things the building of it exposed that were not on the list, and the third is the one
 > that mattered:
@@ -16,17 +16,18 @@
 >   rebuilds from `decisions.document` carry no `seq` at all. The read-back is per decision, so
 >   a company-wide review replayed as one board, then the next, then the next. The run's own
 >   order is now recorded as it streams (P24), which is the same session's second finding.
-> - **The board consequence the run computes in the background now has no reader.** P25 took
->   the board off the change request at Sparsh's request, and `request.board` is what the card
->   was rendering. See the open row below.
+> - **The board consequence lost its reader for a few hours.** P25 took the board off the
+>   change request at Sparsh's request, and `request.board` was the only thing the card
+>   rendered it from — so a KiCad run was happening in the background and writing a field no
+>   screen showed. He asked for it back the same day, and it is back (P25a below).
 
 Passes 2 and 3 made the product correct. Pass 4 made it say what it did. This one is about the
 page the whole scenario happens on: `/changes` was a wide column of ten-pixel text on an
 animated background, and the review inside it was the only thing on the screen that mattered.
 
 **Repository** `~/Documents/GitHub/continuity`. **Baseline** main at `4192148`, working tree
-clean. **Suite** 1222 with a database · 53 frontend · lint clean · browser spec green in 1.0 min
-· 622 recorded calls (re-count before quoting any of these).
+clean. **Suite** at the end of the pass: 1231 with a database · 53 frontend · lint clean ·
+browser spec green in 58 s · 622 recorded calls (re-count before quoting any of these).
 
 The rules are the ones in [`DEFERRED-BRIEF.md`](DEFERRED-BRIEF.md) and the top of
 [`BUILD.md`](../BUILD.md). Test first, watch it fail, fix, watch it pass, revert the fix and
@@ -57,7 +58,11 @@ confirm the test fails again. One commit per item, `type: description`, no scope
    the failing check printed in full. He went looking for them, found a closed disclosure
    triangle, and concluded they had been deleted with the matrix page.
 7. **The board leaves the card.** It lives on the product line's own BOARD pane, where it has
-   its own button and its own reason to be.
+   its own button and its own reason to be. **Reversed the same day**: a background KiCad run
+   whose result no screen shows is a cost with no reader, so it is back on the card and the
+   pane keeps its own on-demand placement.
+8. **The invite is real, and it is enforced.** Tick projects, name the person, and the tick
+   decides what they can open. See P27.
 
 ## Order
 
@@ -214,6 +219,33 @@ board picture appears on any card.
 
 ---
 
+## P25a · The board comes back, and says what it is doing while it does it
+
+**Two requests and one defect, all from watching the pass run.**
+
+The board is back on the change request. The argument for taking it off was that the question
+it answers belongs to the product line, and that argument is still true — the BOARD pane keeps
+its own placement and its own button. What was wrong was the cost: `attach_board_consequence`
+fires a KiCad run per line in the background, and the card was the only thing that ever
+rendered the result. **A background job whose output no screen shows is a cost with no reader**,
+and that is what it had become for a few hours.
+
+**And the ten seconds are now visible.** A cold board takes that long — read the placements,
+place the part and carry its nets, refill the zones, run DRC twice, render two pictures — and
+the pane sat on *PLACING…* for all of it and then put everything on screen at once. The
+operations were already timed for the WHAT RAN block; `board.consequence` now takes an
+`on_step` callback fired from the worker thread as each one finishes, and
+`POST /lines/{id}/board/consequence/stream` sends them and ends with the identical payload the
+plain endpoint returns. **The steps on the wire are the same objects that end up on the
+result**, asserted by a test rather than by a comment, and measured on the real world at 1.7 s,
+2.7 s, 5.3 s, 9.1 s and 11.0 s.
+
+Sparsh's other two asks landed with it: **SKIP TO THE END is gone**, and a finished review no
+longer replays on arrival at all, which is what P22 half-did and this finished. That control
+only made sense to somebody who knows they are watching a playback.
+
+---
+
 ## P26 · What the missing round trips are worth, drawn
 
 **Why.** *"It is the same for every board except the recurring cost, and it looks like what it
@@ -237,12 +269,47 @@ block; no card in the company view repeats it.
 
 ---
 
+## P27 · A project is shared, and the share is a grant
+
+**The question this answers.** *How do teams share the projects* is the first thing a judge
+asks about a cross-team product, and every screen showed the work while saying nothing about
+the team. Four desks signed one change and the sharing had to be taken on faith.
+
+**Why it is not a panel that lists people.** The first draft of this was a roster, and it
+would have been a label. The searches said the same thing twice: the teams that lost ground
+had a collaboration surface that was not real, and one writeup states plainly that its role
+identity was simulated for the demo. The codebase had already taken that position in
+`create_user`'s docstring — *an invite button that did nothing would be worse than no button* —
+which is why `add_user_to_organisation` had a store method, a seed call and passing tests and
+no screen at all.
+
+**The boundary moved.** Everything authorised on `org_id`, which answers *is this your
+company's work* and cannot answer *is this yours*. Since today a product line is visible
+because there is a `line_access` row for it. `lines_for_user`, `line_for_user` and
+`lines_exposed_to` take a required `user_id`, so a caller that forgot stops at a type error
+instead of widening what somebody sees; 26 call sites, and two internal ones that genuinely
+mean the whole company call `lines_in_org` / `line_in_org` so the difference is visible where
+it is made. `PATCH /lines/{id}` was renaming projects before it checked whether the caller
+could open them, which is closed.
+
+**The demo is unchanged and the invite is real.** The seed grants every desk every line, so
+all four see all five. `priya@northwind.example` is seeded on her own with nothing, so the
+invitation has somebody to bring in on every replica of the world. Verified on the running
+world: she is invited to three projects, signs in to three rows, and gets a 404 on the fourth,
+while all four seeded desks still see five.
+
+**What it does not do, and the screen says so.** No invitation email. An address nobody has
+signed up with is refused with a sentence rather than a 201, because there is no token, no
+expiry and no acceptance route behind one.
+
+---
+
 ## Open after this pass
 
 | | Item | Why it is open |
 |---|---|---|
-| 🟡 | **The board consequence has no reader.** `attach_board_consequence` fires a KiCad run per line in the background and writes `request.board`; P25 took the only component that rendered it off the card. | Either the field goes and the background placement with it, or a surface takes it back. It is a real cost for no visible result today, and it is a design decision rather than a defect. |
-| ⚪ | **The replay is 80 seconds at the current constants.** | A judgement about the recording rather than a fault. One constant to change, named above. |
+| ⚪ | **An invitation cannot be sent to an address with no account.** | There is no token, no expiry and no acceptance route, and the screen refuses rather than pretending. Building one is a real piece of work and a decision about what an invitation is. |
+| ⚪ | **Nothing removes a grant.** Inviting is a union and there is no un-invite. | *Bring this person in* and *take this away from this person* are different acts, and only the first was built. |
 
 Two more that this pass ran into and did not create are already written down with their
 reasoning in [`DEFERRED.md`](../DEFERRED.md): the board pane's churn through candidates a replay

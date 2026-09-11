@@ -62,6 +62,15 @@ COMPANY = "Northwind Instruments"
 PASSWORD = "continuity-demo-2026"
 ENGINEER = ("engineer@northwind.example", PASSWORD)
 
+NEWCOMER = ("priya@northwind.example", PASSWORD)
+"""A fifth account with a company of her own and nothing in it.
+
+**She exists so that the invitation has somebody to invite, on every run of `./demo.sh`.**
+The invite screen is only real if it moves somebody, and a world rebuilt before every
+rehearsal cannot depend on a person having signed up by hand ten minutes earlier. She is
+deliberately *not* put in the company: she joins when she is invited, which is what the
+screen is for, and until then she is an account nobody has brought in on anything."""
+
 DESKS: tuple[tuple[str, str], ...] = (
     ("procurement@northwind.example", "procurement"),
     ("production@northwind.example", "production"),
@@ -234,9 +243,24 @@ def bom_for(regulator, load_part) -> list[dict]:
     ]
 
 
+async def erase_organisation(conn, org_id: str) -> None:
+    """Empty a company out. The work first, then the people, then the company itself.
+
+    A named function rather than a block, because after 11 September there are two
+    organisations to clear on a reset and they need the identical order.
+    """
+    await conn.execute("DELETE FROM product_lines WHERE org_id = %s", (org_id,))
+    await conn.execute("DELETE FROM notices WHERE org_id = %s", (org_id,))
+    await conn.execute("DELETE FROM users WHERE org_id = %s", (org_id,))
+    await conn.execute("DELETE FROM organisations WHERE id = %s", (org_id,))
+
+
 async def seed(store: Store, *, reset: bool = False) -> dict:
     """Build the world. Returns what was made, so a caller can assert on it."""
     existing = await store.user_by_email(ENGINEER[0])
+    # **Read before anything is deleted.** A previous run may have invited her in, in which
+    # case her `org_id` *is* the demo company and reads as such only until it is erased.
+    newcomer = await store.user_by_email(NEWCOMER[0])
     if existing is not None:
         if not reset:
             raise SystemExit(
@@ -262,14 +286,15 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
                 # does not arise. `users.org_id` has no cascade on purpose, since deleting
                 # a company should not silently delete its staff in production, so the
                 # organisation still has to go last.
-                await conn.execute(
-                    "DELETE FROM product_lines WHERE org_id = %s", (existing.org_id,)
-                )
-                await conn.execute("DELETE FROM notices WHERE org_id = %s", (existing.org_id,))
-                await conn.execute("DELETE FROM users WHERE org_id = %s", (existing.org_id,))
-                await conn.execute(
-                    "DELETE FROM organisations WHERE id = %s", (existing.org_id,)
-                )
+                await erase_organisation(conn, existing.org_id)
+
+                # **The newcomer is cleared too, and her company separately.** She is in one
+                # of her own until she is invited, and `users.org_id` has no cascade on
+                # purpose — so a reset that only emptied the demo company left her behind,
+                # and the next run died on a duplicate email. A world rebuilt around a person
+                # already on three projects also cannot show the invitation happening.
+                if newcomer is not None and newcomer.org_id != existing.org_id:
+                    await erase_organisation(conn, newcomer.org_id)
 
     from argon2 import PasswordHasher
 
@@ -355,10 +380,16 @@ async def seed(store: Store, *, reset: bool = False) -> dict:
     for person in (engineer, *people.values()):
         await store.grant_lines([line_id for line_id, _, _ in made], person.id, org_id)
 
+    # The fifth account, in a company of her own and on nothing. See `NEWCOMER`: she is the
+    # person the invitation screen brings in, and she has to exist on every run for that
+    # screen to have anything to do.
+    newcomer = await store.create_user(NEWCOMER[0], hasher.hash(NEWCOMER[1]))
+
     return {
         "org_id": org_id,
         "engineer": engineer,
         "people": people,
+        "newcomer": newcomer,
         "lines": made,
         "board_line_id": board_line_id,
     }
@@ -522,6 +553,7 @@ async def main() -> None:
     print(f"  {ENGINEER[0]} (engineering)")
     for email, role in DESKS:
         print(f"  {email} ({role})")
+    print(f"  {NEWCOMER[0]} (not invited to anything — the invite screen brings her in)")
     print(f"  AML: {len(QUALIFIED)} parts — everything already shipping")
     print(f"       {LD1117.mpn} absent: nothing ships with it yet")
     print(f"  AVL: {APPROVED_VENDOR}")

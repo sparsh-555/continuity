@@ -161,12 +161,25 @@ def test_running_the_seed_twice_is_refused_rather_than_doubling_the_world():
 
 
 def test_reset_replaces_the_world_and_leaves_one_company():
+    """Two companies, and the second one is deliberate.
+
+    Signing up mints a company of one, and the vacated ones must not pile up across resets —
+    which is what this counts. `priya@northwind.example` is the one exception and the reason
+    the count is not one: she is the person the invitation screen brings in, so she is seeded
+    in a company of her own with nothing in it and joins when somebody invites her. A reset
+    that left her behind broke the *next* run on a duplicate email, which is how this was
+    found.
+    """
     async def go():
         async with empty() as store:
             await seed_world.seed(store)
             await seed_world.seed(store, reset=True)
             async with store.pool.connection() as conn:
-                cursor = await conn.execute("SELECT count(*) FROM organisations")
+                cursor = await conn.execute(
+                    "SELECT count(*) FROM organisations WHERE id <> "
+                    "(SELECT org_id FROM users WHERE email = %s)",
+                    (seed_world.NEWCOMER[0],),
+                )
                 (orgs,) = await cursor.fetchone()
                 cursor = await conn.execute("SELECT count(*) FROM product_lines")
                 (lines,) = await cursor.fetchone()

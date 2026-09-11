@@ -194,7 +194,7 @@ somebody is deciding whether to sign. See BUILD.md's second governing rule.
 |---|---|
 | `/` | landing |
 | `/signup`, `/login` | email and password, no verification, no reset |
-| `/lines` | every product line this company ships |
+| `/lines` | the company's people and the product lines each of them was brought in on |
 | `/lines/:id` | one product, as a workspace: power tree or board, bill, its own review, and the notice against it |
 | `/design/:lineId` | the run in which this line was described; a brief screen only if it has none |
 | `/design` | single-user local mode, no account |
@@ -210,6 +210,7 @@ curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/board/bom'
 curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/reviews'      # a finished review, replayed
 curl -s -b cookies.txt 'http://localhost:8000/lines/<id>/board/render' # the board, cached after the first
 curl -s -b cookies.txt 'http://localhost:8000/decisions'               # what this desk owes
+curl -s -b cookies.txt 'http://localhost:8000/orgs/members'            # the company, and what each holds
 curl -s -b cookies.txt 'http://localhost:8000/auth/sessions'           # desks this browser holds
 ```
 
@@ -220,6 +221,29 @@ applies on the last one:
 curl -s -b cookies.txt -X POST 'http://localhost:8000/decisions/<id>' \
   -H 'Content-Type: application/json' -d '{"approve": true}'
 # {"state": "pending", "signed": ["engineering"], "outstanding": ["procurement", ...]}
+```
+
+**A project is visible because somebody was brought in on it.** Since 11 September, `org_id`
+is no longer the whole answer to *may this person see this line*: there is a `line_access` row
+per person per project, and `lines_for_user`, `line_for_user` and `lines_exposed_to` all
+require a `user_id` and filter on it. The seed grants every desk every line, so the demo world
+behaves exactly as it did before; the narrowing shows only on somebody invited after the world
+was built.
+
+Two consequences worth knowing before they look like bugs:
+
+- **A person who is in the company but not on a project gets a 404 for it**, and it is
+  indistinguishable from a project that does not exist. That is deliberate — the difference is
+  a list of somebody else's work.
+- **Two internal paths deliberately do not filter**: the startup warm (`lines_in_org`) and the
+  engine's own cached check (`line_in_org`). Neither speaks for a person; a route that reaches
+  for either is a bug.
+
+To check what a person can see:
+
+```bash
+curl -s -b cookies.txt 'http://localhost:8000/lines'          # as whoever is signed in
+curl -s -b cookies.txt 'http://localhost:8000/orgs/members'   # the whole company and their counts
 ```
 
 ---

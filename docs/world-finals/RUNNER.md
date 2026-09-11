@@ -34,9 +34,15 @@ progress. Anything that fails a check is explained in [OPERATING.md](OPERATING.m
 | `procurement@northwind.example` | `continuity-demo-2026` | procurement |
 | `production@northwind.example` | `continuity-demo-2026` | production |
 | `quality@northwind.example` | `continuity-demo-2026` | quality |
+| `priya@northwind.example` | `continuity-demo-2026` | **not on the company** — the invitation in step 0 brings her in |
 
 **Northwind Instruments**, four people, five products, both standing lists. One desk each, so
 no one person can sign for two departments.
+
+**Priya is the fifth account and belongs to nobody.** She has a company of her own with
+nothing in it, which is what signing up makes, and she is on none of Northwind's projects.
+She exists so that step 0 has somebody real to invite: a world rebuilt before every rehearsal
+cannot rely on a person having signed up by hand ten minutes earlier.
 
 **Sign in as all four desks with one press.** The sign-in screen carries **SIGN IN ALL FOUR
 DESKS · DEMO WORLD**: it authenticates the four seeded accounts into this browser and leaves
@@ -58,6 +64,37 @@ is what makes one recommendation right for one product and wrong for another.
 | Cabinet controller | **AMS1117-3.3** | 12 V | 55 °C | 60 mA |
 | Bench supply | TLV1117LV33DCYR | — | — | — |
 | Handheld meter | NCP1117ST33T3G | — | — | — |
+
+---
+
+## Step 0 · Who else is on this, and bringing somebody in
+
+**Do.** Signed in as the engineer, on `/lines`, open **THE COMPANY** at the top, then press
+**INVITE TEAMMATES**.
+
+This is the first thing on screen after signing in and it costs about twenty seconds. It is
+here rather than behind a menu because it is the question every judge asks first about a
+cross-team product, and because it is the same page as the projects it is about.
+
+- [ ] **THE COMPANY** reads `4 people`, and opening it names four addresses with the desk each holds and how many projects each can open.
+- [ ] The sentence above them: everyone here sees the projects they were brought in on, and nothing else.
+- [ ] **INVITE TEAMMATES** turns every row into a checkbox. The header button becomes **CANCEL**.
+- [ ] Tick **Gateway**, **Sensor node** and **Cabinet controller**: the bar reads `3 of 5 projects selected`.
+- [ ] **SHARE THESE 3 PROJECTS** opens the dialog. Type `priya@northwind.example`, tick **PROCUREMENT**, and send.
+- [ ] The panel underneath says she was brought in on three projects, and **THE COMPANY** now reads `5 people`.
+- [ ] **Switch to Priya** on the rail switcher, or sign in as her, and open `/lines`: **three rows, not five**. Anything else means the grant is not being enforced.
+- [ ] As Priya, open a project nobody brought her in on — paste `/lines/<id>` for the Handheld meter — and it is **no such line**. That is the rule working, not a defect.
+- [ ] Switch back to the **engineer**. All five rows are still there.
+
+**Say this, because it is the honest shape of it.** A desk signs a change because it owned a
+rule the change touched, not because somebody forwarded it a document. The company is the
+people; a project is who was brought in on it; and an invitation adds a desk and a project
+and never takes either away.
+
+**If asked whether it emails anybody: it does not, and say so.** An invitation with no account
+behind it would need a token, an expiry and an acceptance route, and the screen refuses an
+address nobody has signed up with rather than pretending to send one. What it does is real
+either way: the person is in the company and on those projects the moment it returns.
 
 ---
 
