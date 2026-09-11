@@ -34,6 +34,12 @@ COPY frontend/ ./
 # that is `/backend/`, which is why the path below sits outside the working directory. The
 # failure is a build error naming the path, so there is nothing quiet about getting it wrong.
 COPY backend/continuity/api/walkthrough.jsonl /backend/continuity/api/walkthrough.jsonl
+# **Vite inlines this at build time, and the default is wrong here.** `lib/api.ts` falls back
+# to `http://localhost:8000` when the variable is unset, which is right for a laptop and is a
+# page that calls the visitor's own machine once this is deployed. The Python-runtime service
+# gets it from the dashboard's environment; a Docker image has no such environment at build
+# time, so it is stated here. `/api`, because `spa.py` mounts the API there on one origin.
+ENV VITE_API_URL=/api
 RUN npm run build
 
 # ── The app, on the pinned KiCad ──────────────────────────────────────────────
