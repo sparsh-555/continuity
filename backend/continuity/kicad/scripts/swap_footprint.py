@@ -14,7 +14,8 @@ the bindings go this one file is what changes.
 import json
 import sys
 
-import pcbnew
+# Resolves inside KiCad's own Python and nowhere else; see `inspect_board.py`.
+import pcbnew  # type: ignore[import-not-found]
 
 
 def main():

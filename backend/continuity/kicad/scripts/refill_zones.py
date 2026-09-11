@@ -17,7 +17,8 @@ which is worse than the bug it was fixing. Found on OpenJBOD, 687 zones, 9 Sep.
 
 import sys
 
-import pcbnew
+# Resolves inside KiCad's own Python and nowhere else; see `inspect_board.py`.
+import pcbnew  # type: ignore[import-not-found]
 
 
 def main():

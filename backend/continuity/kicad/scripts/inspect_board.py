@@ -9,7 +9,10 @@ without a container.
 import json
 import sys
 
-import pcbnew
+# `pcbnew` ships with KiCad and exists nowhere else, so it cannot be resolved on a machine
+# that is not running KiCad. Every caller here runs this file **inside the pinned container**
+# (`kicad/board.py` through `kicad/runner.py`), which is where the import resolves.
+import pcbnew  # type: ignore[import-not-found]
 
 NANOMETRES_PER_MM = 1_000_000.0
 

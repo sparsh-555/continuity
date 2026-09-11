@@ -19,5 +19,9 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts"]
+  // `playwright.config.ts` and the specs run in Node, so they belong to the project that
+  // declares node's types. They were in no project at all: `process.env` was flagged in the
+  // editor while `bun run build` said nothing, because the build only typechecks what a
+  // tsconfig lists — and a file nobody checks is a file that quietly stops compiling.
+  "include": ["vite.config.ts", "playwright.config.ts", "e2e/**/*.ts"]
 }
