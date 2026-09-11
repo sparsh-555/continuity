@@ -521,12 +521,15 @@ class _Enough(BaseException):
     """
 
 
-def _driven(monkeypatch, *, outcomes, every=mail.POLL_SECONDS):
+def _driven(monkeypatch, *, outcomes, every=mail.POLL_SECONDS, watching=True):
     """Run the watcher through `outcomes` and return every interval it waited.
 
     One outcome per poll: True for a poll that answered, False for one that raised.
+    Somebody is watching unless a test says otherwise, so these read the fast schedule the
+    demonstration runs on rather than the idle one, which sleeps in slices.
     """
     monkeypatch.delenv("CONTINUITY_MAIL_ORG", raising=False)
+    monkeypatch.setattr(mail, "someone_is_watching", lambda: watching)
     slept: list[float] = []
 
     async def sleep(seconds):
@@ -582,6 +585,99 @@ def test_the_interval_never_grows_past_the_ceiling(monkeypatch):
 
 def test_no_failures_at_all_is_the_healthy_interval():
     assert mail.interval_after(0) == mail.POLL_SECONDS
+
+
+# ── how often the mailbox is asked, and by whose number ──────────────────────
+
+
+def test_nobody_waiting_on_a_notice_is_asked_at_google_s_own_interval():
+    """**Ten minutes, and the number is Google's rather than ours.**
+
+    Their own client guidance tells a mail program to "check for new messages every 10
+    minutes". We were at fifteen seconds, forty times that, and the account was closed for
+    it twice in a day — the second time within nine minutes of a single well-behaved poller
+    starting. The fast interval is not wrong, it is wrong when nobody is waiting: a
+    forwarded notice has to appear while somebody watches it, and a poller left running
+    overnight is not being watched by anybody at all.
+    """
+    assert mail.POLL_IDLE_SECONDS == 600.0
+    assert mail.interval_for(0, watching=False) == mail.POLL_IDLE_SECONDS
+
+
+def test_somebody_waiting_on_a_notice_is_asked_every_fifteen_seconds():
+    assert mail.interval_for(0, watching=True) == mail.POLL_SECONDS
+
+
+def test_the_slow_interval_is_the_floor_the_backoff_grows_from():
+    """The ceiling has to be above the idle interval, or a failure would *speed up* the
+    polling it exists to slow down, which is the shape of bug this file keeps finding."""
+    assert mail.POLL_CEILING_S > mail.POLL_IDLE_SECONDS
+    assert mail.interval_for(2, watching=False) == 2 * mail.POLL_IDLE_SECONDS
+    assert mail.interval_for(9, watching=False) == mail.POLL_CEILING_S
+    assert mail.interval_for(9, watching=True) == mail.POLL_CEILING_S
+
+
+def _recorder(slept: list):
+    async def wait(seconds):
+        slept.append(seconds)
+    return wait
+
+
+def test_a_poller_nobody_is_waiting_on_sleeps_the_whole_interval():
+    slept: list[float] = []
+    asyncio.run(mail.sleep_until_due(_recorder(slept), 10.0, watching=lambda: False))
+    assert sum(slept) == 10.0
+
+
+def test_a_browser_that_arrives_mid_nap_does_not_wait_the_nap_out():
+    """The reason the long sleep is sliced. A poller napping for Google's ten minutes must
+    not make a browser that opens thirty seconds later sit through the rest of it: the
+    report arrives on the screen somebody is looking at, which is the whole point."""
+    slept: list[float] = []
+    asyncio.run(
+        mail.sleep_until_due(_recorder(slept), 600.0, watching=lambda: len(slept) >= 2)
+    )
+    assert slept == [mail.WATCH_TICK_S, mail.WATCH_TICK_S]
+
+
+def test_the_route_the_browser_polls_is_what_marks_the_mailbox_watched():
+    """The line that turns the whole design on, so it is tested through the route rather
+    than by reading the source: without it the poller never believes anybody is waiting,
+    the fast interval never engages, and a forwarded notice takes Google's ten minutes to
+    appear on the screen somebody forwarded it to watch."""
+    from continuity.api import notices as notices_api
+
+    class _Store:
+        async def notices_for_org(self, org_id):
+            return []
+
+    class _App:
+        class state:  # noqa: N801 - the shape `store_of` reaches for
+            store = _Store()
+
+    class _Request:
+        app = _App()
+
+    class _User:
+        org_id = "org-1"
+
+    mail.forget_watchers()
+    assert mail.someone_is_watching() is False
+    assert asyncio.run(notices_api.list_notices(_Request(), _User())) == []
+    assert mail.someone_is_watching() is True
+
+
+def test_asking_for_notices_is_what_marks_the_mailbox_watched(monkeypatch):
+    """The signal is the arrivals poll the browser already runs from every screen, which is
+    why it does not depend on any one page being open."""
+    clock = iter([1_000.0, 1_000.0, 1_000.0 + mail.WATCHED_WINDOW_S + 1.0])
+    monkeypatch.setattr(mail.time, "monotonic", lambda: next(clock))
+    mail.forget_watchers()
+
+    assert mail.someone_is_watching() is False, "nothing has asked yet"
+    mail.note_someone_is_watching()
+    assert mail.someone_is_watching() is True
+    assert mail.someone_is_watching() is False, "and the watch lapses on its own"
 
 
 # ── the mailbox is the surface a person checks first ─────────────────────────

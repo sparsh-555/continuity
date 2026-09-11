@@ -10,11 +10,19 @@ work to start, and the upload path stays exactly as it was for the times this ca
 `collect` takes those records and decides what becomes a notice. Everything worth getting
 wrong is in the second half, and it is tested without a mailbox.
 
-## Polling rather than IDLE
+## Polling rather than IDLE, at a rate a mailbox will tolerate
 
-IDLE holds a connection open and needs reconnect handling for a saving of a few seconds.
-Polling needs an account and no public URL, which is what keeps the venue's network off
-the critical path.
+IDLE holds a connection open and needs reconnect handling, and Gmail drops idle sessions
+under load: Google's own extensions page recommends re-issuing the command every few
+minutes, so choosing IDLE means owning a keepalive timer and a reconnect path as well.
+Polling needs an account and no public URL, which is what keeps the venue's network off the
+critical path.
+
+What polling does not tolerate is being done far more often than the vendor documents.
+Google's client guidance says to **check for new messages every ten minutes**. This polled
+every fifteen seconds, forty times that, and the account was closed for it twice in one
+day. The fast interval now survives only while somebody is waiting on the next message, and
+the rest of the day runs at Google's number. See `POLL_IDLE_SECONDS`.
 
 ## Why the read position is a stored UID and not the \\Seen flag
 
@@ -35,6 +43,7 @@ import email.message
 import email.policy
 import logging
 import os
+import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Iterable, Sequence
 
@@ -374,24 +383,72 @@ def _validity(box: Any) -> str | None:
 
 
 POLL_SECONDS = 15.0
-"""How often to look **while the mailbox is answering**. Fast enough that a forwarded
-notice appears while somebody is still looking at the screen."""
+"""How often to look **while somebody is waiting on it**. Fast enough that a forwarded
+notice appears while the person who forwarded it is still looking at the screen."""
 
-POLL_CEILING_S = 300.0
+POLL_IDLE_SECONDS = 600.0
+"""How often to look when nobody is waiting, and the number is Google's rather than ours.
+
+Their client guidance for Gmail says, in as many words, *check for new messages every 10
+minutes*. We were at fifteen seconds, forty times that, and the account was closed for it
+twice in one day — the second time within nine minutes of a single well-behaved poller
+starting. The polling was never wrong in kind, only in the assumption behind it: that
+somebody is always waiting for the next message, when most of the time nobody is looking at
+all.
+
+So the fast interval is kept for the minutes somebody is watching, and this is what the
+rest of the day costs. Six logins an hour instead of two hundred and forty."""
+
+POLL_CEILING_S = 1800.0
 """The longest the watcher will wait between attempts after a run of failures.
 
-A poll is a **full IMAP login**: `deliveries` opens a session, authenticates, reads and
-closes it, so fifteen seconds is 240 logins an hour. That is fine for the length of a
-demonstration and not fine for a process somebody forgot about, which is how this was
-found: a server started on 9 September was still polling on the 11th, an estimated nine
-thousand logins later, and Google stopped answering that account altogether. Its refusal
-arrives as `[ALERT] Invalid credentials (Failure)`, the same alert a revoked password
-gives, so the first hour of the incident went into regenerating a password that had never
-stopped working.
+**Above the idle interval on purpose.** The backoff multiplies whichever interval is in
+force, so a ceiling below `POLL_IDLE_SECONDS` would make a failing mailbox *faster* than a
+healthy idle one, which is the opposite of the thing it exists to do.
 
-Backing off costs nothing while the mailbox is healthy, because a healthy mailbox never
-reaches for it, and it bounds the damage when it is not: five minutes is twelve logins an
-hour instead of two hundred and forty."""
+A poll is a **full IMAP login**: `deliveries` opens a session, authenticates, reads and
+closes it. That is fine for the length of a demonstration and not fine for a process
+somebody forgot about, which is how this was found: a server started on 9 September was
+still polling on the 11th, an estimated nine thousand logins later, and Google stopped
+answering that account altogether. Its refusal arrives as `[ALERT] Invalid credentials
+(Failure)`, the same alert a revoked password gives, so the first hour of the incident went
+into regenerating a password that had never stopped working."""
+
+WATCHED_WINDOW_S = 60.0
+"""How long one ask for notices keeps the mailbox on the fast interval.
+
+The browser polls `GET /notices` every ten seconds from **every authenticated screen**, not
+just the one the review happens on, so the window only has to outlast that interval. The
+signal is therefore *somebody has the application open*, which is the state the question is
+actually about."""
+
+WATCH_TICK_S = 5.0
+"""How long an idle poller sleeps at a time, so a browser arriving mid-nap is noticed.
+
+Without this the poller could sleep its whole ten minutes and make somebody who opened the
+application thirty seconds ago wait the rest of it out. The check costs nothing: it reads a
+timestamp and touches no network."""
+
+_last_asked: float | None = None
+
+
+def note_someone_is_watching() -> None:
+    """Called by the arrivals poll. Says nothing about who, only that somebody is there."""
+    global _last_asked
+    _last_asked = time.monotonic()
+
+
+def someone_is_watching() -> bool:
+    """Whether anybody has asked for notices recently enough to be waiting on one."""
+    if _last_asked is None:
+        return False
+    return time.monotonic() - _last_asked < WATCHED_WINDOW_S
+
+
+def forget_watchers() -> None:
+    """Back to nobody watching. For tests, and for anything that starts a new audience."""
+    global _last_asked
+    _last_asked = None
 
 
 def interval_after(failures: int, *, every: float = POLL_SECONDS) -> float:
@@ -404,6 +461,34 @@ def interval_after(failures: int, *, every: float = POLL_SECONDS) -> float:
     if failures <= 0:
         return every
     return min(every * 2 ** (failures - 1), POLL_CEILING_S)
+
+
+def interval_for(
+    failures: int, *, every: float = POLL_SECONDS, watching: bool = False
+) -> float:
+    """The whole policy in one place: how long until the next poll, and why.
+
+    Nobody watching means Google's own ten minutes rather than our fifteen seconds, and a
+    run of failures grows whichever of the two is in force.
+    """
+    return interval_after(failures, every=every if watching else POLL_IDLE_SECONDS)
+
+
+async def sleep_until_due(wait: Any, seconds: float, *, watching: Any = None) -> None:
+    """Sleep, in slices, and stop early if somebody starts waiting part-way through.
+
+    The slices are what let a browser that opens during a ten minute nap be served in
+    seconds without the mailbox being asked every fifteen seconds all day. `watching` is a
+    seam for the test; the application passes nothing.
+    """
+    watching = watching or someone_is_watching
+    slept = 0.0
+    while slept < seconds:
+        if watching():
+            return
+        step = min(WATCH_TICK_S, seconds - slept)
+        await wait(step)
+        slept += step
 
 
 async def poll_once(store: Any, org_id: str) -> list[str]:
@@ -482,8 +567,15 @@ async def watch(store: Any, *, every: float = POLL_SECONDS, sleep: Any = None) -
     them, and the upload path still works while it is broken.
 
     A mailbox that keeps failing is asked **less and less often**, up to `POLL_CEILING_S`,
-    and the count is cleared by the first poll that answers. `sleep` is a seam for the test
-    that drives that schedule; nothing in the app passes it.
+    and the count is cleared by the first poll that answers.
+
+    Two rates, and which one applies is decided each time round the loop. **Somebody is
+    waiting on the next message** while a browser is asking for notices, and that is
+    fifteen seconds, because the notice has to appear on a screen somebody is watching.
+    Otherwise it is Google's own ten minutes, and the nap is taken in slices so a browser
+    that opens part-way through it is served in seconds rather than made to wait it out.
+
+    `sleep` is a seam for the tests that drive both schedules; nothing in the app passes it.
     """
     import asyncio
 
@@ -516,7 +608,14 @@ async def watch(store: Any, *, every: float = POLL_SECONDS, sleep: Any = None) -
             failures += 1
             log.warning(
                 "mailbox poll failed, will try again in %.0fs: %s",
-                interval_after(failures, every=every),
+                interval_for(failures, every=every, watching=someone_is_watching()),
                 failure,
             )
-        await wait(interval_after(failures, every=every))
+        if someone_is_watching():
+            # Somebody is waiting on the next message, so the fast interval is in force and
+            # it is short: sleep it in one go rather than checking a stopwatch through it.
+            await wait(interval_for(failures, every=every, watching=True))
+        else:
+            await sleep_until_due(
+                wait, interval_for(failures, every=every, watching=False)
+            )

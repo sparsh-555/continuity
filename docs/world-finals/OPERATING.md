@@ -369,6 +369,9 @@ scoped to `src`. Playwright specs are not bun tests.
 | `already signed this` on a second press | Expected. A desk signs once; the message names who is outstanding |
 | The desk switcher offers nothing to switch to | Only sessions this browser has signed into appear. Sign in as that desk once and both stay live |
 | The mailbox poll fails on a foreign key after a reseed | The poller resolved the organisation at startup and the reseed replaced it. Restart the API |
+| The mailbox refuses the sign-in: `[ALERT] Invalid credentials` | **Throttling, not a wrong password.** Gmail closes an account that authenticates too often; `./demo.sh --check` now signs in and says so rather than reporting the variables are present. It clears in minutes, and it is why the poller idles at Google's documented ten minutes when nobody is watching |
+| `the poller would read the whole inbox` after a start | The seed could not reach the mailbox, so no read position was stored and every message in the inbox counts as new. Get the mailbox answering and run `./demo.sh` again before step 4 — the seed sets the position, and `poll_once` catches up on its own if it is still missing |
+| No notice arrives after forwarding one, and the application is open | The mailbox is being polled at Google's ten minutes because nothing has asked for notices. Any authenticated screen asks every ten seconds, so this means no browser tab is open on the application |
 | Every call fails, console shows CORS | Vite is not on 5173 or 5174. Restart with `--strictPort` |
 | `port 8000 is in use` after a clean `--stop` | Fixed 10 Sep. An old `demo.sh` counted a browser's leftover socket as the port being taken; the check now looks for a listener |
 | `401` on `/auth/me` before signing in | Normal. Two of these on the landing page are expected |

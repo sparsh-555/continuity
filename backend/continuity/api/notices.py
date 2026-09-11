@@ -33,7 +33,7 @@ from . import matrix as matrix_api
 from . import replay
 from .review import decision_text
 from .store import User
-from .. import change, notices as reader
+from .. import change, mail, notices as reader
 from ..engine import situation
 from ..engine.models import PartSpec
 from ..parts import categories
@@ -116,6 +116,13 @@ async def receive(
 async def list_notices(
     request: Request, user: User = Depends(current_user)
 ) -> list[dict[str, Any]]:
+    # **Somebody has the application open, and that is the whole signal.** The browser asks
+    # this from every authenticated screen, not only the one a review runs on, so this is
+    # what lets the mailbox be polled every fifteen seconds for the minutes somebody is
+    # waiting on a notice and at Google's documented ten minutes the rest of the day. See
+    # `mail.POLL_IDLE_SECONDS` — polling at the fast rate around the clock is what closed
+    # the account twice on 11 September.
+    mail.note_someone_is_watching()
     rows = await store_of(request).notices_for_org(user.org_id)
     return [
         {
