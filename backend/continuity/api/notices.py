@@ -434,7 +434,16 @@ async def list_requests(
 ) -> list[dict[str, Any]]:
     rows = await store_of(request).change_requests_for_org(user.org_id, notice_id=notice_id)
     return [
-        {"id": row["id"], "created_at": row["created_at"].isoformat(), **row["document"]}
+        {
+            "id": row["id"],
+            "created_at": row["created_at"].isoformat(),
+            # **This board's own avoidance, derived here rather than stored.** The class
+            # depends on the placement, and the placement lands in the background seconds
+            # after the document is written, so a field written at document time would be a
+            # claim about a board nobody had placed yet.
+            "avoidance": change.avoidance_for(row["document"].get("board")),
+            **row["document"],
+        }
         for row in rows
     ]
 

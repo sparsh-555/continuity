@@ -87,6 +87,28 @@ cost-impact check at 45 min, parts ordering at 45 min, an approval at 10 min —
 five hours against **56 hours of throughput**, with waiting at 70–90% of it.
 https://doi.org/10.1016/s0737-6782(98)00042-3"""
 
+SUBSTITUTE_USD = 34_000
+SUBSTITUTE_WEEKS = 25
+REDESIGN_USD = 1_118_000
+REDESIGN_WEEKS = 42
+"""The two resolution classes this product chooses between, priced by the DoD's own metric.
+
+`ARINC for the US Department of Commerce, DMSMS NRE Cost Metric Update` (2011), Table 1,
+FY2011 dollars, mean of the survey: **normal substitute $34,000 and 25 weeks**, **redesign of
+a commercial off-the-shelf assembly $1,118,000 and 42 weeks**. It is the only published table
+that prices resolution *classes* rather than one blended figure, which is what makes it usable
+here: this product's output is a substitute or it is a board revision, and the two are an order
+of magnitude apart.
+
+**Defence figures applied to a commercial board, and the screen says so.** The same research
+that this project's Q&A already leans on carries that caveat, and a number whose provenance a
+reader would object to is worse than no number.
+
+A second, commercial source agrees on the shape if not the precision: the Accuris and Fuld
+survey (439 industry professionals, March 2026) puts a forced PCB redesign at $135,000 to
+$930,000 all in, with engineering rework alone at $15,000 to $80,000 per change event.
+"""
+
 HANDOFF_STALL_DAYS = 0.9
 """How long a request crossing between people stalls, from Herbsleb et al. (2001).
 
@@ -94,6 +116,45 @@ A mean of **0.9 days** between people in one site, against 2.4 days across a bou
 sequential process this product replaces moved one change between four desks, which is three
 crossings, each of which is a person's queue rather than their work.
 https://herbsleb.org/web-pubs/pdfs/herbsleb-empirical-2001.pdf"""
+
+
+def avoidance_for(board: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """What this board's change avoided, in the resolution classes the DoD prices.
+
+    **Per board, and that is the whole point of it.** The round trips a change does not cross
+    are the same on every affected product, because the same four desks sign all of them, and
+    a figure that repeats identically on three documents reads as boilerplate. What differs by
+    board is the physical question: whether the substitute fits the design that exists, and
+    what that board's own design rule check found. A drop-in is a normal substitute. A part
+    whose pads are not already there is a board revision, and the two are an order of magnitude
+    apart in the published figures.
+
+    `None` where no board was placed, which is a world with no KiCad or a run still working.
+    The pane renders nothing rather than a class it did not compute.
+    """
+    if not board:
+        return None
+    layout_work = bool(board.get("broke_connections"))
+    return {
+        "layout_work": layout_work,
+        "resolution": "a board revision" if layout_work else "a normal substitute",
+        # Named rather than implied: the sentence on the document reads "this is X rather
+        # than Y", and Y is the class this board did not land in.
+        "resolution_if_it_had_not_fitted": "a board revision",
+        # Named rather than implied: the sentence on the document reads "this is X rather
+        # than Y", and Y is the class this board did not land in.
+        "class_usd": SUBSTITUTE_USD,
+        "class_weeks": SUBSTITUTE_WEEKS,
+        "redesign_usd": REDESIGN_USD,
+        "redesign_weeks": REDESIGN_WEEKS,
+        "basis": (
+            f"a normal substitute at ${SUBSTITUTE_USD:,} and {SUBSTITUTE_WEEKS} weeks, against "
+            f"${REDESIGN_USD:,} and {REDESIGN_WEEKS} weeks to redesign a commercial assembly "
+            f"(ARINC for the US Department of Commerce, DMSMS NRE Cost Metric Update, 2011). "
+            f"Figures from defence obsolescence programmes, applied to a commercial board, and "
+            f"an estimate rather than a measurement of the process this replaces."
+        ),
+    }
 
 
 @dataclass(frozen=True)

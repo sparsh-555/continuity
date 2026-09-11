@@ -4,7 +4,6 @@ import { ReasoningLine } from '../design/ReasoningLine'
 import type { LineCheck, LineRequest } from '../lib/api'
 import type { EventStatus } from '../lib/types'
 import { DepartmentBlock, departmentLabel, groupByDepartment } from './Departments'
-import { useAuth } from '../hooks/useAuth'
 import type { LineReview, TraceItem } from './useLineReview'
 
 /** How a check reads once it has an answer.
@@ -150,10 +149,6 @@ export function ReviewTrace({
 }) {
   const tail = useRef<HTMLDivElement | null>(null)
   const cut = useMemo(() => segments(review.trace), [review.trace])
-  // Whose desk this is. Every block still renders — see `isMine` — and the reader's own is
-  // the one that is marked.
-  const { user } = useAuth()
-  const mine = user?.roles ?? []
 
   useEffect(() => {
     if (review.trace.length > 0) {
@@ -241,12 +236,7 @@ export function ReviewTrace({
         {cut.map((segment, index) =>
           segment.kind === 'checks' ? (
             groupByDepartment(segment.items).map(([role, checks]) => (
-              <DepartmentBlock
-                checks={checks}
-                key={`${index}:${role}`}
-                mine={mine.includes(role)}
-                role={role}
-              />
+              <DepartmentBlock checks={checks} key={`${index}:${role}`} role={role} />
             ))
           ) : (
             segment.items.map((item, position) => {

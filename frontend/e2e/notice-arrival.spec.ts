@@ -72,7 +72,13 @@ test('a delivered notice announces itself and refreshes rows and an open product
   await expect(page.getByRole('button', { name: 'RUN IT AGAIN' })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('AMS1117-3.3 is going end of life.')).toBeVisible()
   await expect(page.getByRole('button', { name: /Sensor node/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'SIGN FOR MY DESK' }).first()).toBeVisible()
+
+  // **Three panes, and the signature is in the one about this desk.** It used to be on the
+  // lane, and the same four ticks appeared again on the change request, so one document had
+  // two statements of who had signed it. The button names the desk rather than saying "my
+  // desk", because a page that four desks sign from has to say which one is reading it.
+  await expect(page.getByRole('button', { name: /^SIGN FOR [A-Z]+$/ }).first()).toBeVisible()
+  await expect(page.getByText(/\(\d\) of 4 signed|\d of 4 signed/).first()).toBeVisible()
 
   await line.reload()
   // **Wait for the review to settle before asking for the board.** A replayed review walks

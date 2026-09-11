@@ -377,6 +377,18 @@ export type ChangeRequest = {
   disposition?: string | null
   effectivity?: string
   approvals_required: string[]
+  /** What this board's change avoided, in the resolution classes the DoD prices. Absent on
+   *  a request with no board placed, which is a world with no KiCad or a run still working. */
+  avoidance?: {
+    layout_work: boolean
+    resolution: string
+    resolution_if_it_had_not_fitted: string
+    class_usd: number
+    class_weeks: number
+    redesign_usd: number
+    redesign_weeks: number
+    basis: string
+  } | null
   /** What each desk found, over the same verdicts the evidence is drawn from. A desk that
    *  looked at nothing is absent rather than empty. */
   departments: ChangeRequestDepartment[]

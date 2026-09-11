@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 
+import { Modal } from '../design/Modal'
+import { RequestPanel } from '../review/RequestPanel'
 import { ReviewLanes } from '../review/ReviewLanes'
 import { WaitingOnYou } from '../review/WaitingOnYou'
 import { Page } from '../shell/Page'
 import { useNoticeArrivals } from '../hooks/useNoticeArrivals'
 import {
   ApiError,
+  answerDecision,
   exposureTo,
   listChangeRequests,
   listNotices,
@@ -39,6 +42,19 @@ export function noticeIdentity(notice: Notice): string {
   return notice.reference ? `${notice.reference} · received ${received}` : `received ${received}`
 }
 
+/**
+ * The page a change notice is answered on, in three panes.
+ *
+ * **The desk, the run, and the document.** The left pane is what this reader owes and where a
+ * signature happens; the middle is the run, three boards advancing together; the right is one
+ * board's change request, which is the object the whole product exists to produce. The design
+ * workspace is laid out the same way, and for the same reason: the three things a person is
+ * holding at once should be three things on screen rather than a scroll apart.
+ *
+ * **The notice is stated once, at the top of the left pane.** What is retiring and what the
+ * notice recommends are true of every affected product, and the run says them above the lanes
+ * rather than three times inside them.
+ */
 export default function ChangesRoute() {
   const { arrival } = useNoticeArrivals()
   const navigate = useNavigate()
@@ -50,6 +66,12 @@ export default function ChangesRoute() {
   const [affected, setAffected] = useState<AffectedLine[] | null>(null)
   const [waiting, setWaiting] = useState<WaitingDecision[]>([])
   const [candidates, setCandidates] = useState('')
+  const [candidateOpen, setCandidateOpen] = useState(false)
+  /** Which board's change request is on the right. One at a time, so the pane has an owner. */
+  const [openLineId, setOpenLineId] = useState<string | null>(null)
+  /** A signature the server refused, by decision. About the desk, never about the board. */
+  const [refusals, setRefusals] = useState<Record<string, string>>({})
+  const [signing, setSigning] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -61,9 +83,7 @@ export default function ChangesRoute() {
     }
   }, [])
 
-  // **What this desk owes, asked for on the page rather than on a page of its own.** The
-  // rail badge already counts it; this is the same question answered where the change is, so
-  // the reader who has to sign something does not have to go and find it first.
+  /** What this desk owes, asked for where the change is rather than on a page of its own. */
   const refreshWaiting = useCallback(async () => {
     try {
       setWaiting(await listWaitingDecisions())
@@ -122,6 +142,8 @@ export default function ChangesRoute() {
     setError(null)
     setSkipped(skippedFor(notice))
     setAffected(null)
+    setOpenLineId(null)
+    setRefusals({})
     try {
       setRequests(await listChangeRequests(notice.id))
     } catch {
@@ -136,11 +158,7 @@ export default function ChangesRoute() {
     }
   }, [])
 
-  /** The same read, without touching anything else on the page.
-   *
-   * `RUN IT AGAIN` writes new change requests over the old ones, and the ones on screen were
-   * read before it started. Re-reading them through `open` would clear the notice, drop the
-   * selection and put the page back to the beginning under a run in progress. */
+  /** The same read, without touching anything else on the page. */
   const reloadRequests = useCallback(async (noticeId: string) => {
     try {
       setRequests(await listChangeRequests(noticeId))
@@ -150,11 +168,37 @@ export default function ChangesRoute() {
     }
   }, [])
 
-  // Whatever arrived most recently, already open — or the one the caller named. A mailed
-  // notice used to land as an unselected ten-pixel chip beside copy reading "Receive a
-  // change notice to begin", which is false once one has been received and is why the
-  // review looked missing. Arriving from a product line's banner was worse: it navigated
-  // here about a specific notice and then selected none of them.
+  /** Sign or refuse, from the pane that is about this desk.
+   *
+   * **The refusal goes beside the buttons and never onto the board.** A 403 here means this
+   * desk cannot sign this decision, which is a fact about the desk; painting the lane FAILED
+   * over it would say the board failed a check it passed.
+   */
+  const answer = useCallback(
+    async (decision: WaitingDecision, approve: boolean) => {
+      setSigning(decision.id)
+      setRefusals((current) => ({ ...current, [decision.id]: '' }))
+      try {
+        await answerDecision(decision.id, approve)
+        await refreshWaiting()
+        const noticeId = received?.id ?? selected?.id
+        if (noticeId) await reloadRequests(noticeId)
+      } catch (caught) {
+        setRefusals((current) => ({
+          ...current,
+          [decision.id]:
+            caught instanceof ApiError
+              ? (caught.message ?? 'That decision could not be answered.')
+              : 'That decision could not be answered.',
+        }))
+      } finally {
+        setSigning(null)
+      }
+    },
+    [received?.id, reloadRequests, refreshWaiting, selected?.id],
+  )
+
+  // Whatever arrived most recently, already open, or the one the caller named.
   const wanted = new URLSearchParams(useLocation().search).get('notice')
   useEffect(() => {
     if (notices.length === 0) return
@@ -164,24 +208,40 @@ export default function ChangesRoute() {
 
   const active = received?.notice ?? selected
   const reaches = received?.affected ?? affected
+  const openRequest = requests.find((row) => row.line_id === openLineId) ?? null
+
   return (
     <Page
       actions={
-        <label className="font-data-tabular text-[12px] text-primary-container border border-primary-container rounded px-md py-1 cursor-pointer hover:bg-surface-variant transition-colors">
-          {/* Reading a notice is a model call against a PDF and takes a few seconds. A
-              button that looks inert for that long reads as a button that did nothing. */}
-          {busy ? 'READING…' : 'UPLOAD ONE INSTEAD'}
-          <input
-            accept=".pdf,.txt,text/plain,application/pdf"
-            className="hidden"
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              if (file) void upload(file)
-              event.target.value = ''
-            }}
-            type="file"
-          />
-        </label>
+        <div className="flex items-center gap-sm">
+          {/* **Trying a part is a footnote to the review, not a step in it.** It was a
+              disclosure triangle inside the notice card, which is where a reader looks for
+              what the notice says rather than for what they might add. The candidates are
+              found rather than typed, and this is an override for somebody who wants a
+              particular part tried anyway. */}
+          <button
+            className="h-8 px-md border border-outline-variant rounded font-data-tabular text-[12px] text-on-surface-variant hover:border-on-surface-variant transition-colors"
+            onClick={() => setCandidateOpen(true)}
+            type="button"
+          >
+            {candidates.trim() ? `TRYING ${candidates.split(',').filter(Boolean).length} TOO` : 'TRY A PARTICULAR PART'}
+          </button>
+          <label className="h-8 px-md flex items-center font-data-tabular text-[12px] text-primary-container border border-primary-container rounded cursor-pointer hover:bg-surface-variant transition-colors">
+            {/* Reading a notice is a model call against a PDF and takes a few seconds. A
+                button that looks inert for that long reads as a button that did nothing. */}
+            {busy ? 'READING…' : 'UPLOAD ONE INSTEAD'}
+            <input
+              accept=".pdf,.txt,text/plain,application/pdf"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void upload(file)
+                event.target.value = ''
+              }}
+              type="file"
+            />
+          </label>
+        </div>
       }
       fill
       subtitle={
@@ -198,30 +258,23 @@ export default function ChangesRoute() {
       }
       title="CHANGES"
     >
-      <WaitingOnYou
-        decisions={waiting}
-        onOpen={(noticeId) => navigate(`/changes?notice=${encodeURIComponent(noticeId)}`)}
-      />
-
-      {/* **Two panes with a fixed height each, rather than one column that grows.** The page
-          is locked to the viewport now, so the notice stays where it is while the review
-          beside it runs, and a trace that fills the right pane scrolls inside it. Laid out
-          as a scrolling page, opening a lane pushed the notice that raised it off the top of
-          the screen, which is the one thing the reader wants to keep in view. */}
-      <div className="flex gap-lg items-stretch flex-1 min-h-0">
-        <aside className="w-[380px] flex-shrink-0 h-full overflow-y-auto space-y-md pr-sm">
-          {/* A list, not a row of ten-pixel chips. What arrived, when, how, and what it
-              retires — enough to pick one without having already known which to pick. The
-              old shape was a button that did not look like a button, holding the only route
-              to the review. */}
+      {/* **Proportional columns with a floor each, rather than three fixed widths.** Three
+          fixed widths add up to more than a laptop screen, and the middle column — the run,
+          which is the thing this page is for — collapses to a sliver of wrapped text. The
+          left pane holds one desk's queue and the right one holds one document, so they take
+          a share of the width; the run takes what is left, and each has a minimum below which
+          it stops shrinking. */}
+      <div className="grid grid-cols-[minmax(300px,20%)_minmax(320px,1fr)_minmax(400px,32%)] gap-lg items-stretch flex-1 min-h-0">
+        {/* ── The desk ───────────────────────────────────────────────────────────── */}
+        <aside className="h-full overflow-y-auto space-y-md pr-sm">
           {notices.length > 0 ? (
             <div className="flex flex-col gap-1">
               {notices.map((notice) => {
-                const open_ = (selected?.id ?? received?.id) === notice.id
+                const isOpen = (selected?.id ?? received?.id) === notice.id
                 return (
                   <button
                     className={`text-left border rounded px-md py-sm transition-colors ${
-                      open_
+                      isOpen
                         ? 'border-primary-container bg-surface-container-low'
                         : 'border-outline-variant hover:border-on-surface-variant'
                     }`}
@@ -232,7 +285,7 @@ export default function ChangesRoute() {
                     <span className="flex items-baseline justify-between gap-md">
                       <span
                         className={`font-data-tabular text-[14px] ${
-                          open_ ? 'text-primary-container' : 'text-on-surface'
+                          isOpen ? 'text-primary-container' : 'text-on-surface'
                         }`}
                       >
                         {notice.mpn}
@@ -266,7 +319,6 @@ export default function ChangesRoute() {
               <p className="font-data-tabular text-[12px] text-on-surface-variant leading-relaxed">
                 read from: “{active.mpn_line}”
               </p>
-
               {reaches ? (
                 <p className="font-body-md text-[14px] text-on-surface leading-relaxed">
                   {reaches.length === 0
@@ -274,23 +326,27 @@ export default function ChangesRoute() {
                     : `Affects ${reaches.length} product line${reaches.length === 1 ? '' : 's'}: ${reaches.map((line) => line.name).join(', ')}.`}
                 </p>
               ) : null}
-
-              {/* The candidates are found, not typed: the notice's own recommendation, then
-                  the approved list, then the distributor's catalogue. This box is an override
-                  for a part somebody wants tried anyway, and it is deliberately not the way in. */}
-              <details className="pt-sm">
-                <summary className="font-data-tabular text-[11px] text-on-surface-variant cursor-pointer">
-                  TRY A PARTICULAR PART TOO
-                </summary>
-                <input
-                  className="input-field px-sm h-8 w-full mt-1 font-data-tabular text-[12px]"
-                  onChange={(event) => setCandidates(event.target.value)}
-                  placeholder="MPN, MPN"
-                  value={candidates}
-                />
-              </details>
             </section>
           ) : null}
+
+          {/* **The one place a change is signed.** The buttons and the four ticks used to be
+              here *and* on the lane and *again* on the change request; a desk that owes a
+              signature should find it where it is told it owes one. */}
+          <WaitingOnYou
+            busy={signing}
+            decisions={waiting}
+            onAnswer={(decision, approve) => void answer(decision, approve)}
+            onOpen={(noticeId) => navigate(`/changes?notice=${encodeURIComponent(noticeId)}`)}
+            requests={requests}
+          />
+
+          {Object.entries(refusals)
+            .filter(([, message]) => message)
+            .map(([id, message]) => (
+              <p className="font-data-tabular text-[12px] text-error leading-relaxed" key={id}>
+                {message}
+              </p>
+            ))}
 
           {skipped.length > 0 ? (
             <section className="space-y-1">
@@ -304,7 +360,8 @@ export default function ChangesRoute() {
           ) : null}
         </aside>
 
-        <div className="flex-1 min-w-0 h-full overflow-y-auto pr-sm">
+        {/* ── The run ────────────────────────────────────────────────────────────── */}
+        <div className="min-w-0 h-full overflow-y-auto pr-sm">
           {active && (received?.id ?? selected?.id) ? (
             <ReviewLanes
               candidates={candidates
@@ -312,15 +369,13 @@ export default function ChangesRoute() {
                 .map((mpn) => mpn.trim())
                 .filter(Boolean)}
               noticeId={(received?.id ?? selected?.id) as string}
-              onApplied={() => {
-                void refresh()
-                void refreshWaiting()
-              }}
               onFinished={() => {
-                void reloadRequests((received?.id ?? selected?.id) as string)
+                const noticeId = received?.id ?? selected?.id
+                if (noticeId) void reloadRequests(noticeId)
                 void refreshWaiting()
               }}
-              requests={requests}
+              onOpenLine={setOpenLineId}
+              openLineId={openLineId}
             />
           ) : (
             <p className="font-body-md text-[14px] text-on-surface-variant leading-relaxed">
@@ -331,7 +386,38 @@ export default function ChangesRoute() {
             </p>
           )}
         </div>
+
+        {/* ── The document ───────────────────────────────────────────────────────── */}
+        <div className="h-full overflow-y-auto pr-sm">
+          <RequestPanel request={openRequest} requests={requests} />
+        </div>
       </div>
+
+      <Modal
+        confirmLabel="DONE"
+        onClose={() => setCandidateOpen(false)}
+        onConfirm={() => setCandidateOpen(false)}
+        open={candidateOpen}
+        title="TRY A PARTICULAR PART TOO"
+      >
+        <div className="space-y-md">
+          <p className="m-0 font-body-md text-[14px] text-on-surface-variant leading-relaxed">
+            The candidates are found rather than typed: the notice&rsquo;s own recommendation,
+            then the approved manufacturer list, then the distributor&rsquo;s catalogue in the
+            same package. This is an override for a part somebody wants tried anyway, and it is
+            deliberately not the way in.
+          </p>
+          <input
+            className="input-field px-sm h-9 w-full font-data-tabular text-[13px]"
+            onChange={(event) => setCandidates(event.target.value)}
+            placeholder="MPN, MPN"
+            value={candidates}
+          />
+          <p className="m-0 font-data-tabular text-[12px] text-on-surface-variant">
+            Press RUN IT AGAIN on the review for them to be tried.
+          </p>
+        </div>
+      </Modal>
     </Page>
   )
 }

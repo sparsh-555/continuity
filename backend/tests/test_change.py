@@ -465,3 +465,37 @@ def test_the_appendix_reaches_the_document():
     # the block below it or with the trace.
     owning = next(v for v in rejected["verdicts"] if v["status"] == "failed")
     assert owning["departments"], "a failed check that owns no desk is not a finding"
+
+
+def test_the_avoidance_names_the_class_this_board_landed_in():
+    """The one figure on a change request that is genuinely per board.
+
+    The round trips are the same on every affected product, because the same four desks sign
+    all of them — which is why a figure that repeats three times reads as boilerplate. What
+    differs by board is whether the substitute fits the design that exists, and the DoD prices
+    those two classes an order of magnitude apart.
+    """
+    fits = change.avoidance_for({"broke_connections": False})
+
+    assert fits is not None
+    assert fits["layout_work"] is False
+    assert fits["resolution"] == "a normal substitute"
+    # The other class is named too: the sentence on the document reads "this is X
+    # rather than Y", and a key the screen interpolates has to exist. This was absent
+    # from the payload and the browser rendered the word "undefined" into a customer
+    # document, which no unit test caught because none of them read the sentence.
+    assert fits["resolution_if_it_had_not_fitted"] == "a board revision"
+    assert fits["class_usd"] == change.SUBSTITUTE_USD
+    assert fits["redesign_usd"] == change.REDESIGN_USD
+    assert "DMSMS" in fits["basis"]
+    assert "estimate" in fits["basis"], "it says what it is, in the same breath"
+
+    # A board whose pads were not already there is a revision, not a substitution.
+    revised = change.avoidance_for({"broke_connections": True})
+    assert revised is not None
+    assert revised["layout_work"] is True
+    assert revised["resolution"] == "a board revision"
+
+    # And a world with no KiCad is nothing at all, rather than a class nobody computed.
+    assert change.avoidance_for(None) is None
+    assert change.avoidance_for({}) is None

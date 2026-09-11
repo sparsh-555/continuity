@@ -1,10 +1,8 @@
 import { Fragment } from 'react'
 
 import { BoardConsequence } from '../board/BoardConsequence'
-import { useAuth } from '../hooks/useAuth'
-import { departmentLabel, isMine, MINE_ACCENT } from './Departments'
+import { departmentLabel } from './Departments'
 import { checkLabel } from './ReviewLanes'
-import { SignatureRow } from './Signatures'
 import type { ChangeRequest } from '../lib/api'
 
 /** Every check a candidate was put through, the ones it failed first.
@@ -17,13 +15,7 @@ import type { ChangeRequest } from '../lib/api'
  * way to open it, because twenty-two satisfied checks per candidate is a wall of agreement
  * that buries the one line worth reading.
  */
-function Verdicts({
-  alternative,
-  mine,
-}: {
-  alternative: ChangeRequest['alternatives'][number]
-  mine: readonly string[]
-}) {
+function Verdicts({ alternative }: { alternative: ChangeRequest['alternatives'][number] }) {
   const verdicts = alternative.verdicts ?? []
   const failed = verdicts.filter((verdict) => verdict.status === 'failed')
   const rest = verdicts.filter((verdict) => verdict.status !== 'failed')
@@ -31,9 +23,7 @@ function Verdicts({
 
   const line = (verdict: (typeof verdicts)[number], position: number) => (
     <p
-      className={`m-0 font-data-tabular text-[12px] leading-relaxed ${
-        isMine(verdict.departments ?? [], mine) ? MINE_ACCENT : ''
-      }`}
+      className="m-0 font-data-tabular text-[12px] leading-relaxed"
       key={`${verdict.rule}:${verdict.scope ?? ''}:${position}`}
     >
       {/* The word first, never the colour alone: this is read on a projector and in a
@@ -73,22 +63,7 @@ function Verdicts({
  *  as JSON on an endpoint. The rejected candidates' own verdict sets are the appendix —
  *  that is the
  *  working; this is the deliverable. */
-export function RequestCard({
-  request,
-  signatures = null,
-  showRoundTrips = true,
-}: {
-  request: ChangeRequest
-  /** Who has signed this line's decision, when the caller knows. The lane does, because it
-   *  is where the signing happens; a request read on its own does not. */
-  signatures?: { signed: string[]; outstanding: string[] } | null
-  /** Off when the caller has already shown the round trips above, which is what the company
-   *  view does: they are the same three numbers on every board, and printing them three
-   *  times is what made them read as boilerplate rather than as a finding. */
-  showRoundTrips?: boolean
-}) {
-  const { user } = useAuth()
-  const mine = user?.roles ?? []
+export function RequestCard({ request }: { request: ChangeRequest }) {
   const rejected = request.alternatives.filter((a) => a.rejected_because)
   const viable = request.alternatives.filter((a) => !a.rejected_because)
 
@@ -135,7 +110,7 @@ export function RequestCard({
                 <span className="text-on-surface">{alternative.mpn}</span>
                 <span className="text-on-surface-variant"> — {alternative.rejected_because}</span>
               </p>
-              <Verdicts alternative={alternative} mine={mine} />
+              <Verdicts alternative={alternative} />
             </div>
           ))}
         </section>
@@ -161,17 +136,10 @@ export function RequestCard({
               <Fragment key={desk.role}>
                 <dt
                   className={`font-data-tabular text-[12px] uppercase ${
-                    desk.failed > 0
-                      ? 'text-error'
-                      : mine.includes(desk.role)
-                        ? 'text-on-surface'
-                        : 'text-on-surface-variant'
+                    desk.failed > 0 ? 'text-error' : 'text-on-surface-variant'
                   }`}
                 >
                   {departmentLabel(desk.role)}
-                  {mine.includes(desk.role) ? (
-                    <span className="text-primary-container"> your desk</span>
-                  ) : null}
                 </dt>
                 <dd className="font-data-tabular text-[12px] text-on-surface-variant leading-relaxed">
                   {/* Words rather than a colour alone: which desk is outstanding has to
@@ -245,7 +213,7 @@ export function RequestCard({
           counts into hours, so this is two published constants applied to what the run
           counted. Shown rather than summarised because a reader can argue with a constant
           and cannot argue with a number that arrives on its own. */}
-      {showRoundTrips && request.saving ? (
+      {request.saving ? (
         <section className="space-y-1 border-t border-outline-variant pt-md">
           <p className="m-0 font-data-tabular text-[11px] tracking-[0.08em] text-on-surface-variant uppercase">
             What the missing round trips are worth
@@ -274,51 +242,59 @@ export function RequestCard({
         fabricated before then.
       </p>
 
-      <section className="flex flex-wrap gap-lg border-t border-outline-variant pt-md">
-        <div className={request.proposal ? '' : 'hidden'}>
-          <p className="font-data-tabular text-[11px] text-on-surface-variant">ONE-TIME</p>
-          <p className="font-data-tabular text-[13px] text-on-surface">
-            ${request.cost.one_time.toLocaleString()}
-          </p>
-          <p className="font-data-tabular text-[12px] text-on-surface-variant">
-            {request.cost.one_time_basis}
-          </p>
-        </div>
-        <div className={request.proposal ? '' : 'hidden'}>
-          <p className="font-data-tabular text-[11px] text-on-surface-variant">RECURRING</p>
-          <p className="font-data-tabular text-[13px] text-on-surface">
-            {request.cost.recurring_annual === null
-              ? '—'
-              : `$${request.cost.recurring_annual.toLocaleString()} a year`}
-          </p>
-          <p className="font-data-tabular text-[12px] text-on-surface-variant">
-            {request.cost.unit_delta === null
-              ? 'no published price to compare'
-              : request.cost.annual_volume
-                ? `${request.cost.unit_delta > 0 ? '+' : ''}$${request.cost.unit_delta} a unit at ${request.cost.annual_volume.toLocaleString()}/yr`
-                : `${request.cost.unit_delta > 0 ? '+' : ''}$${request.cost.unit_delta} a unit — no annual volume stated`}
-          </p>
-        </div>
-        {request.approvals_required.length > 0 ? (
-          <div className="space-y-1">
-            <p className="font-data-tabular text-[11px] text-on-surface-variant">APPROVALS</p>
-            {/* Ticks where the caller knows who has signed, the plain list where it does not.
-                A request read on its own has no signature state, and inventing one would put
-                an unticked box beside a desk that has already signed. */}
-            {signatures ? (
-              <SignatureRow
-                roles={request.approvals_required}
-                signed={signatures.signed}
-                tone="text-[12px]"
-              />
-            ) : (
+      {/* **What this board's change costs, and what it avoids here.** The money is this
+          board's own: the recurring figure is the substitute's price difference at this
+          product's own annual volume, so no two boards carry the same number. What it avoids
+          is this board's own too, and that is the half a cost strip cannot say: a substitute
+          that fits the design that exists is a different resolution from one that does not,
+          and the published figures for the two are an order of magnitude apart. */}
+      {request.proposal ? (
+        <section className="space-y-sm border-t border-outline-variant pt-md">
+          <div className="flex flex-wrap gap-lg">
+            <div>
+              <p className="font-data-tabular text-[11px] text-on-surface-variant">ONE-TIME</p>
               <p className="font-data-tabular text-[13px] text-on-surface">
-                {request.approvals_required.map(departmentLabel).join(' and ')}
+                ${request.cost.one_time.toLocaleString()}
               </p>
-            )}
+              <p className="font-data-tabular text-[12px] text-on-surface-variant">
+                {request.cost.one_time_basis}
+              </p>
+            </div>
+            <div>
+              <p className="font-data-tabular text-[11px] text-on-surface-variant">RECURRING</p>
+              <p className="font-data-tabular text-[13px] text-on-surface">
+                {request.cost.recurring_annual === null
+                  ? '—'
+                  : `$${request.cost.recurring_annual.toLocaleString()} a year`}
+              </p>
+              <p className="font-data-tabular text-[12px] text-on-surface-variant">
+                {request.cost.unit_delta === null
+                  ? 'no published price to compare'
+                  : request.cost.annual_volume
+                    ? `${request.cost.unit_delta > 0 ? '+' : ''}$${request.cost.unit_delta} a unit at ${request.cost.annual_volume.toLocaleString()}/yr`
+                    : `${request.cost.unit_delta > 0 ? '+' : ''}$${request.cost.unit_delta} a unit, no annual volume stated`}
+              </p>
+            </div>
           </div>
-        ) : null}
-      </section>
+
+          {request.avoidance ? (
+            <div className="space-y-0.5">
+              <p className="m-0 font-data-tabular text-[11px] text-on-surface-variant">
+                WHAT IT AVOIDS HERE
+              </p>
+              <p className="m-0 font-data-tabular text-[13px] text-on-surface leading-relaxed">
+                {request.avoidance.layout_work
+                  ? `Not a drop-in: ${request.line_name} needs layout work before this can ship, which is the board revision the metric below prices.`
+                  : `Nothing. The substitute lands on the pads that are already there, so this is ${request.avoidance.resolution} rather than ${request.avoidance.resolution_if_it_had_not_fitted}.`}
+              </p>
+              <p className="m-0 font-data-tabular text-[12px] text-on-surface-variant/70 leading-relaxed">
+                {request.avoidance.basis}
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
     </article>
   )
 }
