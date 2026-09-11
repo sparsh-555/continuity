@@ -178,8 +178,10 @@ demonstrate a third, run `./demo.sh --live` and forward it once.
 
 ## Step 5 · Three lanes, one stream
 
-**Do.** Press **START THE REVIEW**. Type nothing into **TRY A PARTICULAR PART TOO**.
+**Do.** Press **START THE REVIEW**. Leave **TRY A PARTICULAR PART** alone, in the page header
+beside UPLOAD ONE INSTEAD.
 
+- [ ] **Three panes**: the desk on the left, the run in the middle, the document on the right. The same shape as the design workspace, because the same three things are being held at once.
 - [ ] Discovery is said once, above the lanes, rather than three times.
 - [ ] **Leave the page and come back.** `/lines` and then `/changes` again: the three lanes, their traces and their questions are all still there, with nothing pressed and nothing re-run. An empty review where a run had been is a bug — that was the state until 11 September.
 - [ ] Three lanes advance together, one row per product, each showing **the last three things that board has said** while it is still working and its newest one when it stops. The trace is drawn at reading pace — a full review takes about **eighty seconds** — staggered rather than metronomic.
@@ -195,7 +197,8 @@ demonstrate a third, run `./demo.sh --live` and forward it once.
 - [ ] The verdicts stack vertically in one column and disagree.
 - [ ] Expanding one lane opens its full trace in place and leaves the other two as they were, with the verdicts grouped under **DESIGN**, **PROCUREMENT**, **PRODUCTION** and **QUALITY**.
 - [ ] Every rejection carries the sentence that killed it, including `LD1117-3.3` arriving from the catalogue as *electrically fine here, and not on the approved manufacturer list*.
-- [ ] Each question names **every** desk that must sign, above the buttons, and reads *and* rather than *or*. The question sits outside the fold.
+- [ ] Each question names **every** desk that must sign, and reads *and* rather than *or*. The question sits outside the fold, and it carries no buttons, because the signing is on the left.
+- [ ] Every lane ends with **THE CHANGE REQUEST**. Pressing it opens that board's document in the right-hand pane; pressing **CLOSE** returns the pane to the change-level figure.
 - [ ] The Gateway's lane says procurement is being asked to accept a stock shortfall. The other two failed nothing.
 - [ ] **No lane leads with a rule the engine declined to attempt.** Until 11 September a collapsed lane summarised itself as *NOT ASSESSED · signal integrity*; `emc`, `output_capacitor_stability` and `signal_integrity` are real checks now and all three are satisfied here. A lane leading with an admission is a bug.
 
@@ -203,16 +206,18 @@ demonstrate a third, run `./demo.sh --live` and forward it once.
 
 ## Step 6 · Four desks sign, and only then does the product change
 
-**Do.** In the **Sensor node** lane, press **SIGN FOR MY DESK** as the engineer. Then switch
-desk from the rail — the four-letter button above the settings cog — and sign as each of the
-other three. The first time you switch, sign in as that account; after that both sessions
-stay live and switching is one click.
+**Do.** On the left, under **WAITING ON YOU**, press **SIGN FOR DESIGN** on the Sensor node.
+Then switch desk from the rail — the four-letter button above the settings cog — and sign as
+each of the other three. The first time you switch, sign in as that account; after that both
+sessions stay live and switching is one click.
 
 - [ ] After the first signature: *Signed by DESIGN. Waiting on PROCUREMENT and PRODUCTION and QUALITY.*
 - [ ] **The bill still reads AMS1117-3.3** after one, two and three signatures. Check it on `/lines` → Sensor node if you want to be sure.
 - [ ] The fourth signature applies it: *Applied · U1 is NCP1117ST33T3G · Rev D*.
 - [ ] The same desk pressing again is refused, and the refusal names who it is waiting for.
-- [ ] **Each lane ends with its change request** — one per affected product line, naming every department that must sign and what each of them found. It is the lane's last layer rather than a stack under all three, so the request for the board you have just read is the one directly below it.
+- [ ] **The desk pane names the desk in the button**, rather than saying *my desk*, because a page four desks sign from has to say which one is reading it.
+- [ ] **This desk's own checks are above the button**: one block for the desk being asked, taken from *every department, checked at once* on the document. The other three desks' blocks are on the right, because a change order is one object and a desk signing it is signing all of it.
+- [ ] **No signature block appears twice.** The four ticks are here and nowhere else; the change request carries no APPROVALS row.
 - [ ] Each change request ends with what was checked before anybody was asked: parts, departments, product lines.
 
 ---
@@ -275,9 +280,9 @@ request · NCP1117ST33T3G**. Press it.
 ## Step 9a · What each desk owes
 
 **Do.** Switch desks with the rail switcher and come back to **Changes**. What this desk owes
-is at the top of the page; the rail's **Changes** entry carries the count beside its icon.
+is in the left-hand pane; the rail's **Changes** entry carries the count beside its icon.
 
-- [ ] **N waiting on you** at the top of `/changes`, naming the product line, the part, and what this desk is being asked to accept.
+- [ ] **N waiting on you** in the left pane, naming the product line, the part, and what this desk is being asked to accept.
 - [ ] **Four ticks on each row**, one per desk, ticked where that desk has signed, with the count in words: *0 of 4 signed. Waiting on DESIGN, PROCUREMENT, PRODUCTION and QUALITY.*
 - [ ] The Gateway's row says procurement is being asked to accept the stock shortfall, and names the rule.
 - [ ] **OPEN THIS CHANGE** opens the notice that raised it, with the review already settled and the signature box waiting.

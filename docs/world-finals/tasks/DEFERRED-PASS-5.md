@@ -304,6 +304,42 @@ expiry and no acceptance route behind one.
 
 ---
 
+## P28 · The changes page is three panes, and a signature has one home
+
+**What Sparsh found driving it.** The change request sat under the lane that produced it, so the
+third product's document was a scroll below the first and a reader comparing two of them lost
+the trace they came from. And a desk's own work was in three places at once: the question and
+the two buttons on the lane, the same four ticks again on the document, and the count of what
+it owed in a pane at the top.
+
+**It is the design workspace's shape now**: the desk on the left, the run in the middle, the
+document on the right. Signing happens once, in the pane named after what the reader owes, and
+the button names the desk rather than saying *my desk*, because four desks sign from this page.
+A refusal lands beside those buttons and never on the board, since a 403 is a fact about the
+desk and painting the lane FAILED over it would say the board failed a check it passed.
+
+**The one figure that could not be made per board, and what replaced it.** Sparsh wanted no
+number repeated across the three documents. The round trips are the same on all three, because
+the same four desks sign all of them, and a different number per board would be a constant
+divided by three. So the change-level figure is printed once, in the pane's empty state, with
+the reason stated; and what goes on each board is its own money and its own physical
+consequence, from `change.avoidance_for` and the DoD's DMSMS cost metric, where a normal
+substitute is $34,000 and 25 weeks against $1,118,000 and 42 for a redesign. The basis says in
+the same breath that those are defence programmes applied to a commercial board, which the
+project's own research already flags.
+
+**The desk accent reverts.** `isMine` on the change request, the lane trace and the line page's
+four blocks did not read at that density, and emphasis belongs where a pane is about one desk.
+
+**Two defects found by running it at a laptop width rather than a wide one.** Three fixed
+columns add up to more than 1280 pixels, so the middle, which is the thing the page is for,
+collapsed to a sliver of wrapped text; they are proportional with a floor each. And a truncated
+flex child still paints its full text unless an ancestor clips it, so the board name ran under
+its own verdict chip. Neither was visible at 2560, which is where every screenshot in this pass
+had been taken.
+
+---
+
 ## Open after this pass
 
 | | Item | Why it is open |

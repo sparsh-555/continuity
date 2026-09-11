@@ -268,8 +268,8 @@ an assurance.
 
 Switch desk from the rail and stay on **Changes**. This is the other half of removing the round
 trips: procurement does not have to be told which product line to open, or read a design trace
-to sign for procurement. The strip at the top of the page carries their own reason to care, and
-the four ticks say who else has already signed.
+to sign for procurement. The left-hand pane carries their own reason to care, their own
+department's checks, and the four ticks that say who else has already signed.
 
 ### Step 9b · The shortfall procurement accepted
 
