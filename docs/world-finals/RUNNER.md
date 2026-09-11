@@ -182,7 +182,7 @@ demonstrate a third, run `./demo.sh --live` and forward it once.
 
 - [ ] Discovery is said once, above the lanes, rather than three times.
 - [ ] **Leave the page and come back.** `/lines` and then `/changes` again: the three lanes, their traces and their questions are all still there, with nothing pressed and nothing re-run. An empty review where a run had been is a bug — that was the state until 11 September.
-- [ ] Three lanes advance together, one row per product, each showing **the last three things that board has said** while it is still working and its newest one when it stops. The trace is drawn at reading pace — a full review takes about **eighty seconds** — staggered rather than metronomic, with **SKIP TO THE END** offered throughout.
+- [ ] Three lanes advance together, one row per product, each showing **the last three things that board has said** while it is still working and its newest one when it stops. The trace is drawn at reading pace — a full review takes about **eighty seconds** — staggered rather than metronomic.
 - [ ] **All three boards are moving at the same time.** A replay that played one board to its end before starting the next is a bug: the run's own order is what is stored, and it interleaves.
 - [ ] The three answers are these three, and they stop in two different places:
 

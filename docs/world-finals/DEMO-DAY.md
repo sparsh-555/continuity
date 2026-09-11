@@ -314,8 +314,8 @@ second replayed, with identical verdicts and identical margins; reading the noti
 **eighty seconds** rather than in a quarter of a second, so three products are seen working
 together rather than three verdicts appearing at once. Each line is given time in proportion to
 how much there is to read, and the pace is staggered rather than metronomic, because a fixed
-interval reads as a machine printing lines. **SKIP TO THE END** is offered throughout for
-anybody who has seen enough, and it is there the whole time rather than only at the start.
+interval reads as a machine printing lines. There is no skip control: the trace can simply be
+left, and reloading the page paints it complete, because the run writes it down as it goes.
 
 **The pace is one constant, and it is the only thing to tune for the recording.** `FRAME_FLOOR_MS`
 and `FRAME_CEILING_MS` in `frontend/src/app/review/laneState.ts` set how long the shortest and

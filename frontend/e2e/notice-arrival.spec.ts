@@ -58,7 +58,8 @@ test('a delivered notice announces itself and refreshes rows and an open product
   // roughly a minute and a half so that a line lands, is read, and is followed by the next.
   // A check deep into a candidate's own list is therefore tens of seconds away rather than
   // milliseconds, and a timeout sized for the old instant replay reads a working product as
-  // a broken one. `SKIP TO THE END` is the escape hatch and has its own coverage below.
+  // a broken one. There is no skip control any more — the trace can be left, and reloading
+  // the page paints it complete, because the run writes it down as it goes.
   await expect(page.getByText(/SATISFIED · thermal dissipation/).first()).toBeVisible({
     timeout: 60_000,
   })
