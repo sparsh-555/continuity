@@ -1059,6 +1059,111 @@ def test_the_replay_says_who_has_signed_so_far():
     assert gateway_after["outstanding"], "and it still names who is outstanding"
 
 
+def test_a_replay_keeps_the_order_the_run_spoke_in():
+    """Three boards advance together, and the stored trace is what says so.
+
+    The read-back rebuilt each lane from its own decision, which is per product line, so a
+    replay of a company-wide review played Cabinet controller to its end and only then
+    started Gateway — three separate reviews in a queue, which is the opposite of the claim.
+    The interleaving cannot be recovered from per-decision records, so the run writes down
+    what it streamed. This asserts the order is in the record and survives the read.
+    """
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, notice_id):
+                streamed = await frames_of(http, notice_id)
+                rows = (await http.get(f"/notices/{notice_id}/reviews")).json()
+                return streamed, rows
+
+    streamed, rows = run(go())
+    names = {row["line_id"]: row["line_name"] for row in rows}
+
+    flattened = sorted(
+        (frame for row in rows for frame in row["frames"]),
+        key=lambda frame: frame["seq"],
+    )
+    order = [frame["line_id"] for frame in flattened if frame.get("line_id")]
+
+    assert len({frame["seq"] for frame in flattened}) == len(flattened), (
+        "every frame carries the run's own sequence number"
+    )
+    assert set(order) == set(names), "every board is in the one ordered trace"
+
+    # **Interleaved, not grouped.** Rebuilt one decision at a time, each board's frames were
+    # one solid block and the lanes played one after another. Asserted as non-contiguity
+    # rather than as a fixed sequence, because which worker finishes first is the scheduler's
+    # business — what has to hold is that no board ran alone from its first frame to its last.
+    for line in set(order):
+        first = order.index(line)
+        last = len(order) - 1 - order[::-1].index(line)
+        others = [other for other in order[first:last + 1] if other != line]
+        assert others, f"{names[line]} ran alone from its first frame to its last"
+
+
+def test_a_question_that_has_been_answered_is_not_re_asked():
+    """A replay that offered a signature for a settled change would be a dead end.
+
+    The recorded trace keeps the frame the run asked with, because it is what the run said.
+    Whether it is still a question is a fact about the decision, and it is read from the
+    decision rather than from the trace.
+    """
+    async def go():
+        async with a_store() as store:
+            async with a_company(store, roles=["engineering"]) as (http, _me, notice_id):
+                await frames_of(http, notice_id)
+                rows = (await http.get(f"/notices/{notice_id}/reviews")).json()
+                gateway = next(row for row in rows if row["line_name"] == "Gateway")
+                await http.post(
+                    f"/decisions/{gateway['decision_id']}",
+                    json={"approve": False, "rationale": "Not on this board."},
+                )
+                settled = (await http.get(f"/notices/{notice_id}/reviews")).json()
+                return rows, settled
+
+    pending, settled = run(go())
+
+    for row in pending:
+        assert [f for f in row["frames"] if f["type"] == "question"], row["line_name"]
+
+    gateway_after = next(row for row in settled if row["line_name"] == "Gateway")
+    assert gateway_after["state"] == "declined"
+    assert not [f for f in gateway_after["frames"] if f["type"] == "question"], (
+        "the lane that was answered stops asking"
+    )
+    # And the rest are still pending, so their questions are still there.
+    others = [row for row in settled if row["line_name"] != "Gateway"]
+    assert all([f for f in row["frames"] if f["type"] == "question"] for row in others)
+
+
+def test_a_notice_with_no_recorded_trace_still_replays_one_lane_at_a_time():
+    """The trace is new, and a notice that ran before it must not replay as nothing.
+
+    Its frames are rebuilt from the decisions, which is what it had — no sequence numbers,
+    and the client's sort is stable, so the lanes arrive in the order they were written.
+    """
+    async def go():
+        async with a_store() as store:
+            async with a_company(store) as (http, _me, notice_id):
+                await frames_of(http, notice_id)
+                # As a run that predates the column would have left it.
+                async with store.pool.connection() as conn:
+                    await conn.execute(
+                        "UPDATE notices SET review_trace = '[]'::jsonb WHERE id = %s",
+                        (notice_id,),
+                    )
+                return (await http.get(f"/notices/{notice_id}/reviews")).json()
+
+    rows = run(go())
+
+    assert rows, "a notice with no recorded trace still replays"
+    for row in rows:
+        assert row["frames"], row["line_name"]
+        assert row["frames"][-1]["type"] == "line_done"
+    assert not any("seq" in frame for row in rows for frame in row["frames"]), (
+        "the reconstruction invents no ordering it does not have"
+    )
+
+
 def test_a_change_request_is_written_before_its_board_and_keeps_it_after():
     """P8, and the ordering is the whole of it.
 

@@ -319,18 +319,21 @@ async def reviews(
 
     **A review used to be lost the moment you left the page.** Lane state was component
     state, so navigating away abandoned the stream and coming back showed the stored change
-    requests where the run had been. `api/replay` already rebuilds one line's trace from
-    `decisions.document`, and `/lines/{id}/reviews` already serves it per product; this is
-    the same assembly keyed by notice, which is the page the run is started from.
+    requests where the run had been.
 
-    **Nothing new is stored and nothing is invented.** Every frame here is derived from what
-    the run already wrote down, and they are the frames the client already reduces — a
-    hydrated lane and a live one go through the same function, so they cannot drift.
+    **A run now replays in the order it spoke.** The frames are the ones the run streamed,
+    recorded as it streamed them, so three boards arrive advancing together rather than one
+    after another. The read-back used to rebuild each lane from its own decision — which is
+    per product line — and that is why a replay of a company-wide review played like three
+    separate reviews. A notice that ran before the trace was recorded has no stored order and
+    falls back to that reconstruction, one lane at a time, which is what it had.
 
     **A pending decision carries its question.** The run asked it with `_decision_text`, and
-    it is rebuilt by that same function from the stored proposal, detail and gate rule, so a
-    replay re-raises the identical sentence rather than a second phrasing of it. Without it
-    a replayed lane would show a verdict with no way to answer it.
+    the recorded trace holds the very frame it asked with. For a stored trace that has none —
+    a run abandoned before it got there — it is rebuilt by that same function from the stored
+    proposal, detail and gate rule, so a replay re-raises the identical sentence rather than a
+    second phrasing of it. A decision that is no longer pending has its question dropped: the
+    question is live only while the answer is.
 
     **Who has signed so far travels with it.** A decision three desks have signed and one has
     not is not the same screen as one nobody has looked at, and the replay has to say so.
@@ -340,9 +343,26 @@ async def reviews(
     if notice is None:
         raise HTTPException(404, "no such notice")
 
+    recorded: list[dict[str, Any]] = notice.get("review_trace") or []
     out: list[dict[str, Any]] = []
-    for decision in await store.decisions_for_notice(notice_id, user.org_id):
-        frames = replay.frames_from(notice, decision)
+    for position, decision in enumerate(
+        await store.decisions_for_notice(notice_id, user.org_id)
+    ):
+        # **The run's own order, where it was recorded.** The lines that open the run name no
+        # board — what is retiring, what the notice recommends — and they are carried on the
+        # first row, which is where the client reads them from. Every other frame goes to the
+        # board it is about, keeping its `seq`, so a client that sorts by `seq` restores the
+        # interleaving exactly as it happened.
+        frames = (
+            [
+                frame
+                for frame in recorded
+                if frame.get("line_id") == decision["line_id"]
+                or (position == 0 and not frame.get("line_id"))
+            ]
+            if recorded
+            else replay.frames_from(notice, decision)
+        )
         required = list(decision.get("roles") or ())
         # A signature records the roles the signer held, which can be more than one, and
         # only the ones this decision actually needs count towards it.
@@ -355,8 +375,19 @@ async def reviews(
             }
         )
         pending = decision["state"] == "pending"
-        if pending:
-            # The same builder the run used, from the same three stored fields.
+        # **A question that has been answered is not re-asked.** The recorded trace carries
+        # the frame the run asked with, and it stays in the trace after somebody signs — so a
+        # replay would offer a signature for a change that is already settled. The question is
+        # live only while the answer is, which is the rule the whole screen follows.
+        frames = [
+            frame
+            for frame in frames
+            if frame.get("type") != "question" or pending
+        ]
+        if pending and not any(frame.get("type") == "question" for frame in frames):
+            # No recorded question — a run abandoned before it asked, or a decision written
+            # before the trace was recorded. Built by the same function the run used, from
+            # the same three stored fields.
             question = decision_text(
                 decision.get("line_name") or "this product line",
                 Proposal(

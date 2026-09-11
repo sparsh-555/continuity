@@ -728,20 +728,41 @@ async def run_review(
             normalize.reset_dossier_lookup(lookup_token)
 
     async def _framed() -> AsyncIterator[str]:
+        # **What the run said, in the order it said it.** The read-back used to rebuild each
+        # lane from its own decision, which is per product line, so a replay of a three-line
+        # review played one board to its end before starting the next — three boards taking
+        # turns, which is the opposite of what this stream exists to show. The interleaving
+        # is a fact about the run and it is only knowable from here, so it is written down as
+        # it is emitted rather than reconstructed afterwards from records that never had it.
+        recorded: list[dict[str, Any]] = []
+
+        def said(event: dict[str, Any]) -> dict[str, Any]:
+            recorded.append(event)
+            return event
+
         yield events.frame(
-            stream.review_started(
-                notice_id,
-                notice["mpn"],
-                [{"line_id": line["line_id"], "name": line["name"]} for line in exposed],
+            said(
+                stream.review_started(
+                    notice_id,
+                    notice["mpn"],
+                    [{"line_id": line["line_id"], "name": line["name"]} for line in exposed],
+                )
             )
         )
         # Heartbeats for the same reason every other stream here has them: sourcing a
         # candidate can hold the connection quiet past the client's thirty-second timer.
-        async for event in events.with_heartbeats(merged()):
-            if event is None:
-                yield events.HEARTBEAT
-                continue
-            yield events.frame(event)
+        try:
+            async for event in events.with_heartbeats(merged()):
+                if event is None:
+                    yield events.HEARTBEAT
+                    continue
+                yield events.frame(said(event))
+        finally:
+            # **In a `finally`, because a run somebody stopped still happened.** A reader who
+            # navigates away mid-stream should come back to the trace as far as it got rather
+            # than to nothing, and the alternative — recording only on a clean ending — makes
+            # abandoning a run look like it never ran.
+            await store.record_review_trace(notice_id, user.org_id, recorded)
 
     return StreamingResponse(framed(), media_type="text/event-stream", headers=SSE_HEADERS)
 

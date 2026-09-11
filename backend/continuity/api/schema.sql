@@ -360,6 +360,21 @@ ALTER TABLE notices ADD COLUMN IF NOT EXISTS review_skipped jsonb NOT NULL DEFAU
 ALTER TABLE notices ADD COLUMN IF NOT EXISTS reference text;
 ALTER TABLE notices ADD COLUMN IF NOT EXISTS reference_line text;
 
+-- Added 11 Sep 2026. The frames a review streamed, in the order it streamed them.
+--
+-- **The read-back could not reconstruct this and quietly did not.** `api/replay` rebuilds one
+-- lane's trace from `decisions.document`, which is per decision, so a replay of a three-line
+-- review played Cabinet controller to its end and only then started Gateway, then Sensor
+-- node. Three boards taking turns is the opposite of what this product claims, and the
+-- client's own `replayFrames` sorts by a `seq` the reconstructed frames never carried — so
+-- the sort that was supposed to restore the interleaving had never once had anything to sort
+-- by. The order is a fact about the run, and a fact nobody wrote down is a fact nobody has.
+--
+-- Recorded as emitted, one row's worth of frames per notice, in the order they were yielded.
+-- A notice that ran before today carries an empty list and falls back to the per-decision
+-- reconstruction, which is what it had.
+ALTER TABLE notices ADD COLUMN IF NOT EXISTS review_trace jsonb NOT NULL DEFAULT '[]'::jsonb;
+
 -- Added 8 Sep 2026. What actually gets sent to a person: one per affected product line,
 -- because the answer differs per line and a single company-wide recommendation is the thing
 -- this product exists to replace.

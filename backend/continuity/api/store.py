@@ -1209,12 +1209,34 @@ class Store:
             cursor = await conn.cursor(row_factory=dict_row).execute(
                 """
                 SELECT id, reference, reference_line, mpn, mpn_line, manufacturer, effective_date, replacement_mpn,
-                       reason, source, review_skipped, created_at
+                       reason, source, review_skipped, review_trace, created_at
                   FROM notices WHERE id = %s AND org_id = %s
                 """,
                 (notice_id, org_id),
             )
             return await cursor.fetchone()
+
+    async def record_review_trace(
+        self, notice_id: str, org_id: str, frames: Sequence[Mapping[str, Any]]
+    ) -> None:
+        """Write down what the run streamed, in the order it streamed it.
+
+        **Replaced, not appended to.** `RUN IT AGAIN` is the same question asked a second
+        time, and the trace the page should show afterwards is the one that most recently
+        happened rather than a concatenation of every run this notice has ever had.
+
+        Written once at the end of the run rather than frame by frame: the point of recording
+        the order is the order of the whole thing, and a partially written trace is a trace
+        with a fabricated ending. A run abandoned mid-stream records what it managed to say.
+        """
+        async with self.pool.connection() as conn:
+            await conn.execute(
+                """
+                UPDATE notices SET review_trace = %s::jsonb
+                 WHERE id = %s AND org_id = %s
+                """,
+                (json.dumps(list(frames)), notice_id, org_id),
+            )
 
     async def notices_for_org(self, org_id: str, *, limit: int = 50) -> list[dict[str, Any]]:
         async with self.pool.connection() as conn:
