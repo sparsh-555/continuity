@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ApiError, boardConsequence, type BoardConsequence as Consequence } from '../lib/api'
 import { recallPlacement, rememberPlacement } from './placements'
@@ -136,6 +136,14 @@ export function BoardConsequence({
   const [message, setMessage] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  // **Which candidate the pane is currently asking about.** A placement takes seconds, and
+  // the candidate can change while one is in flight — a replayed review walks `trying`
+  // through every part it tried, and the product line page feeds this component from that.
+  // Without this the last response to *arrive* wins rather than the last one *asked for*,
+  // so an intermediate candidate can be the picture on a board the review settled elsewhere.
+  const wanted = useRef<string | null>(candidate)
+  wanted.current = candidate
+
   const check = useCallback(async () => {
     if (!candidate) return
     const known = recallPlacement(lineId, retiring, candidate)
@@ -146,12 +154,19 @@ export function BoardConsequence({
     }
     setBusy(true)
     setMessage(null)
-    setOutcome(null)
+    // **The picture stays until its replacement lands.** It used to be cleared the moment a
+    // placement started, so the pane said nothing at all while KiCad worked — and on a board
+    // being placed for a second candidate, the caption and the crops disappeared and came
+    // back. A stale picture with a spinner beside it is a truer screen than an empty one.
     try {
       const placed = await boardConsequence(lineId, retiring, candidate)
       rememberPlacement(lineId, retiring, candidate, placed)
+      // A placement that was superseded while it ran paints nothing: the call that replaced
+      // it owns the pane now, and this one's picture is about a part nobody is looking at.
+      if (wanted.current !== candidate) return
       setOutcome(placed)
     } catch (caught) {
+      if (wanted.current !== candidate) return
       // Each of these is a different true sentence, and collapsing them into "that
       // failed" would hide the only one the reader can act on.
       setMessage(
@@ -164,7 +179,9 @@ export function BoardConsequence({
           : 'That board could not be checked.',
       )
     } finally {
-      setBusy(false)
+      // Only the current call clears the spinner, or a superseded one would take away the
+      // **PLACING…** that belongs to the placement actually running.
+      if (wanted.current === candidate) setBusy(false)
     }
   }, [candidate, lineId, retiring])
 

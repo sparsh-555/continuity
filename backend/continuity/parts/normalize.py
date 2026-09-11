@@ -405,7 +405,7 @@ async def normalize(
 
     dossier_fields = await _dossier_fields(candidate, dossier_lookup or _dossier_lookup.get())
 
-    cached = _load(candidate.mpn) if use_cache else None
+    cached = _load(candidate.mpn, candidate.manufacturer) if use_cache else None
     if cached is not None:
         fields, provenance = cached
     elif not llm.available():
@@ -415,7 +415,7 @@ async def normalize(
             reply = await llm.complete_json(SYSTEM, _prompt(candidate))
             fields, provenance = validate(reply, candidate.specs)
             if use_cache:
-                _save(candidate.mpn, fields, provenance)
+                _save(candidate.mpn, fields, provenance, candidate.manufacturer)
         except (llm.LLMUnavailable, ValueError, json.JSONDecodeError) as error:
             # Degrade, but not quietly. With no key configured this is expected and
             # `llm.available()` already covered it above; reaching here means the call
@@ -519,9 +519,28 @@ async def normalize_all(
 # ── cache ─────────────────────────────────────────────────────────────────────
 
 
-def _cache_path(mpn: str) -> Path:
-    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in mpn)
-    return CACHE_DIR / f"{safe}.json"
+def _safe(value: str) -> str:
+    return "".join(c if c.isalnum() or c in "-_." else "_" for c in value)
+
+
+def _cache_path(mpn: str, manufacturer: str | None = None) -> Path:
+    """The listing, not the part number.
+
+    **An MPN does not name a part.** JLCPCB lists `TLV1117LV33DCYR` under Texas Instruments
+    at a 5.5 V supply ceiling and under JSMSEMI at 12 V, and the parse is exactly where a
+    listing becomes the figures the engine checks — so a cache keyed on the number alone let
+    whichever company normalised first decide what the other one was, for every run after
+    it. A board whose regulator dies above 6 V would be checked against a clone's ceiling.
+
+    The manufacturer is part of the filename rather than of the stored JSON because the
+    filename *is* the lookup. Entries written before this change carry only the number and
+    are now unreachable; they re-parse once and the cache is warm again, which costs a local
+    recording pass and nothing that ships.
+    """
+    stem = _safe(mpn)
+    if manufacturer:
+        stem = f"{stem}__{_safe(manufacturer)}"
+    return CACHE_DIR / f"{stem}.json"
 
 
 def _prompt_version() -> str:
@@ -534,8 +553,8 @@ def _prompt_version() -> str:
     return hashlib.sha256(SYSTEM.encode()).hexdigest()[:12]
 
 
-def _load(mpn: str) -> tuple[dict, dict] | None:
-    path = _cache_path(mpn)
+def _load(mpn: str, manufacturer: str | None = None) -> tuple[dict, dict] | None:
+    path = _cache_path(mpn, manufacturer)
     if not path.exists():
         return None
     try:
@@ -550,13 +569,19 @@ def _load(mpn: str) -> tuple[dict, dict] | None:
     return fields, stored.get("provenance", {})
 
 
-def _save(mpn: str, fields: Mapping[str, Any], provenance: Mapping[str, str]) -> None:
+def _save(
+    mpn: str,
+    fields: Mapping[str, Any],
+    provenance: Mapping[str, str],
+    manufacturer: str | None = None,
+) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     serialisable = {k: (list(v) if isinstance(v, tuple) else v) for k, v in fields.items()}
-    _cache_path(mpn).write_text(
+    _cache_path(mpn, manufacturer).write_text(
         json.dumps(
             {
                 "mpn": mpn,
+                "manufacturer": manufacturer,
                 "prompt": _prompt_version(),
                 "fields": serialisable,
                 "provenance": dict(provenance),

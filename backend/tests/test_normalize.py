@@ -545,12 +545,59 @@ def test_the_cache_round_trips_and_restores_tuples(monkeypatch, tmp_path):
     assert provenance == {"vmin": "V"}
 
 
+def test_two_companies_listings_of_one_number_do_not_share_a_parse(monkeypatch, tmp_path):
+    """The fourth time this has bitten, and the first time it was a cache.
+
+    JLCPCB lists `TLV1117LV33DCYR` under Texas Instruments at a 5.5 V supply ceiling and
+    under JSMSEMI at 12 V. The parse is what turns a listing into the figures the engine
+    checks, and it was keyed on the part number alone — so whichever company normalised
+    first decided what the other one was, for every run after it. A board whose regulator
+    dies above 6 V would then be checked against a clone's ceiling.
+
+    **What the cache is frozen against is the listing, not the part number.** The same
+    argument `_prompt_version` already makes about the instructions: an answer to a
+    different question is not a cached answer.
+    """
+    monkeypatch.setattr(normalize, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(normalize.search, "enrich", _plain)
+    monkeypatch.setattr(normalize.llm, "available", lambda: True)
+
+    async def ti(_system, _user, **_kwargs):
+        return {**REGULATOR_REPLY, "vmax": 5.5}
+
+    monkeypatch.setattr(normalize.llm, "complete_json", ti)
+    texas = asyncio.run(
+        normalize.normalize(replace(CANDIDATE, mpn="TLV1117LV33DCYR", manufacturer="Texas Instruments"))
+    )
+
+    async def jsm(_system, _user, **_kwargs):
+        return {**REGULATOR_REPLY, "vmax": 12.0}
+
+    monkeypatch.setattr(normalize.llm, "complete_json", jsm)
+    clone = asyncio.run(
+        normalize.normalize(replace(CANDIDATE, mpn="TLV1117LV33DCYR", manufacturer="JSMSEMI"))
+    )
+
+    assert texas.vmax == 5.5, "each listing keeps its own figure"
+    assert clone.vmax == 12.0
+
+    # And the first one is still itself when it comes back off disk.
+    monkeypatch.setattr(normalize.llm, "complete_json", ti)
+    again = asyncio.run(
+        normalize.normalize(replace(CANDIDATE, mpn="TLV1117LV33DCYR", manufacturer="Texas Instruments"))
+    )
+    assert again.vmax == 5.5
+
+
 def test_a_poisoned_connector_cache_entry_is_repaired_when_it_is_read(monkeypatch, tmp_path):
     """A connector cached as a regulator must not keep declaring a rail on later runs."""
     monkeypatch.setattr(normalize, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(normalize.search, "enrich", _plain)
     connector = replace(CANDIDATE, mpn="AKZ25V15R", category="Connectors", subcategory="Terminal")
-    normalize._save("AKZ25V15R", {**REGULATOR_REPLY, "interfaces": ("I2C",)}, {})
+    normalize._save(
+        "AKZ25V15R", {**REGULATOR_REPLY, "interfaces": ("I2C",)}, {},
+        CANDIDATE.manufacturer,  # the listing, not the number — see `_cache_path`
+    )
 
     part = asyncio.run(normalize.normalize(connector))
 

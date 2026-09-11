@@ -563,6 +563,7 @@ def test_a_review_works_when_the_boards_disagree_about_the_position(monkeypatch,
 
 
 
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
 def test_a_notice_for_a_part_we_do_not_ship_says_so_rather_than_failing(model):
     """An empty answer is a real result: this does not reach anything we make."""
     model(reply())
@@ -617,6 +618,7 @@ def test_an_unreadable_document_is_refused_with_a_reason(model):
     assert "backed by a line of the document" in response.json()["detail"]
 
 
+@pytest.mark.skipif(not DB_URL, reason="set CONTINUITY_TEST_DB")
 def test_the_endpoint_needs_an_account():
     async def go():
         async with httpx.AsyncClient(

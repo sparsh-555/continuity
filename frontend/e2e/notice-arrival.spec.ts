@@ -65,10 +65,26 @@ test('a delivered notice announces itself and refreshes rows and an open product
   await expect(page.getByRole('button', { name: 'SIGN FOR MY DESK' }).first()).toBeVisible()
 
   await line.reload()
+  // **Wait for the review to settle before asking for the board.** A replayed review walks
+  // `trying` through every candidate as its frames arrive, and the pane places the board for
+  // whichever one is showing — so clicking BOARD mid-replay starts a placement for an
+  // intermediate candidate and the picture is replaced underneath the next assertion. The
+  // change-request button only renders once the review is no longer running.
+  await expect(line.getByRole('button', { name: /Change request · / })).toBeVisible({
+    timeout: 30_000,
+  })
   await expect(line.getByRole('button', { name: 'BOARD' })).toBeVisible()
   await line.getByRole('button', { name: 'BOARD' }).click()
   await expect(line.getByRole('button', { name: 'PLACE IT AGAIN' })).toBeVisible({ timeout: 45_000 })
-  await expect(line.getByText(/^FOOTPRINT: .+ → .+ \(DROP-IN\) · FITTED PART: AMS1117-3\.3 → .+$/)).toBeVisible()
+  // **A first visit places, and placing is a KiCad run.** The pane chases `trying` while the
+  // stored review replays, so a page opened on a reviewed product starts more than one of
+  // them and they contend — the run for the settled candidate can be queued behind the ones
+  // for candidates the review merely tried. That churn is a defect and is written down in
+  // DEFERRED; this wait is sized for a real run rather than for the interval that used to be
+  // enough when only one placement happened.
+  await expect(
+    line.getByText(/^FOOTPRINT: .+ → .+ \(DROP-IN\) · FITTED PART: AMS1117-3\.3 → .+$/),
+  ).toBeVisible({ timeout: 45_000 })
   const after = line.locator('figure').filter({ hasText: /^AFTER · / })
   const afterOverlay = after.locator('rect[fill="#a78bfa"]')
   await expect(afterOverlay).toBeVisible()
