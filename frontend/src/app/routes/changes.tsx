@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 
 import { ReviewLanes } from '../review/ReviewLanes'
+import { WaitingOnYou } from '../review/WaitingOnYou'
 import { Page } from '../shell/Page'
 import { useNoticeArrivals } from '../hooks/useNoticeArrivals'
 import {
@@ -9,11 +10,13 @@ import {
   exposureTo,
   listChangeRequests,
   listNotices,
+  listWaitingDecisions,
   receiveNotice,
   type AffectedLine,
   type ChangeRequest,
   type Notice,
   type ReceivedNotice,
+  type WaitingDecision,
 } from '../lib/api'
 
 export function skippedFor(notice: Notice | null): Notice['review_skipped'] {
@@ -38,12 +41,14 @@ export function noticeIdentity(notice: Notice): string {
 
 export default function ChangesRoute() {
   const { arrival } = useNoticeArrivals()
+  const navigate = useNavigate()
   const [notices, setNotices] = useState<Notice[]>([])
   const [selected, setSelected] = useState<Notice | null>(null)
   const [received, setReceived] = useState<ReceivedNotice | null>(null)
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [skipped, setSkipped] = useState<Notice['review_skipped']>([])
   const [affected, setAffected] = useState<AffectedLine[] | null>(null)
+  const [waiting, setWaiting] = useState<WaitingDecision[]>([])
   const [candidates, setCandidates] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -56,9 +61,25 @@ export default function ChangesRoute() {
     }
   }, [])
 
+  // **What this desk owes, asked for on the page rather than on a page of its own.** The
+  // rail badge already counts it; this is the same question answered where the change is, so
+  // the reader who has to sign something does not have to go and find it first.
+  const refreshWaiting = useCallback(async () => {
+    try {
+      setWaiting(await listWaitingDecisions())
+    } catch {
+      // A queue that cannot be read is not worth a banner over a review that can.
+      setWaiting([])
+    }
+  }, [])
+
   useEffect(() => {
     if (!busy) void refresh()
   }, [arrival, busy, refresh])
+
+  useEffect(() => {
+    void refreshWaiting()
+  }, [refreshWaiting, selected, requests])
 
   const upload = useCallback(
     async (file: File) => {
@@ -115,6 +136,20 @@ export default function ChangesRoute() {
     }
   }, [])
 
+  /** The same read, without touching anything else on the page.
+   *
+   * `RUN IT AGAIN` writes new change requests over the old ones, and the ones on screen were
+   * read before it started. Re-reading them through `open` would clear the notice, drop the
+   * selection and put the page back to the beginning under a run in progress. */
+  const reloadRequests = useCallback(async (noticeId: string) => {
+    try {
+      setRequests(await listChangeRequests(noticeId))
+    } catch {
+      // The old documents stay up. They are stale rather than wrong for this notice, and a
+      // failed refresh is not a reason to blank the page.
+    }
+  }, [])
+
   // Whatever arrived most recently, already open — or the one the caller named. A mailed
   // notice used to land as an unselected ten-pixel chip beside copy reading "Receive a
   // change notice to begin", which is false once one has been received and is why the
@@ -132,7 +167,7 @@ export default function ChangesRoute() {
   return (
     <Page
       actions={
-        <label className="font-data-tabular text-[11px] text-primary-container border border-primary-container rounded px-md py-1 cursor-pointer hover:bg-surface-variant transition-colors">
+        <label className="font-data-tabular text-[12px] text-primary-container border border-primary-container rounded px-md py-1 cursor-pointer hover:bg-surface-variant transition-colors">
           {/* Reading a notice is a model call against a PDF and takes a few seconds. A
               button that looks inert for that long reads as a button that did nothing. */}
           {busy ? 'READING…' : 'UPLOAD ONE INSTEAD'}
@@ -148,133 +183,147 @@ export default function ChangesRoute() {
           />
         </label>
       }
-      title="CHANGES"
-      width="wide"
-    >
-      {/* **Master and detail, rather than three screens down one column.** The left is what
-          arrived and what it reaches; the right is one thing at a time — the run, the lanes,
-          and the change request each lane ends in. A reading column made a finished document
-          arrive in the same place as a running one, which read as a replacement for it, and
-          put the third product's request a scroll below the first. See R3. */}
-      <div className="flex gap-lg items-start">
-        <aside className="w-[340px] flex-shrink-0 space-y-md">
-
-      {/* A list, not a row of ten-pixel chips. What arrived, when, how, and what it
-          retires — enough to pick one without having already known which to pick. The old
-          shape was a button that did not look like a button, holding the only route to
-          the review. */}
-      {notices.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          {notices.map((notice) => {
-            const open_ = (selected?.id ?? received?.id) === notice.id
-            return (
-              <button
-                className={`text-left border rounded px-md py-sm transition-colors ${
-                  open_
-                    ? 'border-primary-container bg-surface-container-low'
-                    : 'border-outline-variant hover:border-on-surface-variant'
-                }`}
-                key={notice.id}
-                onClick={() => void open(notice)}
-                type="button"
-              >
-                <span className="flex items-baseline justify-between gap-md">
-                  <span
-                    className={`font-data-tabular text-data-tabular ${
-                      open_ ? 'text-primary-container' : 'text-on-surface'
-                    }`}
-                  >
-                    {notice.mpn}
-                  </span>
-                  <span className="font-data-tabular text-[10px] text-outline shrink-0">
-                    {notice.source}
-                  </span>
-                </span>
-                <span className="block font-data-tabular text-[10px] text-on-surface-variant mt-0.5">
-                  {noticeIdentity(notice)}
-                </span>
-                <span className="block font-data-tabular text-[10px] text-on-surface-variant mt-0.5">
-                  {notice.manufacturer ?? 'manufacturer not stated'}
-                  {notice.effective_date ? ` · last order ${notice.effective_date}` : ''}
-                  {notice.replacement_mpn ? ` · recommends ${notice.replacement_mpn}` : ''}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-
-      {error ? <p className="font-data-tabular text-[11px] text-error">{error}</p> : null}
-
-      {active ? (
-        <section className="border border-outline-variant rounded p-lg space-y-sm">
-          <h2 className="font-headline-sm text-headline-sm text-on-surface">{active.mpn}</h2>
-          <p className="font-data-tabular text-[11px] text-on-surface-variant">
+      fill
+      subtitle={
+        active ? (
+          <>
             {active.manufacturer ?? 'manufacturer not stated'}
-            {active.effective_date ? ` · last order ${active.effective_date}` : ''}
+            {/* A notice that has just been uploaded has not been stored yet, so it carries no
+                reference and no arrival time to identify it by. Printed empty rather than
+                invented, which is the same rule the notice list follows. */}
+            {'id' in active ? ` · ${noticeIdentity(active)}` : ''}
             {active.replacement_mpn ? ` · recommends ${active.replacement_mpn}` : ''}
-          </p>
-          {/* The line the part number was actually read from. A notice whose MPN cannot be
-              traced back into its own document would start a review of a part nobody sells. */}
-          <p className="font-data-tabular text-[10px] text-on-surface-variant/70">
-            read from: “{active.mpn_line}”
-          </p>
+          </>
+        ) : undefined
+      }
+      title="CHANGES"
+    >
+      <WaitingOnYou
+        decisions={waiting}
+        onOpen={(noticeId) => navigate(`/changes?notice=${encodeURIComponent(noticeId)}`)}
+      />
 
-          {reaches ? (
-            <p className="font-data-tabular text-[11px] text-on-surface">
-              {reaches.length === 0
-                ? 'This part is not on any product line you ship.'
-                : `Affects ${reaches.length} product line${reaches.length === 1 ? '' : 's'}: ${reaches.map((line) => line.name).join(', ')}.`}
-            </p>
+      {/* **Two panes with a fixed height each, rather than one column that grows.** The page
+          is locked to the viewport now, so the notice stays where it is while the review
+          beside it runs, and a trace that fills the right pane scrolls inside it. Laid out
+          as a scrolling page, opening a lane pushed the notice that raised it off the top of
+          the screen, which is the one thing the reader wants to keep in view. */}
+      <div className="flex gap-lg items-stretch flex-1 min-h-0">
+        <aside className="w-[380px] flex-shrink-0 h-full overflow-y-auto space-y-md pr-sm">
+          {/* A list, not a row of ten-pixel chips. What arrived, when, how, and what it
+              retires — enough to pick one without having already known which to pick. The
+              old shape was a button that did not look like a button, holding the only route
+              to the review. */}
+          {notices.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              {notices.map((notice) => {
+                const open_ = (selected?.id ?? received?.id) === notice.id
+                return (
+                  <button
+                    className={`text-left border rounded px-md py-sm transition-colors ${
+                      open_
+                        ? 'border-primary-container bg-surface-container-low'
+                        : 'border-outline-variant hover:border-on-surface-variant'
+                    }`}
+                    key={notice.id}
+                    onClick={() => void open(notice)}
+                    type="button"
+                  >
+                    <span className="flex items-baseline justify-between gap-md">
+                      <span
+                        className={`font-data-tabular text-[14px] ${
+                          open_ ? 'text-primary-container' : 'text-on-surface'
+                        }`}
+                      >
+                        {notice.mpn}
+                      </span>
+                      <span className="font-data-tabular text-[11px] text-outline shrink-0">
+                        {notice.source}
+                      </span>
+                    </span>
+                    <span className="block font-data-tabular text-[11px] text-on-surface-variant mt-0.5">
+                      {noticeIdentity(notice)}
+                    </span>
+                    <span className="block font-data-tabular text-[11px] text-on-surface-variant mt-0.5">
+                      {notice.manufacturer ?? 'manufacturer not stated'}
+                      {notice.effective_date ? ` · last order ${notice.effective_date}` : ''}
+                      {notice.replacement_mpn ? ` · recommends ${notice.replacement_mpn}` : ''}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           ) : null}
 
-          {/* The candidates are found, not typed: the notice's own recommendation, then
-              the approved list, then the distributor's catalogue. This box is an override
-              for a part somebody wants tried anyway, and it is deliberately not the way in. */}
-          <details className="pt-sm">
-            <summary className="font-data-tabular text-[10px] text-on-surface-variant cursor-pointer">
-              TRY A PARTICULAR PART TOO
-            </summary>
-            <input
-              className="input-field px-sm h-8 w-full max-w-[420px] mt-1 font-data-tabular text-[11px]"
-              onChange={(event) => setCandidates(event.target.value)}
-              placeholder="MPN, MPN"
-              value={candidates}
-            />
-          </details>
-        </section>
-      ) : null}
+          {error ? <p className="font-data-tabular text-[12px] text-error">{error}</p> : null}
 
-      {skipped.length > 0 ? (
-        <section className="space-y-1">
-          <h2 className="font-data-tabular text-[11px] text-tertiary-container">
-            NOT CHECKED
-          </h2>
-          {skipped.map(({ mpn, reason }) => (
-            <p key={mpn} className="font-data-tabular text-[10px] text-tertiary-container">
-              {mpn}: {reason}, so it was not checked.
-            </p>
-          ))}
-        </section>
-      ) : null}
+          {active ? (
+            <section className="border border-outline-variant rounded p-lg space-y-sm">
+              <h2 className="font-data-tabular text-[16px] text-on-surface">{active.mpn}</h2>
+              {/* The line the part number was actually read from. A notice whose MPN cannot
+                  be traced back into its own document would start a review of a part nobody
+                  sells. */}
+              <p className="font-data-tabular text-[12px] text-on-surface-variant leading-relaxed">
+                read from: “{active.mpn_line}”
+              </p>
+
+              {reaches ? (
+                <p className="font-body-md text-[14px] text-on-surface leading-relaxed">
+                  {reaches.length === 0
+                    ? 'This part is not on any product line you ship.'
+                    : `Affects ${reaches.length} product line${reaches.length === 1 ? '' : 's'}: ${reaches.map((line) => line.name).join(', ')}.`}
+                </p>
+              ) : null}
+
+              {/* The candidates are found, not typed: the notice's own recommendation, then
+                  the approved list, then the distributor's catalogue. This box is an override
+                  for a part somebody wants tried anyway, and it is deliberately not the way in. */}
+              <details className="pt-sm">
+                <summary className="font-data-tabular text-[11px] text-on-surface-variant cursor-pointer">
+                  TRY A PARTICULAR PART TOO
+                </summary>
+                <input
+                  className="input-field px-sm h-8 w-full mt-1 font-data-tabular text-[12px]"
+                  onChange={(event) => setCandidates(event.target.value)}
+                  placeholder="MPN, MPN"
+                  value={candidates}
+                />
+              </details>
+            </section>
+          ) : null}
+
+          {skipped.length > 0 ? (
+            <section className="space-y-1">
+              <h2 className="font-data-tabular text-[12px] text-tertiary-container">NOT CHECKED</h2>
+              {skipped.map(({ mpn, reason }) => (
+                <p key={mpn} className="font-data-tabular text-[12px] text-tertiary-container">
+                  {mpn}: {reason}, so it was not checked.
+                </p>
+              ))}
+            </section>
+          ) : null}
         </aside>
 
-        <div className="flex-1 min-w-0 space-y-md">
-
+        <div className="flex-1 min-w-0 h-full overflow-y-auto pr-sm">
           {active && (received?.id ?? selected?.id) ? (
-            <>
-              <ReviewLanes
-                candidates={candidates
-                  .split(/[,\n]/)
-                  .map((mpn) => mpn.trim())
-                  .filter(Boolean)}
-                noticeId={(received?.id ?? selected?.id) as string}
-                onApplied={() => void refresh()}
-                requests={requests}
-              />
-            </>
+            <ReviewLanes
+              candidates={candidates
+                .split(/[,\n]/)
+                .map((mpn) => mpn.trim())
+                .filter(Boolean)}
+              noticeId={(received?.id ?? selected?.id) as string}
+              onApplied={() => {
+                void refresh()
+                void refreshWaiting()
+              }}
+              onFinished={() => {
+                void reloadRequests((received?.id ?? selected?.id) as string)
+                void refreshWaiting()
+              }}
+              requests={requests}
+            />
           ) : (
-            <p className="font-data-tabular text-[11px] text-on-surface-variant">
+            <p className="font-body-md text-[14px] text-on-surface-variant leading-relaxed">
               Nothing has arrived yet. Forward a change notice to the mailbox, or upload one.
               Continuity reads the part number out of the document, finds the products that
               carry it, and checks every substitute against each product’s own operating

@@ -23,6 +23,7 @@ export function Page({
   back,
   children,
   width = 'wide',
+  fill = false,
 }: {
   title: string
   subtitle?: ReactNode
@@ -31,13 +32,25 @@ export function Page({
   back?: { to: string; label: string }
   children: ReactNode
   width?: 'wide' | 'reading'
+  /** Hold the viewport instead of growing with the content.
+   *
+   *  The screens in `ownsTheViewport` are sets of panes: the header stays where it is and
+   *  each pane scrolls inside itself, which is what lets a notice sit beside the review it
+   *  raised instead of a screen above it. A page that grows is the other shape and is still
+   *  the default; this is opted into, not inherited from the route, so that a screen says
+   *  which of the two it is rather than being quietly changed by where it is mounted. */
+  fill?: boolean
 }) {
   const navigate = useNavigate()
   const { user } = useAuth()
 
   return (
-    <div className="bg-transparent min-h-screen text-on-background font-body-md antialiased">
-      <header className="flex items-center justify-between w-full px-lg h-12 bg-surface-container-low border-b border-outline-variant shadow-[0_1px_0_0_rgba(255,255,255,0.05)]">
+    <div
+      className={`text-on-background font-body-md antialiased ${
+        fill ? 'h-full overflow-hidden bg-background' : 'bg-transparent min-h-screen'
+      }`}
+    >
+      <header className="flex items-center justify-between w-full px-lg h-12 shrink-0 bg-surface-container-low border-b border-outline-variant shadow-[0_1px_0_0_rgba(255,255,255,0.05)]">
         {back ? (
           <button
             className="flex items-center gap-xs font-label-caps text-label-caps uppercase text-on-surface-variant hover:text-on-surface transition-colors"
@@ -67,11 +80,11 @@ export function Page({
       </header>
 
       <main
-        className={`min-h-[calc(100vh-48px)] ${
-          width === 'wide' ? 'max-w-[1200px]' : 'max-w-[900px]'
-        } mx-auto px-lg py-xl flex flex-col gap-lg`}
+        className={`${fill ? 'h-full min-h-0 overflow-hidden py-md' : 'min-h-[calc(100vh-48px)] py-xl'} ${
+          fill ? 'max-w-none' : width === 'wide' ? 'max-w-[1200px]' : 'max-w-[900px]'
+        } mx-auto px-lg flex flex-col gap-md`}
       >
-        <div className="flex items-start justify-between gap-md border-b border-outline-variant pb-sm">
+        <div className="flex items-start justify-between gap-md border-b border-outline-variant pb-sm shrink-0">
           <div className="min-w-0">
             <h1 className="font-label-caps text-label-caps tracking-[0.1em] uppercase text-on-surface">
               {title}

@@ -12,7 +12,6 @@ import LinesRoute from './app/routes/lines'
 import MemoryRoute from './app/routes/memory'
 import PolicyRoute from './app/routes/policy'
 import ChangesRoute from './app/routes/changes'
-import ApprovalsRoute from './app/routes/approvals'
 import { AppFrame } from './app/shell/AppFrame'
 import { AppShell } from './app/shell/AppShell'
 import './index.css'
@@ -57,14 +56,6 @@ const router = createBrowserRouter([
             element: (
               <RequireAuth>
                 <ChangesRoute />
-              </RequireAuth>
-            ),
-          },
-          {
-            path: '/approvals',
-            element: (
-              <RequireAuth>
-                <ApprovalsRoute />
               </RequireAuth>
             ),
           },

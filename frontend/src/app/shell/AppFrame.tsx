@@ -1,11 +1,11 @@
 import { Outlet, useLocation } from 'react-router'
 
 import { PcbBackground } from './PcbBackground'
-import { isWorkspacePath } from './workspace'
+import { ownsTheViewport } from './workspace'
 
 export function AppFrame() {
   const location = useLocation()
-  const isWorkspace = isWorkspacePath(location.pathname)
+  const isWorkspace = ownsTheViewport(location.pathname)
 
   return (
     // The workspace is locked to the viewport, and `AppShell` locks it with `100dvh`.

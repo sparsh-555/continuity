@@ -117,16 +117,17 @@ export function SideRail() {
         {/* `change_circle` — the page is a change notice arriving, a change request written
             and a change applied, and `mark_email_unread` described only the first third. It
             was the icon `/notices` had, and it survived the rename by a week. */}
-        <RailButton active={location.pathname === '/changes'} icon="change_circle" label="Changes" onClick={() => navigate('/changes')} />
-        {/* `how_to_reg` — a person and a tick, which is what signing for a desk is. The
-            badge is what this desk owes across every product line: three of the four people
-            who must sign a substitution previously had no way to find it. */}
+        {/* **The badge is on CHANGES rather than on a page of its own.** It was on
+            `Waiting on you`, which was a second place to sign the same decisions the review
+            lanes already ask for — so the same signature existed on two screens and the
+            count lived on the one nobody was looking at. Signing happens where the change
+            is, so the count belongs there too. It still counts only what this desk owes. */}
         <RailButton
-          active={location.pathname === '/approvals'}
+          active={location.pathname === '/changes'}
           badge={waiting}
-          icon="how_to_reg"
-          label="Waiting on you"
-          onClick={() => navigate('/approvals')}
+          icon="change_circle"
+          label="Changes"
+          onClick={() => navigate('/changes')}
         />
         {/* `fact_check` — a list with ticks beside it, which is what an approved list is.
             Both lists have gated every board since they were built and had no writer outside

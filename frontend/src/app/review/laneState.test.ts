@@ -2,12 +2,15 @@ import { expect, test } from 'bun:test'
 
 import {
   emptyLanes,
+  FRAME_CEILING_MS,
+  FRAME_FLOOR_MS,
   fresh,
   hasSigned,
   lanesFromReview,
   pacedDelay,
   reduceFrame,
   replayFrames,
+  rollingTrace,
   seededLanes,
   withSignatures,
   type StoredNoticeReview,
@@ -45,9 +48,13 @@ const liveRun = (): ReturnType<typeof reduceFrame> =>
     .reduce(reduceFrame, emptyLanes)
 
 const stored = (over: Partial<StoredNoticeReview> = {}): StoredNoticeReview => ({
-  decision_id: 'd1', line_id: 'l1', line_name: 'Sensor node', state: 'approved',
+  decision_id: 'd1', line_id: 'l1', line_name: 'Sensor node', state: 'pending',
   proposal: 'NCP1117ST33T3G', gate_rule: null, roles: ['engineering'],
-  signed: [], outstanding: [],
+  // What the server reports for a decision nobody has signed, which is what a fresh run
+  // leaves: four desks named and none of them ticked. It used to say `outstanding: []`,
+  // which is not a state a run produces and was the reason the hydrated lane disagreed with
+  // the live one about the same board.
+  signed: [], outstanding: ['engineering'],
   frames: [said(null, 'AMS1117-3.3 is going end of life.', 0),
            check('l1', 'thermal_dissipation', 1), done('l1', 'NCP1117ST33T3G', 2)],
   ...over,
@@ -89,13 +96,17 @@ test('a pending decision comes back with the question that was asked', () => {
   })
 })
 
-test('who has signed survives the replay, and nobody having signed shows nothing', () => {
+test('who has signed survives the replay, and nobody having signed is an answer', () => {
   const partial = lanesFromReview([stored({ state: 'pending', signed: ['engineering'],
                                            outstanding: ['procurement'] })])
   expect(partial.lanes[0].signatures).toEqual({ signed: ['engineering'], outstanding: ['procurement'] })
 
+  // **Nought of four, not nothing.** This used to be left null and the lane fell back to a
+  // sentence listing four desks, while the queue on the same screen showed four unticked
+  // boxes and *0 of 4 signed* for the same decision. One fact, two renderings, one of them
+  // unable to say who was outstanding.
   const untouched = lanesFromReview([stored({ state: 'pending', signed: [], outstanding: ['engineering'] })])
-  expect(untouched.lanes[0].signatures).toBeNull()
+  expect(untouched.lanes[0].signatures).toEqual({ signed: [], outstanding: ['engineering'] })
 })
 
 test('three boards hydrate as three lanes, each holding its own trace', () => {
@@ -123,7 +134,7 @@ test('a stale hydration does not overwrite a run that has already started', () =
 })
 
 test('a desk that has already signed is not offered the question again', () => {
-  // The rule `/approvals` already holds, in the second place a question is answered. A desk
+  // The rule the lane and the queue both hold. A desk
   // that signs twice is refused by the server, and before this the refusal was painted on the
   // lane as FAILED — a board that agrees with itself reading as a failed one.
   const lane = {
@@ -184,12 +195,43 @@ test('a paced replay ends exactly where an instant one does', () => {
 })
 
 test('the pace is staggered rather than metronomic', () => {
-  // A fixed interval reads as a machine printing lines, and the run being played back was
-  // not evenly spaced. Bounded and repeatable, because a jitter nobody can test is a jitter
+  // A fixed interval reads as a machine printing lines, and the run being replayed was not
+  // evenly spaced. Bounded and repeatable, because a jitter nobody can test is a jitter
   // nobody can reason about.
-  const delays = [0, 1, 2, 3, 4, 5, 6, 7].map((position) => pacedDelay(position))
+  const line = 'SATISFIED · junction temperature · 96 °C of 125 °C'
+  const delays = [0, 1, 2, 3, 4, 5, 6, 7].map((position) => pacedDelay(line, position))
 
   expect(new Set(delays).size).toBeGreaterThan(3)
-  expect(Math.min(...delays)).toBeGreaterThanOrEqual(150)
-  expect(Math.max(...delays)).toBeLessThanOrEqual(240)
+  expect(Math.min(...delays)).toBeGreaterThanOrEqual(FRAME_FLOOR_MS)
+  expect(Math.max(...delays)).toBeLessThanOrEqual(FRAME_CEILING_MS)
+})
+
+test('a longer line is given longer, so nothing looks skipped', () => {
+  // The whole reason the old pace read as robotic: a two-word narration and a full verdict
+  // were on screen for the same 150 ms, so the long one was never readable and the run
+  // looked like it was printing rather than reasoning.
+  const short = pacedDelay('Trying TLV1117LV33DCYR.', 0)
+  const long = pacedDelay(
+    'FAILED · junction temperature · 141 °C of 125 °C, which is 16 °C past the limit',
+    0,
+  )
+
+  expect(long).toBeGreaterThan(short)
+})
+
+test('an absurdly long line is still bounded by the ceiling', () => {
+  // A reasoning frame can be a paragraph. Without a ceiling one of them would sit there for
+  // several seconds with nothing moving, which reads as a hang.
+  expect(pacedDelay('x'.repeat(4_000), 3)).toBe(FRAME_CEILING_MS)
+})
+
+test('a lane that is still working shows its last three lines and no more', () => {
+  // One line replaced every few hundred milliseconds is motion without information. The
+  // whole trace while it is still arriving puts the page back to being the column of
+  // scrolling traces it was rebuilt to stop being.
+  const trace = ['one', 'two', 'three', 'four', 'five']
+
+  expect(rollingTrace(trace, true)).toEqual(['three', 'four', 'five'])
+  expect(rollingTrace(trace, false)).toEqual(['five'])
+  expect(rollingTrace([], true)).toEqual([])
 })

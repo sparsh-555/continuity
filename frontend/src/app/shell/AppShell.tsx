@@ -2,11 +2,11 @@ import { Outlet, useLocation } from 'react-router'
 
 import { NoticeArrivalProvider } from '../hooks/useNoticeArrivals'
 import { SideRail } from './SideRail'
-import { isWorkspacePath } from './workspace'
+import { ownsTheViewport } from './workspace'
 
 export function AppShell() {
   const location = useLocation()
-  const isWorkspace = isWorkspacePath(location.pathname)
+  const isWorkspace = ownsTheViewport(location.pathname)
 
   return (
     <NoticeArrivalProvider>

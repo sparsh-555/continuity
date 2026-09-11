@@ -38,10 +38,10 @@ export type Lane = {
 
 /** Whether one of `roles` has already signed this line's decision.
  *
- * The same rule `/approvals` states in its own words: *a desk that has already signed sees
- * what it signed and no buttons, rather than buttons that will 409*. This is the second place
- * a question is answered, and two definitions of "may I sign this" is how the two places come
- * to disagree.
+ * *A desk that has already signed sees what it signed and no buttons, rather than buttons
+ * that will 409.* This used to be stated twice — here and on `/approvals` — and the page is
+ * gone, so it is stated once. `WaitingOnYou` reads the same field to decide whether to draw
+ * its own button, which is why the strip and the lane cannot disagree about it.
  */
 export function hasSigned(lane: Lane, roles: readonly string[]): boolean {
   const signed = lane.signatures?.signed ?? []
@@ -147,6 +147,12 @@ export function reduceFrame(state: LaneState, frame: ReviewFrame): LaneState {
         proposal: frame.proposal,
         conditional: frame.conditional,
         reason: frame.reason,
+        // **The ending is where the signatures are stated, on both paths.** A run just
+        // finished has been signed by nobody, and the frame carries the desks that will have
+        // to. Without this a live lane finished with `signatures: null` and a hydrated one
+        // with four unticked boxes, which is the two definitions of one thing this file
+        // exists to prevent.
+        signatures: { signed: [], outstanding: [...frame.roles] },
       })
     case 'error':
       return frame.line_id
@@ -171,14 +177,18 @@ export type StoredNoticeReview = {
   frames: ReviewFrame[]
 }
 
-/** The lanes a stored review starts from, before any frame is applied. */
+/** The lanes a stored review starts from, before any frame is applied.
+ *
+ * **Running, because frames are about to arrive.** They start closed and the run's own
+ * `line_done` settles each one, which is the order the live stream has. Seeding them settled
+ * instead put `NO VIABLE PART` on three lanes for the beat between the page opening and the
+ * first frame landing, and left the rolling window — the thing that shows the checks
+ * arriving — switched off for the whole of a replay.
+ */
 export function seededLanes(rows: readonly StoredNoticeReview[]): LaneState {
   return {
     ...emptyLanes,
-    lanes: rows.map((row) => ({
-      ...fresh(row.line_id, row.line_name ?? 'this product line'),
-      running: false,
-    })),
+    lanes: rows.map((row) => fresh(row.line_id, row.line_name ?? 'this product line')),
   }
 }
 
@@ -186,7 +196,13 @@ export function seededLanes(rows: readonly StoredNoticeReview[]): LaneState {
  *
  * Signing happens after the ending, so nothing in the stream says who has signed — it is
  * read from the decision rows, which is also where a desk that signed this morning is
- * remembered from. */
+ * remembered from.
+ *
+ * **Set even when nobody has signed**, because *nobody has yet* is an answer. Leaving it
+ * null meant a replayed lane showed a bare sentence listing four desks while the queue
+ * above it showed four unticked boxes and *0 of 4 signed* — the same fact, two ways, on one
+ * screen.
+ */
 export function withSignatures(
   state: LaneState,
   rows: readonly StoredNoticeReview[],
@@ -196,7 +212,7 @@ export function withSignatures(
     ...state,
     lanes: state.lanes.map((lane) => {
       const row = byLine.get(lane.lineId)
-      if (!row || row.signed.length === 0) return lane
+      if (!row) return lane
       return { ...lane, signatures: { signed: row.signed, outstanding: row.outstanding } }
     }),
   }
@@ -225,14 +241,47 @@ export function replayFrames(rows: readonly StoredNoticeReview[]): ReviewFrame[]
   return [...frames].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
 }
 
-/** How long to wait before applying the next frame of a replay.
+/** How long a line stays on screen before the next one is drawn.
  *
- * **Staggered, not metronomic.** A fixed interval reads as a machine printing lines, and the
- * run being played back was not evenly spaced, so the recording should not pretend it was.
- * The wobble is a bounded function of the frame's position rather than a random number, so
- * the pace is irregular to watch and repeatable to test. */
-export function pacedDelay(position: number, base = 150, spread = 90): number {
-  return Math.round(base + Math.abs(Math.sin(position * 1.7)) * spread)
+ * **The whole defect was that this was the replay's idea and not the run's.** It existed only
+ * on the path that reads a finished review back out of the database, so clicking START THE
+ * REVIEW put every frame on screen in one burst — which is what a cached run looks like, and
+ * what made the streaming invisible — while leaving the page and coming back showed a paced
+ * one. There is one pace now, and both paths queue through it.
+ *
+ * **Scaled to the line, not metronomic.** A fixed interval per frame gives a two-word
+ * narration and a full verdict the same dwell, which reads as a machine printing rather than
+ * a run being followed. The delay grows with the length of the line and wobbles with its
+ * position; both terms are bounded and the wobble is a function rather than a random number,
+ * so the pace is irregular to watch and exactly repeatable to test.
+ *
+ * It is a demonstration pace, and it does not add time to anything. A frame that arrives
+ * sooner than its predecessor's dwell waits in the queue, and a frame that arrives later
+ * than it is drawn the moment it lands, so a slow run is still as slow as it is.
+ */
+export const FRAME_FLOOR_MS = 260
+export const FRAME_CEILING_MS = 900
+const FRAME_MS_PER_CHARACTER = 5.5
+const FRAME_WOBBLE_MS = 90
+
+export function pacedDelay(text: string, position = 0): number {
+  const scaled = FRAME_FLOOR_MS + text.length * FRAME_MS_PER_CHARACTER
+  const wobble = Math.abs(Math.sin(position * 1.7)) * FRAME_WOBBLE_MS
+  return Math.round(Math.min(FRAME_CEILING_MS, scaled + wobble))
+}
+
+/** The lines a lane shows while it is still working through its trace.
+ *
+ * A lane that has finished says one thing: where it ended up. A lane that is still arriving
+ * says the last few, because a single line replaced every few hundred milliseconds is
+ * motion without information — the reader sees that something is happening and cannot read
+ * what. Three is the window that shows the trace *moving* without turning the row back into
+ * the column this page was rebuilt to stop being. */
+export const ROLLING_LINES = 3
+
+export function rollingTrace<T>(trace: readonly T[], running: boolean): T[] {
+  if (trace.length === 0) return []
+  return running ? trace.slice(-ROLLING_LINES) : trace.slice(-1)
 }
 
 /**

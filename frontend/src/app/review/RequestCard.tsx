@@ -1,9 +1,61 @@
 import { Fragment } from 'react'
 
-import { BoardConsequence } from '../board/BoardConsequence'
 import { departmentLabel } from './Departments'
 import { checkLabel } from './ReviewLanes'
+import { SignatureRow } from './Signatures'
 import type { ChangeRequest } from '../lib/api'
+
+/** Every check a candidate was put through, the ones it failed first.
+ *
+ * **The failing ones are not behind a fold.** This block is the substitution matrix's job,
+ * rehomed: what was tried, what killed it, and the working behind the sentence in the body.
+ * It used to be a disclosure triangle reading *considered and rejected*, so the reader who
+ * came looking for the rejected parts found a closed row and concluded the content had been
+ * removed with the matrix page. Everything that failed is printed; the rest is a count and a
+ * way to open it, because twenty-two satisfied checks per candidate is a wall of agreement
+ * that buries the one line worth reading.
+ */
+function Verdicts({ alternative }: { alternative: ChangeRequest['alternatives'][number] }) {
+  const verdicts = alternative.verdicts ?? []
+  const failed = verdicts.filter((verdict) => verdict.status === 'failed')
+  const rest = verdicts.filter((verdict) => verdict.status !== 'failed')
+  if (verdicts.length === 0) return null
+
+  const line = (verdict: (typeof verdicts)[number], position: number) => (
+    <p
+      className="m-0 font-data-tabular text-[12px] leading-relaxed"
+      key={`${verdict.rule}:${verdict.scope ?? ''}:${position}`}
+    >
+      {/* The word first, never the colour alone: this is read on a projector and in a
+          screenshot. */}
+      <span className={verdict.status === 'failed' ? 'text-error' : 'text-on-surface-variant/70'}>
+        {checkLabel(verdict)}
+      </span>{' '}
+      <span className="text-on-surface-variant">
+        {verdict.rule.replace(/_/g, ' ')}
+        {verdict.scope ? ` · ${verdict.scope}` : ''} — {verdict.detail}
+        {verdict.margin ? ` · ${verdict.margin} to spare` : ''}
+        {verdict.departments && verdict.departments.length > 0
+          ? ` · ${verdict.departments.map(departmentLabel).join(' / ')}`
+          : ''}
+      </span>
+    </p>
+  )
+
+  return (
+    <div className="space-y-1">
+      {failed.map(line)}
+      {rest.length > 0 ? (
+        <details>
+          <summary className="font-data-tabular text-[12px] text-on-surface-variant cursor-pointer">
+            the other {rest.length} checks it passed
+          </summary>
+          <div className="space-y-0.5 mt-1">{rest.map(line)}</div>
+        </details>
+      ) : null}
+    </div>
+  )
+}
 
 /** A change request, as the person who has to sign it reads it.
  *
@@ -11,7 +63,20 @@ import type { ChangeRequest } from '../lib/api'
  *  as JSON on an endpoint. The rejected candidates' own verdict sets are the appendix —
  *  that is the
  *  working; this is the deliverable. */
-export function RequestCard({ request }: { request: ChangeRequest }) {
+export function RequestCard({
+  request,
+  signatures = null,
+  showRoundTrips = true,
+}: {
+  request: ChangeRequest
+  /** Who has signed this line's decision, when the caller knows. The lane does, because it
+   *  is where the signing happens; a request read on its own does not. */
+  signatures?: { signed: string[]; outstanding: string[] } | null
+  /** Off when the caller has already shown the round trips above, which is what the company
+   *  view does: they are the same three numbers on every board, and printing them three
+   *  times is what made them read as boilerplate rather than as a finding. */
+  showRoundTrips?: boolean
+}) {
   const rejected = request.alternatives.filter((a) => a.rejected_because)
   const viable = request.alternatives.filter((a) => !a.rejected_because)
 
@@ -20,13 +85,13 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
       <header className="flex items-start justify-between gap-md">
         <div className="min-w-0">
           <h3 className="font-headline-sm text-headline-sm text-on-surface">{request.line_name}</h3>
-          <p className="font-data-tabular text-[11px] text-on-surface-variant mt-0.5">
+          <p className="font-data-tabular text-[12px] text-on-surface-variant mt-0.5">
             {request.revision ? `${request.revision} · ` : ''}
             fitted today: {request.baseline_mpn ?? 'unknown'}
           </p>
         </div>
         <span
-          className={`font-data-tabular text-[11px] px-sm py-0.5 border rounded whitespace-nowrap ${
+          className={`font-data-tabular text-[12px] px-sm py-0.5 border rounded whitespace-nowrap ${
             request.proposal
               ? 'border-outline-variant text-[#4ade80]'
               : 'border-error text-error'
@@ -36,61 +101,36 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
         </span>
       </header>
 
-      <p className="font-data-tabular text-[11px] text-on-surface leading-relaxed">
+      <p className="font-data-tabular text-data-tabular text-on-surface leading-relaxed">
         {request.proposal_detail}
       </p>
 
       {rejected.length > 0 ? (
-        <section className="space-y-1">
-          <h4 className="font-data-tabular text-[10px] text-on-surface-variant">
-            CONSIDERED AND REJECTED
+        <section className="space-y-sm">
+          <h4 className="font-data-tabular text-[11px] tracking-[0.08em] text-on-surface-variant uppercase">
+            Considered and rejected
           </h4>
-          {/* The sentence that killed each, verbatim — and behind it, the whole set of checks
-              that sentence stands for. **One line in the body, the working in the appendix**,
-              which is the shape NEPA, MADR and every decision memo converge on: a proposal on
-              its own asks to be trusted, one that shows its rejections asks to be checked, and
-              a reader who wants to check opens the alternative rather than leaving the page. */}
-          {rejected.map((alternative) => {
-            const verdicts = alternative.verdicts ?? []
-            return (
-            <details key={alternative.mpn}>
-              <summary className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed cursor-pointer">
-                <span className="text-on-surface">{alternative.mpn}</span> —{' '}
-                {alternative.rejected_because}
-                {verdicts.length > 0 ? (
-                  <span className="text-on-surface-variant/60"> · {verdicts.length} checks</span>
-                ) : null}
-              </summary>
-              <ul className="m-0 mt-1 ml-md p-0 list-none flex flex-col gap-y-0.5">
-                {verdicts.map((verdict, position) => (
-                  <li
-                    className="font-data-tabular text-[10px] leading-relaxed"
-                    key={`${verdict.rule}:${verdict.scope ?? ''}:${position}`}
-                  >
-                    {/* The word first, never the colour alone: this is read on a projector
-                        and in a screenshot. */}
-                    <span className={verdict.status === 'failed' ? 'text-error' : 'text-on-surface-variant/70'}>
-                      {checkLabel(verdict)}
-                    </span>{' '}
-                    <span className="text-on-surface-variant">
-                      {verdict.rule.replace(/_/g, ' ')}
-                      {verdict.scope ? ` · ${verdict.scope}` : ''} — {verdict.detail}
-                      {verdict.margin ? ` · ${verdict.margin} to spare` : ''}
-                      {verdict.departments && verdict.departments.length > 0
-                        ? ` · ${verdict.departments.map(departmentLabel).join(' / ')}`
-                        : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-            )
-          })}
+          {/* **One standing block per part.** Each rejected candidate keeps its own place on
+              the page, with the sentence that killed it and the checks that sentence stands
+              for. In the trace these same lines arrive one candidate at a time and are
+              replaced by the next, which is why the working looked like it was not there. */}
+          {rejected.map((alternative) => (
+            <div
+              className="border-l-2 border-error/40 pl-md space-y-1"
+              key={alternative.mpn}
+            >
+              <p className="m-0 font-data-tabular text-[13px] leading-relaxed">
+                <span className="text-on-surface">{alternative.mpn}</span>
+                <span className="text-on-surface-variant"> — {alternative.rejected_because}</span>
+              </p>
+              <Verdicts alternative={alternative} />
+            </div>
+          ))}
         </section>
       ) : null}
 
       {viable.length > 0 ? (
-        <p className="font-data-tabular text-[10px] text-on-surface-variant">
+        <p className="font-data-tabular text-[12px] text-on-surface-variant">
           Also viable, not chosen: {viable.map((a) => a.mpn).join(', ')}
         </p>
       ) : null}
@@ -101,20 +141,20 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
           asked anything, and until this block existed no screen said so. */}
       {request.departments.length > 0 ? (
         <section className="space-y-1">
-          <h4 className="font-data-tabular text-[10px] text-on-surface-variant">
-            EVERY DEPARTMENT, CHECKED AT ONCE
+          <h4 className="font-data-tabular text-[11px] tracking-[0.08em] text-on-surface-variant uppercase">
+            Every department, checked at once
           </h4>
           <dl className="grid grid-cols-[minmax(0,7rem)_auto] gap-x-md gap-y-1">
             {request.departments.map((desk) => (
               <Fragment key={desk.role}>
                 <dt
-                  className={`font-data-tabular text-[10px] uppercase ${
+                  className={`font-data-tabular text-[12px] uppercase ${
                     desk.failed > 0 ? 'text-error' : 'text-on-surface-variant'
                   }`}
                 >
                   {departmentLabel(desk.role)}
                 </dt>
-                <dd className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed">
+                <dd className="font-data-tabular text-[12px] text-on-surface-variant leading-relaxed">
                   {/* Words rather than a colour alone: which desk is outstanding has to
                       survive greyscale and a projector. */}
                   <span className={desk.failed > 0 ? 'text-error' : 'text-[#4ade80]'}>
@@ -132,11 +172,13 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
 
       {request.evidence.length > 0 ? (
         <section className="space-y-1">
-          <h4 className="font-data-tabular text-[10px] text-on-surface-variant">EVIDENCE</h4>
+          <h4 className="font-data-tabular text-[11px] tracking-[0.08em] text-on-surface-variant uppercase">
+            Evidence
+          </h4>
           {request.evidence.map((check, index) => (
             <p
               key={`${check.rule}:${check.scope ?? ''}:${index}`}
-              className="font-data-tabular text-[10px] text-on-surface-variant leading-relaxed"
+              className="font-data-tabular text-[12px] text-on-surface-variant leading-relaxed"
             >
               <span className={check.status === 'failed' ? 'text-error' : 'text-[#4ade80]'}>
                 {check.rule.replace(/_/g, ' ')}
@@ -150,23 +192,16 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
 
       <section className="space-y-1 border-t border-outline-variant pt-md">
         {request.no_evidence.length > 0 ? (
-          <p className="font-data-tabular text-[10px] text-tertiary-container">
+          <p className="font-data-tabular text-[12px] text-tertiary-container">
             Could not be checked: {request.no_evidence.map((r) => r.replace(/_/g, ' ')).join(', ')}.
           </p>
         ) : null}
       </section>
 
-      <BoardConsequence
-        candidate={request.proposal}
-        lineId={request.line_id}
-        retiring={request.notice_mpn}
-        stored={request.board ?? null}
-      />
-
       {/* What this replaced, in the run's own numbers. The sequence is what costs a
           cross-team response its time, and there was no sequence. */}
       {request.checked ? (
-        <p className="font-data-tabular text-[10px] text-on-surface-variant/70 leading-relaxed">
+        <p className="font-data-tabular text-[12px] text-on-surface-variant/70 leading-relaxed">
           {request.checked.candidates} parts checked against {request.checked.departments}{' '}
           departments&rsquo; rules on {request.checked.lines} product line
           {request.checked.lines === 1 ? '' : 's'} — {request.checked.checks} checks on this
@@ -176,21 +211,19 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
 
       {/* **An estimate, with its arithmetic and its sources.** No published method turns
           counts into hours, so this is two published constants applied to what the run
-          counted: one engineering-change iteration's touch time (Loch & Terwiesch 1999), and
-          one handoff's stall between people (Herbsleb et al. 2001). It is shown rather than
-          summarised because a reader can argue with a constant and cannot argue with a
-          number that arrives on its own. */}
-      {request.saving ? (
+          counted. Shown rather than summarised because a reader can argue with a constant
+          and cannot argue with a number that arrives on its own. */}
+      {showRoundTrips && request.saving ? (
         <section className="space-y-1 border-t border-outline-variant pt-md">
-          <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant">
-            WHAT THE MISSING ROUND TRIPS ARE WORTH
+          <p className="m-0 font-data-tabular text-[11px] tracking-[0.08em] text-on-surface-variant uppercase">
+            What the missing round trips are worth
           </p>
-          <p className="m-0 font-data-tabular text-[11px] text-on-surface leading-relaxed">
+          <p className="m-0 font-data-tabular text-[13px] text-on-surface leading-relaxed">
             About {request.saving.desk_hours} hours of desk time and about{' '}
             {request.saving.queue_days} days of queueing: {request.saving.desks} desks,{' '}
             {request.saving.crossings} handoffs, none of which this change had to cross.
           </p>
-          <p className="m-0 font-data-tabular text-[10px] text-on-surface-variant/70 leading-relaxed">
+          <p className="m-0 font-data-tabular text-[12px] text-on-surface-variant/70 leading-relaxed">
             {request.saving.basis}
           </p>
         </section>
@@ -199,34 +232,34 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
       {/* An engineering change order carries an inventory disposition, and this one only when
           there is something to dispose of — a line short of what it builds. */}
       {request.disposition ? (
-        <p className="font-data-tabular text-[10px] text-tertiary-container leading-relaxed">
+        <p className="font-data-tabular text-[12px] text-tertiary-container leading-relaxed">
           DISPOSITION — {request.disposition}
         </p>
       ) : null}
 
-      <p className="font-data-tabular text-[10px] text-on-surface-variant">
+      <p className="font-data-tabular text-[12px] text-on-surface-variant">
         EFFECTIVITY — {request.effectivity ?? 'on the last signature'}. Nothing is ordered or
         fabricated before then.
       </p>
 
       <section className="flex flex-wrap gap-lg border-t border-outline-variant pt-md">
         <div className={request.proposal ? '' : 'hidden'}>
-          <p className="font-data-tabular text-[10px] text-on-surface-variant">ONE-TIME</p>
-          <p className="font-data-tabular text-[11px] text-on-surface">
+          <p className="font-data-tabular text-[11px] text-on-surface-variant">ONE-TIME</p>
+          <p className="font-data-tabular text-[13px] text-on-surface">
             ${request.cost.one_time.toLocaleString()}
           </p>
-          <p className="font-data-tabular text-[10px] text-on-surface-variant">
+          <p className="font-data-tabular text-[12px] text-on-surface-variant">
             {request.cost.one_time_basis}
           </p>
         </div>
         <div className={request.proposal ? '' : 'hidden'}>
-          <p className="font-data-tabular text-[10px] text-on-surface-variant">RECURRING</p>
-          <p className="font-data-tabular text-[11px] text-on-surface">
+          <p className="font-data-tabular text-[11px] text-on-surface-variant">RECURRING</p>
+          <p className="font-data-tabular text-[13px] text-on-surface">
             {request.cost.recurring_annual === null
               ? '—'
               : `$${request.cost.recurring_annual.toLocaleString()} a year`}
           </p>
-          <p className="font-data-tabular text-[10px] text-on-surface-variant">
+          <p className="font-data-tabular text-[12px] text-on-surface-variant">
             {request.cost.unit_delta === null
               ? 'no published price to compare'
               : request.cost.annual_volume
@@ -235,11 +268,22 @@ export function RequestCard({ request }: { request: ChangeRequest }) {
           </p>
         </div>
         {request.approvals_required.length > 0 ? (
-          <div>
-            <p className="font-data-tabular text-[10px] text-on-surface-variant">APPROVALS</p>
-            <p className="font-data-tabular text-[11px] text-on-surface">
-              {request.approvals_required.join(' and ')}
-            </p>
+          <div className="space-y-1">
+            <p className="font-data-tabular text-[11px] text-on-surface-variant">APPROVALS</p>
+            {/* Ticks where the caller knows who has signed, the plain list where it does not.
+                A request read on its own has no signature state, and inventing one would put
+                an unticked box beside a desk that has already signed. */}
+            {signatures ? (
+              <SignatureRow
+                roles={request.approvals_required}
+                signed={signatures.signed}
+                tone="text-[12px]"
+              />
+            ) : (
+              <p className="font-data-tabular text-[13px] text-on-surface">
+                {request.approvals_required.map(departmentLabel).join(' and ')}
+              </p>
+            )}
           </div>
         ) : null}
       </section>

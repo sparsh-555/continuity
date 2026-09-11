@@ -6,7 +6,7 @@ const email = process.env.CONTINUITY_E2E_EMAIL
 const password = process.env.CONTINUITY_E2E_PASSWORD
 
 test.skip(!email || !password, 'Set CONTINUITY_E2E_EMAIL and CONTINUITY_E2E_PASSWORD to run against a disposable demo world.')
-test.setTimeout(75_000)
+test.setTimeout(240_000)
 
 // **This test needs a world nobody has touched.** It asserts `End of life (0)` before
 // delivering the notice, so a second run against the same world fails on its own
@@ -52,7 +52,16 @@ test('a delivered notice announces itself and refreshes rows and an open product
   await expect(sensorLane).toBeVisible()
   await sensorLane.click()
   await expect(page.getByText(/^Trying .+\.$/).first()).toBeVisible()
-  await expect(page.getByText(/SATISFIED · thermal dissipation/).first()).toBeVisible()
+
+  // **These waits are long because the trace is drawn at a pace a person can read.** The
+  // frames are on the client within a second; `pacedDelay` in `laneState` spreads them over
+  // roughly a minute and a half so that a line lands, is read, and is followed by the next.
+  // A check deep into a candidate's own list is therefore tens of seconds away rather than
+  // milliseconds, and a timeout sized for the old instant replay reads a working product as
+  // a broken one. `SKIP TO THE END` is the escape hatch and has its own coverage below.
+  await expect(page.getByText(/SATISFIED · thermal dissipation/).first()).toBeVisible({
+    timeout: 60_000,
+  })
 
   // **Leaving and coming back shows the review that ran.** Lane state used to be component
   // state, so navigating away abandoned the run and returning showed the stored change
