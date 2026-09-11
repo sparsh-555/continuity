@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { BriefEntry } from '../design/BriefEntry'
 import { Workspace, WorkspaceView } from '../design/Workspace'
@@ -170,17 +170,23 @@ function RestoredWorkspace({ lineId, thread }: { lineId: string; thread: LineThr
 export default function DesignRoute() {
   const navigate = useNavigate()
   const { lineId } = useParams<{ lineId: string }>()
+  const [params] = useSearchParams()
+
+  // Which run to open. This route is keyed by the **line**, so an older run is named in the
+  // query rather than in the path: `/design/{line}?thread={run}`. Arriving without one opens
+  // the newest, which is what somebody coming from the dashboard means by *open the board*.
+  const wanted = params.get('thread')
 
   const [mode, setMode] = useState<LineMode>(lineId ? 'loading' : 'workspace')
   const [startedRequest, setStartedRequest] = useState<StartedRequest | null>(null)
-  const [latestThread, setLatestThread] = useState<LineThread | null>(null)
+  const [thread, setThread] = useState<LineThread | null>(null)
 
   useEffect(() => {
     if (!lineId) {
       // Single-user local mode: no accounts, no lines, nothing to look up.
       setMode('workspace')
       setStartedRequest(null)
-      setLatestThread(null)
+      setThread(null)
       return
     }
 
@@ -190,7 +196,7 @@ export default function DesignRoute() {
 
     setMode('loading')
     setStartedRequest(null)
-    setLatestThread(null)
+    setThread(null)
 
     async function decide() {
       try {
@@ -199,7 +205,10 @@ export default function DesignRoute() {
         // would only be a second round trip to learn the same thing.
         const threads = await listLineThreads(id)
         if (active) {
-          setLatestThread(threads[0] ?? null)
+          // A thread asked for by id, or the newest. An id naming a run this line does not
+          // have falls back to the newest rather than to an error: the link came from
+          // somewhere, and the honest answer to "that run is gone" is the current board.
+          setThread(threads.find((run) => run.id === wanted) ?? threads[0] ?? null)
           setMode(threads.length === 0 ? 'none' : 'workspace')
         }
       } catch {
@@ -218,7 +227,7 @@ export default function DesignRoute() {
     return () => {
       active = false
     }
-  }, [navigate, lineId])
+  }, [navigate, lineId, wanted])
 
   if (!lineId) {
     return <Workspace />
@@ -248,8 +257,8 @@ export default function DesignRoute() {
 
   return startedRequest ? (
     <StartedWorkspace lineId={lineId} request={startedRequest} />
-  ) : latestThread && latestThread.status !== 'running' ? (
-    <RestoredWorkspace lineId={lineId} thread={latestThread} />
+  ) : thread && thread.status !== 'running' ? (
+    <RestoredWorkspace lineId={lineId} thread={thread} />
   ) : (
     <Workspace lineId={lineId} />
   )

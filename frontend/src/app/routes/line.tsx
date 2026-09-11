@@ -17,10 +17,12 @@ import {
   checkLine,
   getLineOverview,
   listLineReviews,
+  listLineThreads,
   type LineCheck,
   type LineNotice,
   type LineOverview,
   type LineRequest,
+  type LineThread,
   type StoredReview,
 } from '../lib/api'
 
@@ -68,11 +70,12 @@ function Toggle({
   )
 }
 
-/** What the right-hand pane is showing. The bill is the resting state; the other two take
+/** What the right-hand pane is showing. The bill is the resting state; the others take
  *  its place exactly as `design/ConflictPanel` takes `design/BomTable`'s. */
 type Drawer =
   | { kind: 'bom' }
   | { kind: 'notice' }
+  | { kind: 'runs' }
   | { kind: 'request'; request: LineRequest }
 
 /**
@@ -95,6 +98,7 @@ export default function LineRoute() {
   const [view, setView] = useState<'components' | 'board'>('components')
   const [drawer, setDrawer] = useState<Drawer>({ kind: 'bom' })
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null)
+  const [runs, setRuns] = useState<LineThread[]>([])
 
   const load = useCallback(async () => {
     if (!lineId) return
@@ -129,6 +133,22 @@ export default function LineRoute() {
     setCheck(null)
     void run()
   }, [arrival, run])
+
+  // What this product line has been through. A design run used to be reachable only through
+  // the newest one — the design route is keyed by the line — so a finished run was orphaned
+  // the moment a second one existed. Listing them here is what gives each one an address.
+  useEffect(() => {
+    if (!lineId) return
+    let live = true
+    void listLineThreads(lineId)
+      .then((found) => {
+        if (live) setRuns(found)
+      })
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [lineId, arrival])
 
   // A change was applied, so the bill, the notices and the verdicts on this page are all
   // about a board that no longer exists. Both are reloaded rather than patched: the notice
@@ -294,6 +314,21 @@ export default function LineRoute() {
           {error ? (
             <span className="font-data-tabular text-[10px] text-error">{error}</span>
           ) : null}
+          {/* Disabled rather than empty: a control that opens a drawer with nothing in it is
+              an affordance with nothing to do, and a seeded product line has never had a run
+              until somebody designs one. */}
+          <button
+            className="h-8 px-md font-body-sm text-body-sm rounded border border-outline-variant text-on-surface-variant hover:bg-surface-variant transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={runs.length === 0}
+            onClick={() =>
+              setDrawer((current) =>
+                current.kind === 'runs' ? { kind: 'bom' } : { kind: 'runs' },
+              )
+            }
+            type="button"
+          >
+            Runs ({runs.length})
+          </button>
           <button
             className={`h-8 px-md font-body-sm text-body-sm font-bold rounded transition-colors duration-75 flex items-center gap-sm disabled:cursor-not-allowed ${
               notices.length === 0
@@ -364,6 +399,36 @@ export default function LineRoute() {
             <div className="p-md">
               <RequestCard request={drawer.request.document} />
             </div>
+          </SidePanel>
+        ) : drawer.kind === 'runs' ? (
+          <SidePanel onClose={() => setDrawer({ kind: 'bom' })} title="DESIGN RUNS">
+            <ul className="p-md m-0 list-none flex flex-col gap-md">
+              {runs.map((entry) => (
+                <li
+                  className="border border-outline-variant rounded p-sm flex flex-col gap-xs"
+                  key={entry.id}
+                >
+                  <p className="m-0 font-body-sm text-body-sm text-on-surface">
+                    {entry.prompt}
+                  </p>
+                  <p className="m-0 font-data-tabular text-[11px] text-on-surface-variant">
+                    {entry.status}
+                    {entry.summary
+                      ? ` · ${entry.summary.placed} of ${entry.summary.slots} placed · ${Math.round(entry.summary.elapsed_s)} s`
+                      : ''}
+                  </p>
+                  {/* The address of this run. The route is keyed by the line, so the run
+                      itself travels in the query — without it, only the newest is openable
+                      and every earlier run is orphaned the moment a later one exists. */}
+                  <Link
+                    className="font-label-caps text-label-caps text-primary-container hover:text-primary-fixed"
+                    to={`/design/${lineId}?thread=${entry.id}`}
+                  >
+                    OPEN THIS RUN
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </SidePanel>
         ) : (
           <LineBom
